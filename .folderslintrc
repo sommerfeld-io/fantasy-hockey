@@ -1,0 +1,21 @@
+{
+  "rules": [
+    ".github/workflows",
+
+    ".vscode",
+
+    "docs/modules/*/assets/attachments/**",
+    "docs/modules/*/assets/images/**",
+    "docs/modules/*/examples/*",
+    "docs/modules/*/examples/**",
+    "docs/modules/*/pages/*",
+    "docs/modules/*/pages/**",
+    "docs/modules/*/partials/*",
+    "docs/modules/*/partials/**",
+
+    "src/main/**",
+
+    "node_modules/**",
+    "target/**"
+  ]
+}
