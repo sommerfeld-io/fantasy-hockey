@@ -1,5 +1,6 @@
 {
   "rules": [
+    ".devcontainer",
     ".github/workflows",
 
     ".vscode",
@@ -13,9 +14,6 @@
     "docs/modules/*/partials/*",
     "docs/modules/*/partials/**",
 
-    "src/main/**",
-
-    "node_modules/**",
     "target/**"
   ]
 }
