@@ -1,0 +1,24 @@
+# folders
+.devcontainer
+# .git # do NOT ignore because antora needs the git-repo-tree
+.github
+.vscode
+
+# files
+.dockerignore
+.env
+docker-compose.yml
+Dockerfile.docs
+Makefile
+
+# linter files
+.folderslintrc
+.gitignore
+.ls-lint.yml
+.pre-commit-config.yaml
+.shellcheckrc
+.yamllint.yml
+
+# adoc file based on docs
+LICENSE.adoc
+README.adoc
