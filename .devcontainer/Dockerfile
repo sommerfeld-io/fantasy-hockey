@@ -28,14 +28,13 @@
 FROM mcr.microsoft.com/vscode/devcontainers/base:debian-12
 LABEL maintainer="sebastian@sommerfeld.io"
 
-ARG USER=vscode
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends pre-commit=3.0.4-1 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
+ARG USER=vscode
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN chsh --shell /bin/bash "$USER" \
     && echo "alias ls='ls -a'" >> "/home/$USER/.bashrc" \
-    && echo "alias ll='ls -alF'" >> "/home/$USER/.bashrc" \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends python3-pip=20.3.4-4+deb11u1 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir pre-commit==3.3.3
+    && echo "alias ll='ls -alF'" >> "/home/$USER/.bashrc"

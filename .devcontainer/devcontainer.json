@@ -37,7 +37,7 @@
 	},
 
 	"features": {
-		"ghcr.io/devcontainers/features/docker-in-docker:2.7.1": {}
+		"ghcr.io/devcontainers/features/docker-in-docker:2.8.0": {}
 	},
 
 	"postCreateCommand": "pre-commit install",
