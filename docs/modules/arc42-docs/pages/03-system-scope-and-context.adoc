@@ -1,0 +1,5 @@
+= 03 - System Scope and Context
+:description: System scope and context delimits your system (i.e. your scope) from all its communication partners (neighboring systems and users).
+:page-layout: full-page
+
+I am starting with a fresh project that aims to build a browser-based NHL Fantasy game. There are no other systems to consider because as of now there is no integration into any other system. However I should keep in mind that maybe sometime in the future I would like to consume NHL standings and results and similar information from some kind of web service to allow comparing predictions players to actual results.

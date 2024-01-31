@@ -1,0 +1,9 @@
+= 02 - Architecture Constraints
+:description: Any requirement that constraints software architects in their freedom of design and implementation decisions or decision about the development process.
+:page-layout: full-page
+
+From a learning point of view, some tools are pre-defined. Kotlin is the language of choice due to the desire to learn Kotlin. This establishes the JVM as the runtime environment. Since Kotlin and probably some frontend technology are new to me, Maven will be the build (automation) and dependency management tool because I already am familiar with Maven. Gradle might have some upsides (which I never investigated myself) but using Gradle would add another unknown component to the mix. The same can be said for the Spring Framework. I am familiar with the concepts of Spring and Spring Boot and although I don't now the newest versions, the learning curve should not be as steep and with some new technology.
+
+From a development point of view, everything should be defined as code. That includes the application code itself as well as infrastructure code, development environment, documentation, workflows and pipelines.
+
+Every asset of the application will be hosted in either GitHub (code, issues, workflows, project management stuff) or DockerHub (container images). Additional tools e.g. for code scanning might follow and could be hosted elsewhere if useful.

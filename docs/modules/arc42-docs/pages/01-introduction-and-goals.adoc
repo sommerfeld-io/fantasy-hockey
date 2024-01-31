@@ -1,0 +1,46 @@
+= 01 - Introduction and Goals
+:description: Describes the relevant requirements and the driving forces that software architects and development team must consider. 
+:page-layout: full-page
+
+{description}
+
+== Vision
+I want to build a browser-based NHL Fantasy Game to replace the Google-Spreadsheet based solution. This Fantasy Game should allow predicting various results for a single NHL season and rank all players from best to worst based on a points system at the end of the season.
+
+This browser-based NHL Fantasy Game should also act as a learning ground to get a feel for software development with Kotlin and for deploying a container-based application to some cloud provider following infrastructure as code patterns. Additionally this allows me to learn about software engineering in TDD and BDD/ATDD fashion The foundational way of working should be continuous integration.
+
+== Goals
+The game should support the same 3 players as the Spreadsheet version. However it should allow predicting in secret as long as a respective deadline is not met. Then the respective predictions become final and visible to other players.
+
+Predictions should include
+
+* Predict the Regular Season
+* Predict the Predict Playoffs
+* Predict Player Awards
+* Predict Team Awards
+
+// == Stakeholders
+
+// .Contents
+// Explicit overview of stakeholders of the system, i.e. all person, roles or organizations that
+
+// * should know the architecture
+// * have to be convinced of the architecture
+// * have to work with the architecture or with code
+// * need the documentation of the architecture for their work
+// * have to come up with decisions about the system or its development
+
+// .Motivation
+// You should know all parties involved in development of the system or affected by the system.
+// Otherwise, you may get nasty surprises later in the development process.
+// These stakeholders determine the extent and the level of detail of your work and its results.
+
+// .Form
+// Table with role names, person names, and their expectations with respect to the architecture and its documentation.
+
+// [options="header",cols="1,2,2"]
+// |===
+// |Role/Name |Contact |Expectations
+// |_<Role-1>_ |_<Contact-1>_ |_<Expectation-1>_
+// |_<Role-2>_ |_<Contact-2>_ |_<Expectation-2>_
+// |===
