@@ -1,0 +1,63 @@
+{
+    "name": "fantasy-hockey",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+
+    "mounts": [
+        {
+            "source": "/etc/timezone",
+            "target": "/etc/timezone",
+            "type": "bind"
+        },
+        {
+            "source": "/etc/localtime",
+            "target": "/etc/localtime",
+            "type": "bind"
+        }
+    ],
+
+    "customizations": {
+		"vscode": {
+			"settings": {},
+			"extensions": [
+                "streetsidesoftware.code-spell-checker",
+                "asciidoctor.asciidoctor-vscode",
+                "ms-azuretools.vscode-docker",
+                "aaron-bond.better-comments",
+                "pomdtr.markdown-kroki",
+                "timonwong.shellcheck",
+                "jebbs.plantuml",
+                "github.vscode-github-actions",
+                "redhat.vscode-yaml",
+                "alexkrechik.cucumberautocomplete",
+                "ms-vscode.makefile-tools",
+                "chef-software.chef"
+            ]
+		}
+	},
+
+	"features": {
+		"ghcr.io/devcontainers/features/docker-in-docker:2.7.1": {}
+	},
+
+	"postCreateCommand": "pre-commit install",
+	"postStartCommand": "docker compose --file ${containerWorkspaceFolder}/.devcontainer/ops/docker-compose.yml --env-file ${containerWorkspaceFolder}/.devcontainer/ops/.env up -d",
+
+    "forwardPorts": [
+		8080,
+        8081,
+        8990
+    ],
+    "portsAttributes": {
+        "8080": {
+            "label": "app"
+        },
+        "8081": {
+            "label": "docs"
+        },
+        "7990": {
+            "label": "portainer"
+        }
+    }
+}
