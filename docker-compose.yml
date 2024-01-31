@@ -1,0 +1,38 @@
+---
+# @file docker-compose.yml
+# @brief ...
+#
+# @description ...
+# TODO ... this and brief above
+#
+# | What              | URL (host-port)            | Info               |
+# | ----------------- | -------------------------- | ------------------ |
+# | app               | http://localhost:8080/app  | Fantasy Hockey app |
+# | docs              | http://localhost:8081/docs | Antora docs page   |
+
+version: "3.3"
+
+services:
+  docs:
+    container_name: ${COMPOSE_PROJECT_NAME}-docs
+    build:
+      context: .
+      dockerfile: Dockerfile.docs
+    image: local/${COMPOSE_PROJECT_NAME}-docs:${DEV_TAG}
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - 8081:8081
+    healthcheck:
+      test: "wget --no-verbose --tries=1 --spider http://localhost:8081/docs || exit 1"
+      interval: 10s
+      timeout: 2s
+      retries: 16
+      start_period: 5s
+
+  app:
+    container_name: ${COMPOSE_PROJECT_NAME}-app
+    image: httpd:2.4.58-alpine3.19
+    ports:
+      - 8080:80

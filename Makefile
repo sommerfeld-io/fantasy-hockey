@@ -30,7 +30,11 @@ lint-filenames:
 	docker run --rm -i --volume "$(shell pwd):/data" --workdir "/data" lslintorg/ls-lint:1.11.2
 
 test: lint-makefile lint-yaml lint-folders lint-filenames
-# Todo ...
+	docker run --rm -i hadolint/hadolint:latest < Dockerfile.docs
+
+# build:
+# todo build docker containers but build every other thing of interest first (the app etc)
 
 clean:
-# Todo ...
+	docker compose down --rmi all --volumes --remove-orphans
+	rm -rf target
