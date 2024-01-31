@@ -4,7 +4,7 @@ Sebastian Sommerfeld <sebastian@sommerfeld.io>
 :url-project: https://github.com/sommerfeld-io/{project-name}
 :github-actions-url: {url-project}/actions/workflows
 :job-pipeline: pipeline.yml
-:job-generate-docs: generate-docs
+:job-generate-docs: generate-docs.yml
 :badge: badge.svg
 
 Browser-based NHL Fantasy Game to replace the Google-Spreadsheet solution. This Fantasy Game should allow predicting various results for a single NHL season and rank all players from best to worst based on points at the end of the season. 
