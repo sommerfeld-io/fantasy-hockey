@@ -1,0 +1,7 @@
+---
+name: fantasy-hockey
+title: Fantasy Hockey Game
+version: main
+start_page: ROOT:index.adoc
+nav:
+  - modules/ROOT/nav.adoc
