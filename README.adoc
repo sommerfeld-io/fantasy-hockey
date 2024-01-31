@@ -1,7 +1,7 @@
 = fantasy-hockey
 Sebastian Sommerfeld <sebastian@sommerfeld.io>
 :project-name: fantasy-hockey
-:url-project: https://github.com/sebastian-sommerfeld-io/{project-name}
+:url-project: https://github.com/sommerfeld-io/{project-name}
 :github-actions-url: {url-project}/actions/workflows
 :job-pipeline: pipeline.yml
 :job-generate-docs: generate-docs
