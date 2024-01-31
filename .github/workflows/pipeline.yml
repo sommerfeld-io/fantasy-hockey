@@ -75,6 +75,8 @@ jobs:
         run: make lint-makefile
         shell: bash
 
+# todo ... build all components (starting with the docs)
+
   on-failure:
     runs-on: ubuntu-latest
     needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'lint-makefile']
