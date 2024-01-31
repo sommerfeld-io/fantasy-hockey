@@ -25,7 +25,7 @@
 # inside the devcontainer and initializes ``pre-commit`` once the container is created.
 
 
-FROM mcr.microsoft.com/vscode/devcontainers/base:debian-11
+FROM mcr.microsoft.com/vscode/devcontainers/base:debian-12
 LABEL maintainer="sebastian@sommerfeld.io"
 
 ARG USER=vscode
