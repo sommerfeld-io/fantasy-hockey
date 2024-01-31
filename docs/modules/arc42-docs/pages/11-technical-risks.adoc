@@ -1,4 +1,4 @@
-= 11 - Risks and Technical Debts
+= Risks and Technical Debts
 :description: A list of identified technical risks or technical debts, ordered by priority.
 :page-layout: full-page
 :project-name: fantasy-hockey

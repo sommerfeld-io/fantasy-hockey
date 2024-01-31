@@ -1,4 +1,4 @@
-= 03 - System Scope and Context
+= System Scope and Context
 :description: System scope and context delimits your system (i.e. your scope) from all its communication partners (neighboring systems and users).
 :page-layout: full-page
 

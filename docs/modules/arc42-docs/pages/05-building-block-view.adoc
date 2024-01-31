@@ -1,4 +1,4 @@
-= 05 - Building Block View
+= Building Block View
 :description: Mandatory overview of your source code by making its structure understandable through abstraction.
 
 {description}

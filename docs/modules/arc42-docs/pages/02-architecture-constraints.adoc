@@ -1,4 +1,4 @@
-= 02 - Architecture Constraints
+= Architecture Constraints
 :description: Any requirement that constraints software architects in their freedom of design and implementation decisions or decision about the development process.
 :page-layout: full-page
 

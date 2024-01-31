@@ -1,4 +1,4 @@
-= 10 - Quality Requirements
+= Quality Requirements
 :description: This section contains all quality requirements with scenarios.
 
 {description}

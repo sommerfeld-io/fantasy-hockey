@@ -1,2 +1,2 @@
-= Fantasy Hockey Game
+= Documentation Startpage
 include::ROOT:partial$README.adoc[]
