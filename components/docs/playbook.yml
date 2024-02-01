@@ -20,7 +20,7 @@ content:
   # tags: [v*]
   sources:
     - url: /workspaces/fantasy-hockey
-      start_path: docs
+      start_path: components/docs
 
 asciidoc:
   attributes:

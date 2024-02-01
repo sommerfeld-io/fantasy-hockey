@@ -5,14 +5,14 @@
 
     ".vscode",
 
-    "docs/modules/*/assets/attachments/**",
-    "docs/modules/*/assets/images/**",
-    "docs/modules/*/examples/*",
-    "docs/modules/*/examples/**",
-    "docs/modules/*/pages/*",
-    "docs/modules/*/pages/**",
-    "docs/modules/*/partials/*",
-    "docs/modules/*/partials/**",
+    "components/docs/modules/*/assets/attachments/**",
+    "components/docs/modules/*/assets/images/**",
+    "components/docs/modules/*/examples/*",
+    "components/docs/modules/*/examples/**",
+    "components/docs/modules/*/pages/*",
+    "components/docs/modules/*/pages/**",
+    "components/docs/modules/*/partials/*",
+    "components/docs/modules/*/partials/**",
 
     "target/**"
   ]

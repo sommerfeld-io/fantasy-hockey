@@ -73,7 +73,7 @@ jobs:
       - name: README.adoc
         run: |
           TARGET_ADOC="README.adoc"
-          cp docs/modules/ROOT/pages/index.adoc "$TARGET_ADOC"
+          cp components/docs/modules/ROOT/pages/index.adoc "$TARGET_ADOC"
           {
             echo
             echo "// +-------------------------------------------+"
@@ -89,7 +89,7 @@ jobs:
       - name: LICENSE.adoc
         run: |
           TARGET_ADOC="LICENSE.adoc"
-          cp docs/modules/ROOT/pages/license.adoc "$TARGET_ADOC"
+          cp components/docs/modules/ROOT/pages/license.adoc "$TARGET_ADOC"
           {
             echo
             echo "// +-------------------------------------------+"

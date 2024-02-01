@@ -1,5 +1,5 @@
 = Introduction and Goals
-:description: Describes the relevant requirements and the driving forces that software architects and development team must consider. 
+:description: Describes the relevant requirements and the driving forces that software architects and development team must consider.
 :page-layout: full-page
 
 {description}
