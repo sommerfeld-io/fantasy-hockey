@@ -5,6 +5,8 @@
 
     ".vscode",
 
+    "components",
+
     "components/docs/modules/*/assets/attachments/**",
     "components/docs/modules/*/assets/images/**",
     "components/docs/modules/*/examples/*",
