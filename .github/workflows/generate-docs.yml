@@ -68,7 +68,7 @@ jobs:
         with:
           ref: ${{github.ref}}
       - name: Generate docs from source code
-        run: docker run --rm --volume "$(pwd):/project" --workdir "/project" sommerfeldio/source2docs:rc
+        run: docker run --rm --volume "$(pwd):/project" --workdir "/project" sommerfeldio/source2docs:rc components/docs
         shell: bash
       - name: README.adoc
         run: |
