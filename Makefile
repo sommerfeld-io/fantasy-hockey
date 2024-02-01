@@ -37,4 +37,3 @@ test: lint-makefile lint-yaml lint-folders lint-filenames
 
 clean:
 	docker compose down --rmi all --volumes --remove-orphans
-	rm -rf target
