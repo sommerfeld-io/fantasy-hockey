@@ -1,2 +1,30 @@
-= Documentation Startpage
-include::ROOT:partial$README.adoc[]
+= Fantasy Hockey Docs
+Sebastian Sommerfeld <sebastian@sommerfeld.io>
+:project-name: fantasy-hockey
+:url-project: https://github.com/sommerfeld-io/{project-name}
+:github-actions-url: {url-project}/actions/workflows
+:job-pipeline: pipeline.yml
+:job-generate-docs: generate-docs.yml
+:badge: badge.svg
+
+Browser-based NHL Fantasy Game to replace the Google-Spreadsheet solution. This Fantasy Game should allow predicting various results for a single NHL season and rank all players from best to worst based on points at the end of the season.
+
+image:{github-actions-url}/{job-generate-docs}/{badge}[Github Badge, link={github-actions-url}/{job-generate-docs}]
+image:{github-actions-url}/{job-pipeline}/{badge}[Github Badge, link={github-actions-url}/{job-pipeline}]
+
+* Github Repository -> {url-project}
+* Where to file issues -> {url-project}/issues
+
+== About this project
+Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.
+
+== How to use this project
+Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.
+
+. Every machine is Ubuntu (or at least Debian-based)
+
+== Risks and Technical Debts
+link:{url-project}/issues?q=is%3Aissue+label%3Asecurity%2Crisk+is%3Aopen[All issues labeled as risk (= some sort of risk or a technical debt) or security (= related to security issues)] are tracked as Github issue and carry the respective label.
+
+== Contact
+Feel free to contact me via sebastian@sommerfeld.io or visit my website https://www.sommerfeld.io.
