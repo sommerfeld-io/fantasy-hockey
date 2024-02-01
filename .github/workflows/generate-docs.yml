@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        antora-yml-file: ['docs/antora.yml']
+        antora-yml-file: ['components/docs/antora.yml']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
