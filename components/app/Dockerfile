@@ -36,7 +36,7 @@ WORKDIR /app
 RUN ./mvnw clean verify
 
 
-FROM ubuntu:23.10
+FROM ubuntu:24.04
 LABEL maintainer="sebastian@sommerfeld.io"
 
 RUN apt-get update \
