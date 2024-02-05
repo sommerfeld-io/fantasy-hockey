@@ -13,9 +13,11 @@
 # Todo ...
 
 .DEFAULT_GOAL := all
-.PHONY: all clean test lint-makefile lint-yaml lint-folders lint-filenames
+.PHONY: all clean test lint lint-makefile lint-yaml lint-folders lint-filenames start
 
-all: test clean
+all: lint build start test clean
+
+APP_DIR = components/app
 
 lint-makefile:
 	docker run --rm --volume "$(shell pwd):/data" cytopia/checkmake:latest Makefile
@@ -29,11 +31,22 @@ lint-folders:
 lint-filenames:
 	docker run --rm -i --volume "$(shell pwd):/data" --workdir "/data" lslintorg/ls-lint:1.11.2
 
-test: lint-makefile lint-yaml lint-folders lint-filenames
+lint: lint-makefile lint-yaml lint-folders lint-filenames
 	docker run --rm -i hadolint/hadolint:latest < Dockerfile.docs
 
-# build:
-# todo build docker containers but build every other thing of interest first (the app etc)
+test:
+# todo ...
+
+build: lint
+	cd $(APP_DIR) || exit \
+		&& ./mvnw package
+	# todo build docker containers but build every other thing of interest first (the app etc)
+
+start: build
+	cd $(APP_DIR) || exit \
+		&& ./mvnw spring-boot:run
 
 clean:
 	docker compose down --rmi all --volumes --remove-orphans
+	cd $(APP_DIR) || exit \
+		&& ./mvnw clean
