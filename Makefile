@@ -13,9 +13,9 @@
 # Todo ...
 
 .DEFAULT_GOAL := all
-.PHONY: all clean test lint lint-makefile lint-yaml lint-folders lint-filenames start
+.PHONY: all clean test lint-makefile lint-yaml lint-folders lint-filenames start
 
-all: lint build start test clean
+all: clean lint build test start
 
 APP_DIR = components/app
 
@@ -31,22 +31,16 @@ lint-folders:
 lint-filenames:
 	docker run --rm -i --volume "$(shell pwd):/data" --workdir "/data" lslintorg/ls-lint:1.11.2
 
-lint: lint-makefile lint-yaml lint-folders lint-filenames
+test: lint-makefile lint-yaml lint-folders lint-filenames
 	docker run --rm -i hadolint/hadolint:latest < Dockerfile.docs
 
-test:
-# todo ...
-
-build: lint
-	cd $(APP_DIR) || exit \
-		&& ./mvnw package
-	# todo build docker containers but build every other thing of interest first (the app etc)
+# --no-cache
+build: test
+	docker compose build
 
 start: build
-	cd $(APP_DIR) || exit \
-		&& ./mvnw spring-boot:run
+	docker compose up
 
 clean:
 	docker compose down --rmi all --volumes --remove-orphans
-	cd $(APP_DIR) || exit \
-		&& ./mvnw clean
+	cd $(APP_DIR) || exit && ./mvnw clean

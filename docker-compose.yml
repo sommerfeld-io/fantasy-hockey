@@ -33,6 +33,7 @@ services:
 
   app:
     container_name: ${COMPOSE_PROJECT_NAME}-app
-    image: httpd:2.4.58-alpine3.19
+    build: components/app
+    image: local/${COMPOSE_PROJECT_NAME}-app:${DEV_TAG}
     ports:
-      - 8080:80
+      - 8080:8080
