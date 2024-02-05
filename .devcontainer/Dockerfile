@@ -25,11 +25,12 @@
 # inside the devcontainer and initializes ``pre-commit`` once the container is created.
 
 
-FROM mcr.microsoft.com/vscode/devcontainers/base:debian-12
+FROM mcr.microsoft.com/vscode/devcontainers/java:21-bookworm
 LABEL maintainer="sebastian@sommerfeld.io"
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends pre-commit=3.0.4-1 \
+    && apt-get install -y --no-install-recommends maven=3.8.7-1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
