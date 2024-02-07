@@ -22,7 +22,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE: sommerfeldio/website
+  IMAGE: sommerfeldio/fantasy-hockey-app
   SHA: ${{ github.event.pull_request.head.sha || github.event.after }}
 
 permissions:
@@ -78,15 +78,93 @@ jobs:
         run: make lint-makefile
         shell: bash
 
-# todo ... build all components (not starting with the docs, start with app ... or at least in parallel)
+  # ----- Build Stage ---------------------------
+
+  build-app:
+    runs-on: ubuntu-latest
+    needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'lint-makefile']
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: components/app/Dockerfile
+      - name: Set docker tag
+        id: vars
+        run: |
+          echo "Ref = ${{ github.ref }}"
+          echo "Ref Name = $GITHUB_REF_NAME"
+          echo "Head Ref = $GITHUB_HEAD_REF"
+
+          # TAG="$GITHUB_REF_NAME"
+          # if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          #   TAG="$GITHUB_HEAD_REF"
+          # fi
+
+          TAG='rc'
+
+          echo "tag = $TAG"
+          echo "DOCKER_TAG=$TAG" >> $GITHUB_OUTPUT
+        shell: bash
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5.5.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.revision=${{ env.SHA }}
+      - name: Docker image build
+        uses: docker/build-push-action@v5
+        with:
+          context: components/app
+          platforms: linux/amd64
+          push: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
+          tags: ${{ env.IMAGE }}:${{ steps.vars.outputs.DOCKER_TAG }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+      - name: Docker Scout Compare
+        uses: docker/scout-action@v1.3.0
+        with:
+          command: compare
+          image: ${{ env.IMAGE }}:${{ steps.vars.outputs.DOCKER_TAG }}
+          to: ${{ env.IMAGE }}:latest
+          exit-code: false
+          write-comment: ${{ github.event_name == 'pull_request' }}
+      - name: Docker Scout CVEs
+        uses: docker/scout-action@v1.3.0
+        with:
+          command: cves
+          image: ${{ env.IMAGE }}:${{ steps.vars.outputs.DOCKER_TAG }}
+          # exit-code: ${{ github.event_name == 'pull_request' }}
+          exit-code: false
+          write-comment: ${{ github.event_name == 'pull_request' }}
 
   # ----- Test stage ----------------------------
+
+  # todo ... inspec and all other tests
+  # todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/12
 
   # ----- Notifications -------------------------
 
   on-failure:
     runs-on: ubuntu-latest
-    needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'lint-makefile']
+    needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'lint-makefile', 'build-app']
     if: failure()
     steps:
       - name: Send Pipeline Status to Google Chat

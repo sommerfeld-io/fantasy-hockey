@@ -45,11 +45,6 @@
 # Eclipse Temurin project provides code and processes that support the building of runtime
 # binaries and associated technologies. These are high performance, enterprise-caliber, and
 # cross-platform.
-#
-# == See also
-#
-# * https://spring.io/guides/topicals/spring-boot-docker/
-# * https://www.docker.com/blog/9-tips-for-containerizing-your-spring-boot-code
 
 
 FROM eclipse-temurin:21.0.2_13-jdk-jammy as builder
