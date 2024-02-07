@@ -64,7 +64,7 @@ COPY ./src ./src
 RUN ./mvnw --no-transfer-progress clean install
 
 
-FROM eclipse-temurin:21.0.2_13-jre-alpine
+FROM eclipse-temurin:21.0.2_13-jre-jammy
 LABEL maintainer="sebastian@sommerfeld.io"
 
 RUN addgroup fantasy-hockey && adduser --ingroup fantasy-hockey --disabled-password fantasy-hockey
