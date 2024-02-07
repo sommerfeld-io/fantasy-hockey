@@ -134,8 +134,8 @@ jobs:
           push: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
           tags: ${{ env.IMAGE }}:${{ steps.vars.outputs.DOCKER_TAG }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
           provenance: true
           sbom: true
       # todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/17
