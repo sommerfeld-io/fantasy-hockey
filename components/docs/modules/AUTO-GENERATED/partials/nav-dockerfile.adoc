@@ -1,0 +1,2 @@
+* xref:AUTO-GENERATED:components/app/Dockerfile.adoc[components/app/Dockerfile]
+* xref:AUTO-GENERATED:-devcontainer/Dockerfile.adoc[.devcontainer/Dockerfile]
