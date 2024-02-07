@@ -1,2 +1,3 @@
 * xref:index.adoc[]
+* xref:help.adoc[]
 * xref:license.adoc[]
