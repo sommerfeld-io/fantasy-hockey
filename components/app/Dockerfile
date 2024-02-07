@@ -1,13 +1,15 @@
 # @file Dockerfile
 # @brief The main Docker image for the Fantasy Hockey app.
 #
-# @description The provided Dockerfile utilizes a multistage build approach to build and
-# run the Fantasy Hockey app. In the first stage, it employs the Maven image to build the
-# application's JAR file.
+# @description This Docker image is part of a broader set of images that collectively
+# constitute the Fantasy Hockey App, a private NHL fantasy game.
 #
-# In the second stage, it runs the application on port 8080. This multistage approach
-# optimizes the Docker image size by discarding unnecessary build dependencies after the
-# first stage, resulting in a more efficient final image for running the application.
+# The underlying Dockerfile utilizes a multistage build approach to build and run the Fantasy
+# Hockey app. In the first stage, it employs the Maven image to build the application's JAR file.
+#
+# In the second stage, it runs the application on port 8080. This multistage approach optimizes
+# the Docker image size by discarding unnecessary build dependencies after the first stage,
+# resulting in a more efficient final image for running the application.
 #
 # == Prerequisites
 #
@@ -62,7 +64,7 @@ COPY ./src ./src
 RUN ./mvnw --no-transfer-progress clean install
 
 
-FROM eclipse-temurin:21.0.2_13-jre-jammy
+FROM eclipse-temurin:21.0.2_13-jre-alpine
 LABEL maintainer="sebastian@sommerfeld.io"
 
 RUN addgroup fantasy-hockey && adduser --ingroup fantasy-hockey --disabled-password fantasy-hockey
