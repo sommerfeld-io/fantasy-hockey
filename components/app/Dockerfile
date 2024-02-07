@@ -61,7 +61,7 @@ COPY mvnw ./
 COPY pom.xml ./
 RUN ./mvnw dependency:go-offline
 COPY ./src ./src
-RUN ./mvnw --no-transfer-progress clean install
+RUN ./mvnw --batch-mode clean install
 
 
 FROM eclipse-temurin:21.0.2_13-jre-jammy
