@@ -52,14 +52,11 @@
 # * https://www.docker.com/blog/9-tips-for-containerizing-your-spring-boot-code
 
 
-ARG USER=fantasy-hockey
-
-
 FROM eclipse-temurin:21.0.2_13-jdk-jammy as builder
 LABEL maintainer="sebastian@sommerfeld.io"
 
-RUN addgroup "$USER" && adduser --ingroup "$USER" --disabled-password "$USER"
-USER $USER
+RUN addgroup fantasy-hockey && adduser --ingroup fantasy-hockey --disabled-password fantasy-hockey
+USER fantasy-hockey
 
 WORKDIR /opt/app
 COPY .mvn/ .mvn
@@ -73,8 +70,8 @@ RUN ./mvnw clean install
 FROM eclipse-temurin:21.0.2_13-jre-jammy
 LABEL maintainer="sebastian@sommerfeld.io"
 
-RUN addgroup "$USER" && adduser --ingroup "$USER" --disabled-password "$USER"
-USER $USER
+RUN addgroup fantasy-hockey && adduser --ingroup fantasy-hockey --disabled-password fantasy-hockey
+USER fantasy-hockey
 
 EXPOSE 8080
 COPY --from=builder /opt/app/target/app.jar /opt/app/app.jar
