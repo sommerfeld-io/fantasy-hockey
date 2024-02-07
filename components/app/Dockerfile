@@ -59,9 +59,9 @@ WORKDIR /opt/app
 COPY .mvn/ .mvn
 COPY mvnw ./
 COPY pom.xml ./
-RUN ./mvnw dependency:go-offline
+RUN ./mvnw --no-transfer-progress dependency:go-offline
 COPY ./src ./src
-RUN ./mvnw --batch-mode clean install
+RUN ./mvnw --no-transfer-progress clean install
 
 
 FROM eclipse-temurin:21.0.2_13-jre-jammy
