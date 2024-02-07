@@ -5,8 +5,8 @@
 # @description Run the defined checks before committing code to the remote repo. This should catch
 # simple violations early and lessens the amount of pipeline failures.
 #
-# Every time you clone a project using pre-commit running ``pre-commit install`` should always be the
-# first thing you do.
+# Every time you clone a project using pre-commit running ``pre-commit install`` should always be
+# the first thing you do.
 #
 # IMPORTANT: For pre-commit to work, this file must carry the extension ``.yaml``, NOT ``.yml``.
 #

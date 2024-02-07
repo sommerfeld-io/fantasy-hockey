@@ -8,8 +8,9 @@ ignore: |
 
 rules:
   line-length:
-    level: warning
+    max: 100
     allow-non-breakable-inline-mappings: true
+    level: warning
   new-lines:
     type: unix
   braces:
