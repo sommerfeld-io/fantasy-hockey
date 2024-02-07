@@ -138,14 +138,15 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
-      - name: Docker Scout Compare
-        uses: docker/scout-action@v1.3.0
-        with:
-          command: compare
-          image: ${{ env.IMAGE }}:${{ steps.vars.outputs.DOCKER_TAG }}
-          to: ${{ env.IMAGE }}:latest
-          exit-code: false
-          write-comment: ${{ github.event_name == 'pull_request' }}
+      # todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/17
+      # - name: Docker Scout Compare
+      #   uses: docker/scout-action@v1.3.0
+      #   with:
+      #     command: compare
+      #     image: ${{ env.IMAGE }}:${{ steps.vars.outputs.DOCKER_TAG }}
+      #     to: ${{ env.IMAGE }}:latest
+      #     exit-code: false
+      #     write-comment: ${{ github.event_name == 'pull_request' }}
       - name: Docker Scout CVEs
         uses: docker/scout-action@v1.3.0
         with:
