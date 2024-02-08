@@ -78,8 +78,6 @@ jobs:
         run: make lint-makefile
         shell: bash
 
-  # ----- Build Stage ---------------------------
-
   build-app:
     runs-on: ubuntu-latest
     needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'lint-makefile']

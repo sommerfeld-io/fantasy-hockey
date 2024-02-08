@@ -69,7 +69,7 @@ RUN ./mvnw $MVN_OPTS clean install
 FROM eclipse-temurin:21.0.2_13-jre-jammy
 LABEL maintainer="sebastian@sommerfeld.io"
 LABEL org.opencontainers.image.source="https://github.com/sommerfeld-io/fantasy-hockey"
-LABEL org.opencontainers.image.description="The Fantasy Hockey App Runtime"
+LABEL org.opencontainers.image.description "The Fantasy Hockey App Runtime"
 
 RUN addgroup fantasy-hockey && adduser --ingroup fantasy-hockey --disabled-password fantasy-hockey
 USER fantasy-hockey
