@@ -91,7 +91,8 @@ jobs:
       packages: write
     env:
       REGISTRY: ghcr.io
-      REGISTRY_USER: ${{ github.actor }}
+      #REGISTRY_USER: ${{ github.actor }}
+      REGISTRY_USER: sommerfeld-io
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -105,7 +106,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ env.REGISTRY_USER }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta
