@@ -54,6 +54,8 @@ LABEL maintainer="sebastian@sommerfeld.io"
 LABEL org.opencontainers.image.source=https://github.com/sommerfeld-io/fantasy-hockey
 LABEL org.opencontainers.image.description="The Fantasy Hockey App (Build)"
 
+ARG MVN_OPTS="--no-transfer-progress -Dstyle.color=always"
+
 RUN addgroup fantasy-hockey && adduser --ingroup fantasy-hockey --disabled-password fantasy-hockey
 USER fantasy-hockey
 
@@ -61,9 +63,9 @@ WORKDIR /opt/app
 COPY .mvn/ .mvn
 COPY mvnw ./
 COPY pom.xml ./
-RUN ./mvnw --no-transfer-progress dependency:go-offline
+RUN ./mvnw $MVN_OPTS dependency:go-offline
 COPY ./src ./src
-RUN ./mvnw --no-transfer-progress clean install
+RUN ./mvnw $MVN_OPTS clean install
 
 
 FROM eclipse-temurin:21.0.2_13-jre-jammy
