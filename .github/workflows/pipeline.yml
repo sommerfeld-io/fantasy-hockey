@@ -24,7 +24,6 @@ env:
   GHCR: ghcr.io
   GHCR_USER: sommerfeld-io
   IMAGE_NAME: fantasy-hockey-app
-  SHA: ${{ github.event.pull_request.head.sha || github.event.after }}
 
 permissions:
   contents: read
@@ -112,14 +111,14 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}
           labels: |
-            org.opencontainers.image.revision=${{ env.SHA }}
+            org.opencontainers.image.revision=${{ github.sha }}
       - name: Build the Docker image and push to ${{ env.REGISTRY }}
         uses: docker/build-push-action@v5
         with:
           context: components/app
           platforms: linux/amd64
           push: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
-          tags: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ env.SHA }}
+          tags: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
@@ -153,6 +152,8 @@ jobs:
       REGISTRY_USER: ${{ secrets.DOCKERHUB_USER }}
       REGISTRY_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Login to Container Registry ${{ env.REGISTRY }}
         uses: docker/login-action@v3
         with:
@@ -165,7 +166,7 @@ jobs:
         shell: bash
       - name: Re-tag image as release candicate (:${{ steps.vars.outputs.DOCKER_TAG }}) and deploy to ${{ env.REGISTRY }}
         run: |
-          SRC_IMAGE="${{ env.GHCR }}/${{ env.GHCR_USER }}/${{ env.IMAGE_NAME }}:${{ env.SHA }}"
+          SRC_IMAGE="${{ env.GHCR }}/${{ env.GHCR_USER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
           TARGET_IMAGE="${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.DOCKER_TAG }}"
           docker pull "$SRC_IMAGE"
           docker tag "$SRC_IMAGE" "$TARGET_IMAGE"
