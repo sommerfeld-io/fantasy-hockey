@@ -115,7 +115,8 @@ jobs:
         with:
           context: components/app
           platforms: linux/amd64
-          push: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
+          # push: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
+          push: true
           tags: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           # cache-from: type=gha
@@ -140,6 +141,7 @@ jobs:
   publish-release-candidate:
     runs-on: ubuntu-latest
     needs: ['inspec']
+    if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     permissions:
       contents: read
       packages: read
