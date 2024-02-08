@@ -23,6 +23,8 @@ on:
 env:
   GHCR: ghcr.io
   GHCR_USER: sommerfeld-io
+  DOCKERHUB: docker.io
+  DOCKERHUB_USER: sommerfeldio
   IMAGE_NAME: fantasy-hockey-app
 
 permissions:
@@ -147,37 +149,48 @@ jobs:
       packages: read
       pull-requests: write
       security-events: write
-    env:
-      REGISTRY: docker.io
-      REGISTRY_USER: ${{ secrets.DOCKERHUB_USER }}
-      REGISTRY_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
+    strategy:
+      matrix:
+        include:
+          - registry: docker.io
+            username_secret: DOCKERHUB_USER
+            password_secret: DOCKERHUB_TOKEN
+          - registry: ghcr.io
+            username_secret: GH_ORGANIZATION
+            password_secret: GITHUB_TOKEN
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Login to Container Registry ${{ env.REGISTRY }}
+      - name: Login to Container Registry ${{ matrix.registry }}
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ env.REGISTRY_USER }}
-          password: ${{ env.REGISTRY_PASS }}
+          registry: ${{ matrix.registry }}
+          username: ${{ secrets[matrix.username_secret] }}
+          password: ${{ secrets[matrix.password_secret] }}
       - name: Set docker tag
         id: vars
         run: echo "DOCKER_TAG=rc" >> $GITHUB_OUTPUT
         shell: bash
-      - name: Re-tag image as release candicate (:${{ steps.vars.outputs.DOCKER_TAG }}) and deploy to ${{ env.REGISTRY }}
+      - name: Re-tag image as release candicate (:${{ steps.vars.outputs.DOCKER_TAG }}) and deploy to ${{ matrix.registry }}
         run: |
           SRC_IMAGE="${{ env.GHCR }}/${{ env.GHCR_USER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          TARGET_IMAGE="${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.DOCKER_TAG }}"
+          TARGET_IMAGE="${{ matrix.registry }}/${{ secrets[matrix.username_secret] }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.DOCKER_TAG }}"
           docker pull "$SRC_IMAGE"
           docker tag "$SRC_IMAGE" "$TARGET_IMAGE"
           docker push "$TARGET_IMAGE"
         shell: bash
+
+  scan-release-candidate:
+    runs-on: ubuntu-latest
+    needs: ['publish-release-candidate']
+    if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
+    steps:
       # todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/17
       # - name: Docker Scout Compare
       #   uses: docker/scout-action@v1.3.0
       #   with:
       #     command: compare
-      #     image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.DOCKER_TAG }}
+      #     image: ${{ env.DOCKERHUB }}/${{ env.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:rc
       #     to: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:latest
       #     exit-code: false
       #     write-comment: ${{ github.event_name == 'pull_request' }}
@@ -185,7 +198,7 @@ jobs:
         uses: docker/scout-action@v1.3.0
         with:
           command: cves
-          image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.DOCKER_TAG }}
+          image: ${{ env.DOCKERHUB }}/${{ env.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:rc
           # exit-code: ${{ github.event_name == 'pull_request' }}
           exit-code: false
           write-comment: ${{ github.event_name == 'pull_request' }}
@@ -194,7 +207,17 @@ jobs:
 
   on-failure:
     runs-on: ubuntu-latest
-    needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'lint-makefile', 'build-app', 'inspec', 'publish-release-candidate']
+    needs: [
+      'lint-yaml',
+      'lint-folders',
+      'lint-filenames',
+      'shellcheck',
+      'lint-makefile',
+      'build-app',
+      'inspec',
+      'publish-release-candidate',
+      'scan-release-candidate'
+    ]
     if: failure()
     steps:
       - name: Send Pipeline Status to Google Chat
