@@ -12,8 +12,6 @@ on:
   push:
     branches:
       - main
-    # branches-ignore:
-    #   - dependabot/**
   pull_request:
     branches-ignore:
       - dependabot/**
@@ -21,11 +19,11 @@ on:
     - cron: '0 3 * * 1' # https://crontab.guru/#0_2_*_*_1
 
 env:
-  GHCR: ghcr.io
-  GHCR_USER: sommerfeld-io
-  DOCKERHUB: docker.io
-  DOCKERHUB_USER: sommerfeldio
+  REGISTRY: docker.io
+  REGISTRY_USER: ${{ secrets.DOCKERHUB_USER }}
+  REGISTRY_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
   IMAGE_NAME: fantasy-hockey-app
+  IMAGE_TAG_RC: rc
 
 permissions:
   contents: read
@@ -85,11 +83,8 @@ jobs:
     needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'lint-makefile']
     permissions:
       contents: read
-      packages: write
-    env:
-      REGISTRY: ghcr.io
-      REGISTRY_USER: ${{ secrets.GH_ORGANIZATION }}
-      REGISTRY_PASS: ${{ secrets.GITHUB_TOKEN }}
+      pull-requests: write
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -117,7 +112,6 @@ jobs:
         with:
           context: components/app
           platforms: linux/amd64
-          # push: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -125,6 +119,30 @@ jobs:
           # cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+      - name: Docker Scout CVEs for :${{ github.sha }}
+        uses: docker/scout-action@v1.3.0
+        with:
+          command: cves
+          image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          exit-code: false
+          write-comment: ${{ github.event_name == 'pull_request' }}
+      - name: Docker Scout Compare :${{ github.sha }} to ${{ env.IMAGE_TAG_RC }}"
+        uses: docker/scout-action@v1.3.0
+        with:
+          command: compare
+          image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}::${{ github.sha }}
+          to: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}${{ env.IMAGE_TAG_RC }}"
+          exit-code: false
+          write-comment: ${{ github.event_name == 'pull_request' }}
+      # todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/17
+      # - name: Docker Scout Compare
+      #   uses: docker/scout-action@v1.3.0
+      #   with:
+      #     command: compare
+      #     image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}${{ env.IMAGE_TAG_RC }}"
+      #     to: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:latest
+      #     exit-code: false
+      #     write-comment: ${{ github.event_name == 'pull_request' }}
 
   # ----- Test stage ----------------------------
 
@@ -146,64 +164,23 @@ jobs:
     if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     permissions:
       contents: read
-      packages: write
-      pull-requests: write
-    strategy:
-      matrix:
-        include:
-          - registry: docker.io
-            username_secret: DOCKERHUB_USER
-            password_secret: DOCKERHUB_TOKEN
-          - registry: ghcr.io
-            username_secret: GH_ORGANIZATION
-            password_secret: GITHUB_TOKEN
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Login to Container Registry ${{ matrix.registry }}
+      - name: Login to Container Registry ${{ env.REGISTRY }}
         uses: docker/login-action@v3
         with:
-          registry: ${{ matrix.registry }}
-          username: ${{ secrets[matrix.username_secret] }}
-          password: ${{ secrets[matrix.password_secret] }}
-      - name: Set docker tag
-        id: vars
-        run: echo "DOCKER_TAG=rc" >> $GITHUB_OUTPUT
-        shell: bash
-      - name: Re-tag image as release candicate (:${{ steps.vars.outputs.DOCKER_TAG }}) and deploy to ${{ matrix.registry }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.REGISTRY_USER }}
+          password: ${{ env.REGISTRY_PASS }}
+      - name: Re-tag image as release candicate (:${{ env.IMAGE_TAG_RC }}) and deploy to ${{ env.REGISTRY }}
         run: |
-          SRC_IMAGE="${{ env.GHCR }}/${{ env.GHCR_USER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          TARGET_IMAGE="${{ matrix.registry }}/${{ secrets[matrix.username_secret] }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.DOCKER_TAG }}"
+          SRC_IMAGE="${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          TARGET_IMAGE="${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}"
           docker pull "$SRC_IMAGE"
           docker tag "$SRC_IMAGE" "$TARGET_IMAGE"
           docker push "$TARGET_IMAGE"
         shell: bash
-
-  scan-rc:
-    runs-on: ubuntu-latest
-    needs: ['publish-rc']
-    if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
-    permissions:
-      pull-requests: write
-      security-events: write
-    steps:
-      # todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/17
-      # - name: Docker Scout Compare
-      #   uses: docker/scout-action@v1.3.0
-      #   with:
-      #     command: compare
-      #     image: ${{ env.DOCKERHUB }}/${{ env.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:rc
-      #     to: ${{ env.DOCKERHUB }}/${{ env.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:latest
-      #     exit-code: false
-      #     write-comment: ${{ github.event_name == 'pull_request' }}
-      - name: Docker Scout CVEs
-        uses: docker/scout-action@v1.3.0
-        with:
-          command: cves
-          image: ${{ env.DOCKERHUB }}/${{ env.DOCKERHUB_USER }}/${{ env.IMAGE_NAME }}:rc
-          # exit-code: ${{ github.event_name == 'pull_request' }}
-          exit-code: false
-          write-comment: ${{ github.event_name == 'pull_request' }}
 
   # ----- Notifications -------------------------
 
@@ -218,7 +195,6 @@ jobs:
       'build-app',
       'inspec',
       'publish-rc',
-      'scan-rc',
     ]
     if: failure()
     steps:
