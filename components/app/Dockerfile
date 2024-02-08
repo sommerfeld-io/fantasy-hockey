@@ -51,6 +51,8 @@
 
 FROM eclipse-temurin:21.0.2_13-jdk-jammy as builder
 LABEL maintainer="sebastian@sommerfeld.io"
+LABEL org.opencontainers.image.source=https://github.com/sommerfeld-io/fantasy-hockey
+LABEL org.opencontainers.image.description="The Fantasy Hockey App (Build)"
 
 RUN addgroup fantasy-hockey && adduser --ingroup fantasy-hockey --disabled-password fantasy-hockey
 USER fantasy-hockey
@@ -66,6 +68,8 @@ RUN ./mvnw --no-transfer-progress clean install
 
 FROM eclipse-temurin:21.0.2_13-jre-jammy
 LABEL maintainer="sebastian@sommerfeld.io"
+LABEL org.opencontainers.image.source=https://github.com/sommerfeld-io/fantasy-hockey
+LABEL org.opencontainers.image.description="The Fantasy Hockey App (Runtime)"
 
 RUN addgroup fantasy-hockey && adduser --ingroup fantasy-hockey --disabled-password fantasy-hockey
 USER fantasy-hockey
