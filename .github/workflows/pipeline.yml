@@ -3,7 +3,7 @@
 # @brief Deployment pipeline for the Fantasy Hockey application.
 #
 # @description ...
-# TODO ...This will become a deployment pipeline the way Dave Farley thinks of this.
+# TODO ...This will become a deployment pipeline in the way Dave Farley thinks of this.
 
 
 name: Deployment Pipeline
