@@ -24,6 +24,7 @@ env:
   REGISTRY_PASS: ${{ secrets.DOCKERHUB_TOKEN }}
   IMAGE_NAME: fantasy-hockey-app
   IMAGE_TAG_RC: rc
+  IMAGE_TAG_LATEST: latest
 
 permissions:
   contents: read
@@ -126,21 +127,21 @@ jobs:
           image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           exit-code: false
           write-comment: ${{ github.event_name == 'pull_request' }}
-      - name: Docker Scout Compare :${{ github.sha }} to ${{ env.IMAGE_TAG_RC }}"
+      - name: Docker Scout Compare :${{ github.sha }} to :${{ env.IMAGE_TAG_RC }}"
         uses: docker/scout-action@v1.3.0
         with:
           command: compare
-          image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}::${{ github.sha }}
-          to: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}${{ env.IMAGE_TAG_RC }}"
+          image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          to: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}
           exit-code: false
           write-comment: ${{ github.event_name == 'pull_request' }}
       # todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/17
-      # - name: Docker Scout Compare
+      # - name: Docker Scout Compare :${{ env.IMAGE_TAG_RC }}" to :${{ env.IMAGE_TAG_LATEST }}
       #   uses: docker/scout-action@v1.3.0
       #   with:
       #     command: compare
-      #     image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}${{ env.IMAGE_TAG_RC }}"
-      #     to: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:latest
+      #     image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}
+      #     to: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG_LATEST }}
       #     exit-code: false
       #     write-comment: ${{ github.event_name == 'pull_request' }}
 
