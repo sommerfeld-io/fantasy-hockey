@@ -135,15 +135,6 @@ jobs:
           to: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}
           exit-code: false
           write-comment: ${{ github.event_name == 'pull_request' }}
-      # todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/17
-      # - name: Docker Scout Compare :${{ env.IMAGE_TAG_RC }}" to :${{ env.IMAGE_TAG_LATEST }}
-      #   uses: docker/scout-action@v1.3.0
-      #   with:
-      #     command: compare
-      #     image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}
-      #     to: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG_LATEST }}
-      #     exit-code: false
-      #     write-comment: ${{ github.event_name == 'pull_request' }}
 
   # ----- Test stage ----------------------------
 
@@ -165,6 +156,8 @@ jobs:
     if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     permissions:
       contents: read
+      pull-requests: write
+      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -182,6 +175,15 @@ jobs:
           docker tag "$SRC_IMAGE" "$TARGET_IMAGE"
           docker push "$TARGET_IMAGE"
         shell: bash
+      # todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/17
+      # - name: Docker Scout Compare :${{ env.IMAGE_TAG_RC }}" to :${{ env.IMAGE_TAG_LATEST }}
+      #   uses: docker/scout-action@v1.3.0
+      #   with:
+      #     command: compare
+      #     image: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}
+      #     to: ${{ env.REGISTRY }}/${{ env.REGISTRY_USER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG_LATEST }}
+      #     exit-code: false
+      #     write-comment: ${{ github.event_name == 'pull_request' }}
 
   # ----- Notifications -------------------------
 
