@@ -1,0 +1,10 @@
+= app-container.rb
+
+Verify the Docker image which contains the main application of the Fantasy Hockey Game.
+
+== Overview
+
+This Inspec Module verifies the operating system and configuration of the Docker
+container. The basic Docker container setup is checked as well.
+
+This module adopts tests from https://dev-sec.io/baselines/linux.
