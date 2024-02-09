@@ -70,7 +70,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Run ls-lint in container
-        run: make lint-filenames
+        run: docker-compose up lint-filenames
         shell: bash
 
   shellcheck:
@@ -98,7 +98,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Validate inspec profile
-        run: make validate-inspec
+        run: docker-compose up validate-inspec
         shell: bash
 
   build-app:

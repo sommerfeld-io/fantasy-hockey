@@ -13,6 +13,22 @@
 version: "3.3"
 
 services:
+
+  lint-filenames:
+    container_name: ${COMPOSE_PROJECT_NAME}-lint-filenames
+    image: lslintorg/ls-lint:1.11.2
+    volumes:
+      - .:/data
+    working_dir: /data
+
+  validate-inspec:
+    container_name: ${COMPOSE_PROJECT_NAME}-validate-inspec
+    image: chef/inspec:5.22.36
+    volumes:
+      - ./components/test/inspec:/inspec
+    working_dir: /inspec
+    command: check app --chef-license=accept-no-persist
+
   docs:
     container_name: ${COMPOSE_PROJECT_NAME}-docs
     build:
