@@ -1,0 +1,9 @@
+= app-container-packages.rb
+
+Verify the pacakge installations inside the Docker container.
+
+== Overview
+
+This Inspec Module verifies the pacakge installations inside the Docker container.
+
+This module adopts tests from https://dev-sec.io/baselines/linux.
