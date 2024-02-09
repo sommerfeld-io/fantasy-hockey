@@ -30,11 +30,11 @@ repos:
     hooks:
       - id: lint
         name: lint
-        entry: bash -c 'docker-compose up lint-filenames lint-folders lint-yaml validate-inspec'
+        entry: bash -c 'docker compose --file docker-compose-lint.yml up'
         language: system
-  # - repo: local
-  #   hooks:
-  #     - id: mvn
-  #       name: mvn
-  #       entry: bash -c 'cd components/app && ./mvnw clean install'
-  #       language: system
+  - repo: local
+    hooks:
+      - id: build-app
+        name: build-app
+        entry: bash -c 'docker compose build app'
+        language: system

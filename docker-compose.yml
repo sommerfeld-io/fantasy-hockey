@@ -29,62 +29,12 @@ version: "3.3"
 
 services:
 
-  # ----- Lint stage ----------------------------
-
-  lint-dockerfile-app:
-    container_name: ${COMPOSE_PROJECT_NAME}-lint-dockerfile-app
-    image: hadolint/hadolint:latest
-    volumes:
-      - .:/data
-    working_dir: /data
-    entrypoint: hadolint components/app/Dockerfile
-
-  lint-filenames:
-    container_name: ${COMPOSE_PROJECT_NAME}-lint-filenames
-    image: lslintorg/ls-lint:1.11.2
-    volumes:
-      - .:/data
-    working_dir: /data
-
-  lint-folders:
-    container_name: ${COMPOSE_PROJECT_NAME}-lint-folders
-    image: sommerfeldio/folderslint:latest
-    volumes:
-      - .:/data
-    working_dir: /data
-    command: folderslint
-
-  lint-yaml:
-    container_name: ${COMPOSE_PROJECT_NAME}-lint-yaml
-    image: cytopia/yamllint:latest
-    volumes:
-      - .:/data
-    working_dir: /data
-    command: .
-    tty: true
-
-  validate-inspec:
-    container_name: ${COMPOSE_PROJECT_NAME}-validate-inspec
-    image: chef/inspec:5.22.36
-    volumes:
-      - ./components/test/inspec:/inspec
-    working_dir: /inspec
-    command: check app --chef-license=accept-no-persist
-
-  # ----- Run app stage -------------------------
-
   docs:
     container_name: ${COMPOSE_PROJECT_NAME}-docs
     build:
       context: .
       dockerfile: Dockerfile.docs
     image: local/${COMPOSE_PROJECT_NAME}-docs:${DEV_TAG}
-    depends_on: &depends_on
-      - lint-dockerfile-app
-      - lint-filenames
-      - lint-folders
-      - lint-yaml
-      - validate-inspec
     volumes:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
@@ -101,7 +51,6 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-app
     build: components/app
     image: local/${COMPOSE_PROJECT_NAME}-app:${DEV_TAG}
-    depends_on: *depends_on
     ports:
       - 8080:8080
     healthcheck:
@@ -110,8 +59,6 @@ services:
       timeout: 2s
       retries: 16
       start_period: 5s
-
-  # ----- Test stage ----------------------------
 
   inspec:
     container_name: inspec

@@ -1,0 +1,66 @@
+---
+# @file docker-compose-lint.yml
+# @brief Linter definitions and static validations for this project.
+#
+# @description ThisDocker Compose file serves as a centralized config for linter definitions,
+# static analysis tools, and validators crucial for verifying the validity of the repository setup.
+# Leveraged by both the pre-commit hooks and the deployment pipeline, this file orchestrates the
+# execution of various linting processes, static analysis scans, and validation routines essential
+# for ensuring code quality and adherence to established standards. By referencing this file within
+# the pre-commit configuration and deployment pipeline, the repository enforces consistent code
+# quality checks and adherence to best practices throughout the software development lifecycle.
+#
+# == How to use this compose configuration
+#
+# [source, bash]
+# ```
+# docker compose --file docker-compose-lint.yml up
+#
+# # Stop and remove images
+# docker compose down --rmi all --volumes --remove-orphans
+# ```
+
+
+version: "3.3"
+
+services:
+
+  dockerfile-app:
+    container_name: ${COMPOSE_PROJECT_NAME}-dockerfile-app
+    image: hadolint/hadolint:latest
+    volumes:
+      - .:/data
+    working_dir: /data
+    entrypoint: hadolint components/app/Dockerfile
+
+  filenames:
+    container_name: ${COMPOSE_PROJECT_NAME}-filenames
+    image: lslintorg/ls-lint:1.11.2
+    volumes:
+      - .:/data
+    working_dir: /data
+
+  folders:
+    container_name: ${COMPOSE_PROJECT_NAME}-folders
+    image: sommerfeldio/folderslint:latest
+    volumes:
+      - .:/data
+    working_dir: /data
+    command: folderslint
+
+  yaml:
+    container_name: ${COMPOSE_PROJECT_NAME}-yaml
+    image: cytopia/yamllint:latest
+    volumes:
+      - .:/data
+    working_dir: /data
+    command: .
+    tty: true
+
+  validate-inspec:
+    container_name: ${COMPOSE_PROJECT_NAME}-validate-inspec
+    image: chef/inspec:5.22.36
+    volumes:
+      - ./components/test/inspec:/inspec
+    working_dir: /inspec
+    command: check app --chef-license=accept-no-persist
