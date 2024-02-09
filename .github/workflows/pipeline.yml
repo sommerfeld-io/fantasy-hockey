@@ -101,6 +101,9 @@ jobs:
           - REGISTRY: docker.io
             IMAGE_NAME: fantasy-hockey-app
             CONTEXT: components/app
+          - REGISTRY: docker.io
+            IMAGE_NAME: fantasy-hockey-docs
+            CONTEXT: .
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -204,6 +207,9 @@ jobs:
           - REGISTRY: docker.io
             IMAGE_NAME: fantasy-hockey-app
             CONTEXT: components/app
+          - REGISTRY: docker.io
+            IMAGE_NAME: fantasy-hockey-docs
+            CONTEXT: .
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

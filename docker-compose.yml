@@ -31,9 +31,7 @@ services:
 
   docs:
     container_name: ${COMPOSE_PROJECT_NAME}-docs
-    build:
-      context: .
-      dockerfile: Dockerfile.docs
+    build: .
     image: local/${COMPOSE_PROJECT_NAME}-docs:${DEV_TAG}
     volumes:
       - /etc/timezone:/etc/timezone:ro

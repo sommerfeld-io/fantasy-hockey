@@ -8,7 +8,7 @@
 .dockerignore
 .env
 docker-compose.yml
-Dockerfile.docs
+Dockerfile
 Makefile
 
 # linter files
