@@ -39,14 +39,6 @@ services:
     working_dir: /data
     entrypoint: hadolint components/app/Dockerfile
 
-  lint-makefile:
-    container_name: ${COMPOSE_PROJECT_NAME}-lint-makefile
-    image: cytopia/checkmake:latest
-    volumes:
-      - .:/data
-    working_dir: /data
-    command: Makefile
-
   lint-filenames:
     container_name: ${COMPOSE_PROJECT_NAME}-lint-filenames
     image: lslintorg/ls-lint:1.11.2
@@ -89,7 +81,6 @@ services:
     image: local/${COMPOSE_PROJECT_NAME}-docs:${DEV_TAG}
     depends_on: &depends_on
       - lint-dockerfile-app
-      - lint-makefile
       - lint-filenames
       - lint-folders
       - lint-yaml

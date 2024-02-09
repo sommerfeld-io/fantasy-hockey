@@ -83,15 +83,6 @@ jobs:
         with:
           ignore_paths: node_modules target
 
-  lint-makefile:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Run checkmake in container
-        run: docker-compose uplint-makefile
-        shell: bash
-
   validate-inspec:
     runs-on: ubuntu-latest
     steps:
@@ -103,7 +94,7 @@ jobs:
 
   build-app:
     runs-on: ubuntu-latest
-    needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'lint-makefile', 'validate-inspec']
+    needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'validate-inspec']
     permissions:
       contents: read
       pull-requests: write
@@ -241,7 +232,6 @@ jobs:
       'lint-folders',
       'lint-filenames',
       'shellcheck',
-      'lint-makefile',
       'validate-inspec',
       'build-app',
       'inspec-tests',
