@@ -32,9 +32,9 @@ repos:
         name: lint
         entry: bash -c 'make test'
         language: system
-  - repo: local
-    hooks:
-      - id: mvn
-        name: mvn
-        entry: bash -c 'cd components/app && ./mvnw clean install'
-        language: system
+  # - repo: local
+  #   hooks:
+  #     - id: mvn
+  #       name: mvn
+  #       entry: bash -c 'cd components/app && ./mvnw clean install'
+  #       language: system

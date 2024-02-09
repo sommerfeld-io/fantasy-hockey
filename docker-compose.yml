@@ -37,3 +37,21 @@ services:
     image: local/${COMPOSE_PROJECT_NAME}-app:${DEV_TAG}
     ports:
       - 8080:8080
+    healthcheck:
+      test: "wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1"
+      interval: 10s
+      timeout: 2s
+      retries: 16
+      start_period: 5s
+
+  inspec:
+    container_name: inspec
+    image: chef/inspec:5.22.36
+    volumes:
+      - ./components/test/inspec:/inspec
+      - &docker-sock /var/run/docker.sock:/var/run/docker.sock
+    working_dir: &work_dir /inspec
+    command: exec app --target docker://${COMPOSE_PROJECT_NAME}-app --chef-license=accept-no-persist
+    depends_on:
+      app:
+        condition: service_healthy

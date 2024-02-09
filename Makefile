@@ -13,11 +13,12 @@
 # Todo ...
 
 .DEFAULT_GOAL := all
-.PHONY: all clean test lint-makefile lint-yaml lint-folders lint-filenames start
+.PHONY: all clean test start lint-makefile lint-yaml lint-folders lint-filenames validate-inspec
 
 all: clean lint build test start
 
 APP_DIR = components/app
+TEST_DIR = components/test
 
 lint-makefile:
 	docker run --rm --volume "$(shell pwd):/data" cytopia/checkmake:latest Makefile
@@ -31,7 +32,10 @@ lint-folders:
 lint-filenames:
 	docker run --rm -i --volume "$(shell pwd):/data" --workdir "/data" lslintorg/ls-lint:1.11.2
 
-test: lint-makefile lint-yaml lint-folders lint-filenames
+validate-inspec:
+	docker run --rm --volume ./$(TEST_DIR)/inspec:/inspec --workdir /inspec chef/inspec:5.22.36 check app --chef-license=accept-no-persist
+
+test: lint-makefile lint-yaml lint-folders lint-filenames validate-inspec
 	docker run --rm -i hadolint/hadolint:latest < Dockerfile.docs
 
 # --no-cache

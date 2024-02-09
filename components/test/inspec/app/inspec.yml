@@ -1,0 +1,11 @@
+---
+name: app
+title: Kotlin application
+maintainer: Sebastian Sommerfeld
+copyright: sommerfeld.io
+copyright_email: sebastian@sommerfeld.io
+license: SEE LICENSE IN LICENSE.adoc
+summary: Compliance profile to validate the Docker image which contains the main application
+version: 0.1.0-SNAPSHOT
+supports:
+  platform: os
