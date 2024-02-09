@@ -30,7 +30,7 @@ repos:
     hooks:
       - id: lint
         name: lint
-        entry: bash -c 'make test'
+        entry: bash -c 'docker-compose up lint-filenames lint-folders lint-yaml lint-makefile validate-inspec'
         language: system
   # - repo: local
   #   hooks:

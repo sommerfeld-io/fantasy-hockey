@@ -52,7 +52,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Run yamllint
-        run: make lint-yaml
+        run: docker-compose up lint-yaml
         shell: bash
 
   lint-folders:
@@ -61,7 +61,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Run folderslint in container
-        run: make lint-folders
+        run: docker-compose up lint-folders
         shell: bash
 
   lint-filenames:
@@ -89,7 +89,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Run checkmake in container
-        run: make lint-makefile
+        run: docker-compose uplint-makefile
         shell: bash
 
   validate-inspec:

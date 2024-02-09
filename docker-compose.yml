@@ -9,10 +9,43 @@
 # | ----------------- | -------------------------- | ------------------ |
 # | app               | http://localhost:8080/app  | Fantasy Hockey app |
 # | docs              | http://localhost:8081/docs | Antora docs page   |
+#
+# == How to use this compose configuration
+#
+# todo ... reference a docker-compose stack because otherwise the app is not complete
+#
+# [source, bash]
+# ```
+# # Build and start
+# docker compose build
+# docker compose up
+#
+# # Stop and remove images
+# docker compose down --rmi all --volumes --remove-orphans
+# ```
+
 
 version: "3.3"
 
 services:
+
+  # ----- Lint stage ----------------------------
+
+  lint-dockerfile-app:
+    container_name: ${COMPOSE_PROJECT_NAME}-lint-dockerfile-app
+    image: hadolint/hadolint:latest
+    volumes:
+      - .:/data
+    working_dir: /data
+    entrypoint: hadolint components/app/Dockerfile
+
+  lint-makefile:
+    container_name: ${COMPOSE_PROJECT_NAME}-lint-makefile
+    image: cytopia/checkmake:latest
+    volumes:
+      - .:/data
+    working_dir: /data
+    command: Makefile
 
   lint-filenames:
     container_name: ${COMPOSE_PROJECT_NAME}-lint-filenames
@@ -20,6 +53,23 @@ services:
     volumes:
       - .:/data
     working_dir: /data
+
+  lint-folders:
+    container_name: ${COMPOSE_PROJECT_NAME}-lint-folders
+    image: sommerfeldio/folderslint:latest
+    volumes:
+      - .:/data
+    working_dir: /data
+    command: folderslint
+
+  lint-yaml:
+    container_name: ${COMPOSE_PROJECT_NAME}-lint-yaml
+    image: cytopia/yamllint:latest
+    volumes:
+      - .:/data
+    working_dir: /data
+    command: .
+    tty: true
 
   validate-inspec:
     container_name: ${COMPOSE_PROJECT_NAME}-validate-inspec
@@ -29,12 +79,21 @@ services:
     working_dir: /inspec
     command: check app --chef-license=accept-no-persist
 
+  # ----- Run app stage -------------------------
+
   docs:
     container_name: ${COMPOSE_PROJECT_NAME}-docs
     build:
       context: .
       dockerfile: Dockerfile.docs
     image: local/${COMPOSE_PROJECT_NAME}-docs:${DEV_TAG}
+    depends_on: &depends_on
+      - lint-dockerfile-app
+      - lint-makefile
+      - lint-filenames
+      - lint-folders
+      - lint-yaml
+      - validate-inspec
     volumes:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
@@ -51,6 +110,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-app
     build: components/app
     image: local/${COMPOSE_PROJECT_NAME}-app:${DEV_TAG}
+    depends_on: *depends_on
     ports:
       - 8080:8080
     healthcheck:
@@ -59,6 +119,8 @@ services:
       timeout: 2s
       retries: 16
       start_period: 5s
+
+  # ----- Test stage ----------------------------
 
   inspec:
     container_name: inspec

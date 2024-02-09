@@ -47,6 +47,7 @@ ignore:
   # linter definitions
   - .adoc-links.json
   - .gherkin-lintrc.json
+  - .hadolint.yml
   - .ls-lint.yml
   - .pre-commit-config.yaml
   - .yamllint.yml
