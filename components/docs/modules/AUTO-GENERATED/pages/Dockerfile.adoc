@@ -1,0 +1,26 @@
+= Dockerfile
+
+...
+
+== Overview
+
+...
+todo ... write description and brief (above)
+todo ... something about this being part of a bigger application stack
+
+! THIS SHOULD MOVE TO components/docs
+! NOT IN ROOT !!!!!
+
+== About the tags and versions
+
+todo ...
+
+== How to use this image
+
+todo ... reference a docker-compose stack because otherwise the app is not complete
+
+[source, bash]
+
+----
+todo ...
+----
