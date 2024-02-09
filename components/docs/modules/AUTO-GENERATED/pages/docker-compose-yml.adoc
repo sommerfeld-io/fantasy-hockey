@@ -18,3 +18,18 @@ TODO ... this and brief above
 | http://localhost:8081/docs
 | Antora docs page
 |===
+
+== How to use this compose configuration
+
+todo ... reference a docker-compose stack because otherwise the app is not complete
+
+[source, bash]
+
+----
+# Build and start
+docker compose build
+docker compose up
+
+# Stop and remove images
+docker compose down --rmi all --volumes --remove-orphans
+----
