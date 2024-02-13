@@ -174,7 +174,7 @@ jobs:
       - name: Pull ${{ matrix.container-under-test }}
         run: docker pull ${{ matrix.container-under-test }}
         shell: bash
-      - name: Start ${{ matrix.container-under-test }}
+      - name: Start container under test ${{ matrix.container-under-test }}
         run: docker run --rm --name ${{ matrix.profile-name }} -d -p ${{ matrix.container-ports }} ${{ matrix.container-under-test }}
         shell: bash
       - name: Run Inspec tests
@@ -186,7 +186,7 @@ jobs:
             --workdir /inspec \
             chef/inspec:5.22.36 exec ${{ matrix.profile-name }} --target docker://${{ matrix.profile-name }} --chef-license=accept-no-persist
         shell: bash
-      - name: Stop ${{ matrix.container-under-test }}
+      - name: Stop container under test ${{ matrix.container-under-test }}
         if: always()
         run: docker stop ${{ matrix.profile-name }}
         shell: bash
@@ -208,7 +208,7 @@ jobs:
       - name: Pull ${{ matrix.container-under-test }}
         run: docker pull ${{ matrix.container-under-test }}
         shell: bash
-      - name: Start ${{ matrix.container-under-test }}
+      - name: Start container under test ${{ matrix.container-under-test }}
         run: docker run --rm --name ${{ matrix.collection-name }} -d -p ${{ matrix.container-ports }} ${{ matrix.container-under-test }}
         shell: bash
       - name: Run Postman Collection
@@ -218,7 +218,7 @@ jobs:
             --volume ./components/test/postman/collections:/etc/newman \
             postman/newman:6.0.0-alpine run ${{ matrix.collection-name }}.json --color=on --env-var "BASE_URL=${{ matrix.collection-base-url }}"
         shell: bash
-      - name: Stop ${{ matrix.container-under-test }}
+      - name: Stop container under test ${{ matrix.container-under-test }}
         if: always()
         run: docker stop ${{ matrix.collection-name }}
         shell: bash
