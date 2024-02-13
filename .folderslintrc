@@ -1,11 +1,16 @@
 {
   "rules": [
-    ".devcontainer",
+    ".devcontainer/ops/assets",
+
     ".github/workflows",
 
     ".vscode",
 
-    "components",
+    "components/app/.mvn",
+    "components/app/src/main/kotlin/io/sommerfeld/fantasy/hockey/**",
+    "components/app/src/main/resources/static/**",
+    "components/app/src/main/resources/templates/**",
+    "components/app/src/test/kotlin/io/sommerfeld/fantasy/hockey/**",
 
     "components/docs/modules/*/assets/attachments/**",
     "components/docs/modules/*/assets/images/**",
@@ -15,6 +20,9 @@
     "components/docs/modules/*/pages/**",
     "components/docs/modules/*/partials/*",
     "components/docs/modules/*/partials/**",
+
+    "components/test/inspec/app/*",
+    "components/test/postman/collections",
 
     "target/**"
   ]
