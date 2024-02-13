@@ -64,6 +64,17 @@ services:
       retries: 16
       start_period: 5s
 
+  newman:
+    image: postman/newman:6.0.0-alpine
+    container_name: newman
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./components/test/postman/collections:/etc/newman
+    command: run fantasy-hockey-app.json --env-var "BASE_URL=http://app:8080"
+    tty: true
+
   inspec:
     container_name: inspec
     image: chef/inspec:5.22.36
@@ -73,5 +84,5 @@ services:
     working_dir: &work_dir /inspec
     command: exec app --target docker://${COMPOSE_PROJECT_NAME}-app --chef-license=accept-no-persist
     depends_on:
-      app:
-        condition: service_healthy
+      newman:
+        condition: service_completed_successfully

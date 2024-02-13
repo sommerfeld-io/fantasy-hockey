@@ -1,0 +1,159 @@
+{
+	"info": {
+		"_postman_id": "d174681f-d1d7-4ee7-a091-a9a30bfb70db",
+		"name": "Fantasy-Hockey-App",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "actuator",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const BASE_URL = pm.collectionVariables.get(\"BASE_URL\")",
+							"",
+							"const json = pm.response.json();",
+							"",
+							"pm.test(\"Should reply correct list of endpoints\", () => {",
+							"    pm.expect(json).to.be.an(\"object\")",
+							"    pm.expect(json._links).to.be.an(\"object\")",
+							"    ",
+							"    pm.expect(json._links.health).to.be.an(\"object\")",
+							"    pm.expect(json._links.health.href).to.be.a(\"string\")",
+							"    pm.expect(json._links.health.href).to.contain(\"/actuator/health\")",
+							"",
+							"    pm.expect(json._links.prometheus).to.be.an(\"object\")",
+							"    pm.expect(json._links.prometheus.href).to.be.a(\"string\")",
+							"    pm.expect(json._links.prometheus.href).to.contain(\"/actuator/prometheus\")",
+							"})",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/actuator",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"actuator"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "actuator-health",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const json = pm.response.json();",
+							"",
+							"const EXPECTED_RESULT = \"UP\"",
+							"",
+							"pm.test(\"Should reply with \" + EXPECTED_RESULT, () => {",
+							"    pm.expect(json).to.be.an(\"object\")",
+							"    pm.expect(json.status).to.be.a(\"string\")",
+							"    pm.expect(json.status).to.equal(EXPECTED_RESULT)",
+							"})",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/actuator/health",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"actuator",
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "actuator-prometheus",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"const text = pm.response.text();",
+							"",
+							"pm.test(\"Should respond with plain text\", () => {",
+							"    pm.expect(text).to.not.be.empty",
+							"    pm.response.to.be.withBody",
+							"    pm.response.to.not.be.json",
+							"})",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{BASE_URL}}/actuator/prometheus",
+					"host": [
+						"{{BASE_URL}}"
+					],
+					"path": [
+						"actuator",
+						"prometheus"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"const EXPECTED_STATUS_CODE = 200",
+					"",
+					"pm.test(\"Should respond with status code \" + EXPECTED_STATUS_CODE, function () {",
+					"    pm.response.to.have.status(EXPECTED_STATUS_CODE);",
+					"})",
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "BASE_URL",
+			"value": "http://localhost:8080",
+			"type": "default"
+		}
+	]
+}
