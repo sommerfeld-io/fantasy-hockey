@@ -121,7 +121,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v5.5.0
+        uses: docker/metadata-action@v5.5.1
         with:
           images: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}
           labels: |
