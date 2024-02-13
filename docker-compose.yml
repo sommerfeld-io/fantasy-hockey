@@ -1,24 +1,30 @@
 ---
 # @file docker-compose.yml
-# @brief ...
+# @brief Docker Compose stack to (build and) start the whole application locally.
 #
-# @description ...
-# TODO ... this and brief above
+# @description This Compose stack automates the building and launching of all containers required
+# for the fantasy hockey app. It comprises multiple Docker images that collectively constitute the
+# application's system.
 #
 # | What              | URL (host-port)            | Info               |
 # | ----------------- | -------------------------- | ------------------ |
 # | app               | http://localhost:8080/app  | Fantasy Hockey app |
 # | docs              | http://localhost:8081/docs | Antora docs page   |
 #
-# == How to use this compose configuration
+# IMPORTANT: This Compose stack is designed for development purposes only. While it could serve as
+# a blueprint for pre-production or production use, it should never be directly utilized in those
+# environments.
 #
-# todo ... reference a docker-compose stack because otherwise the app is not complete
+# == How to use this compose configuration
 #
 # [source, bash]
 # ```
 # # Build and start
 # docker compose build
 # docker compose up
+#
+# # Build and start in one command
+# docker compose up --build
 #
 # # Stop and remove images
 # docker compose down --rmi all --volumes --remove-orphans
