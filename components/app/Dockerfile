@@ -43,10 +43,10 @@
 # cross-platform.
 
 
-FROM eclipse-temurin:21.0.2_13-jdk-jammy as builder
+FROM eclipse-temurin:21.0.2_13-jdk-jammy AS builder
 LABEL maintainer="sebastian@sommerfeld.io"
 
-ARG MVN_OPTS="--no-transfer-progress -Dstyle.color=always"
+ARG MVN_OPTS=--no-transfer-progress -Dstyle.color=always
 
 RUN addgroup fantasy-hockey && adduser --ingroup fantasy-hockey --disabled-password fantasy-hockey
 USER fantasy-hockey
@@ -55,9 +55,9 @@ WORKDIR /opt/app
 COPY .mvn/ .mvn
 COPY mvnw ./
 COPY pom.xml ./
-RUN ./mvnw $MVN_OPTS dependency:go-offline
+RUN ./mvnw "$MVN_OPTS" dependency:go-offline
 COPY ./src ./src
-RUN ./mvnw $MVN_OPTS clean install
+RUN ./mvnw "$MVN_OPTS" clean install
 
 
 FROM eclipse-temurin:21.0.2_13-jre-jammy
