@@ -216,7 +216,7 @@ jobs:
           sleep 5s
           docker run --rm --network host \
             --volume ./components/test/postman/collections:/etc/newman \
-            postman/newman:6.0.0-alpine run ${{ matrix.collection-name }}.json --env-var "BASE_URL=${{ matrix.collection-base-url }}" --color=on
+            postman/newman:6.0.0-alpine run ${{ matrix.collection-name }}.json --color=on --env-var "BASE_URL=${{ matrix.collection-base-url }}"
         shell: bash
       - name: Stop ${{ matrix.container-under-test }}
         if: always()
