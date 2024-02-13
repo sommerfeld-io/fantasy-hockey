@@ -191,11 +191,43 @@ jobs:
         run: docker stop ${{ matrix.profile-name }}
         shell: bash
 
+  postman-tests:
+    runs-on: ubuntu-latest
+    needs: ['build-images']
+    if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
+    strategy:
+      matrix:
+        include:
+          - container-under-test: docker.io/sommerfeldio/fantasy-hockey-app:${{ github.sha }}
+            container-ports: 8080:8080
+            collection-name: fantasy-hockey-app
+            collection-base-url: http://localhost:8080
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Pull ${{ matrix.container-under-test }}
+        run: docker pull ${{ matrix.container-under-test }}
+        shell: bash
+      - name: Start ${{ matrix.container-under-test }}
+        run: docker run --rm --name ${{ matrix.collection-name }} -d -p ${{ matrix.container-ports }} ${{ matrix.container-under-test }}
+        shell: bash
+      - name: Run Postman Collection
+        run: |
+          sleep 5s
+          docker run --rm --network host \
+            --volume ./components/test/postman/collections:/etc/newman \
+            postman/newman:6.0.0-alpine run ${{ matrix.collection-name }}.json --env-var "BASE_URL=${{ matrix.collection-base-url }}" --color=on
+        shell: bash
+      - name: Stop ${{ matrix.container-under-test }}
+        if: always()
+        run: docker stop ${{ matrix.collection-name }}
+        shell: bash
+
   # ----- Deploy :rc stage ----------------------
 
   publish-rc:
     runs-on: ubuntu-latest
-    needs: ['inspec-tests']
+    needs: ['inspec-tests', 'postman-tests']
     if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     permissions: # see build-images (duplicated because github actions does not support anchors)
       contents: read
@@ -249,6 +281,7 @@ jobs:
       'validate-inspec',
       'build-images',
       'inspec-tests',
+      'postman-tests',
       'publish-rc',
     ]
     if: failure()
