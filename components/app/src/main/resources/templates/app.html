@@ -1,0 +1,13 @@
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>App Started: Serving Web Content</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+</head>
+<body>
+    <p th:text="|Hello, ${name}!|" />
+    <p>Link to myself <a href="/app"> without any params</a>.</p>
+    <p>Link to myself <a href="/app?name=Sebastian"> with param "name=Sebastian"</a>.</p>
+    <p>Link to myself <a href="/app?name=Somebody"> with param "name=Somebody"</a>.</p>
+</body>
+</html>
