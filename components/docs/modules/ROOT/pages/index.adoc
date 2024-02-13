@@ -21,7 +21,7 @@ Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod 
 == How to use this project
 Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.
 
-. Run locally for development purposes with `./mvnw spring-boot:run` fromn the `components/app` folder. This command only builds and runs the Kotlin application, no other service. This allows the `spring-boot-devtools` to pick up changes without re-building every container all the time.
+. Run locally for development purposes with `./mvnw spring-boot:run` from the `components/app` folder. This command only builds and runs the Kotlin application, no other service. This allows the `spring-boot-devtools` to pick up changes without re-building every container all the time.
 . Run `docker compose up` from the project root for development purposes to build and start the app with all its components. This resembles a full setup more closely.
 
 == Risks and Technical Debts

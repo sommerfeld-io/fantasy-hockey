@@ -1,11 +1,11 @@
 # @file Dockerfile
 # @brief The main Docker image for the Fantasy Hockey app.
 #
-# @description This Docker image is part of a broader set of images that collectively
-# constitute the Fantasy Hockey App, a private NHL fantasy game.
+# @description This Docker image is part of a broader set of images that collectively constitute
+# the Fantasy Hockey App, a private NHL fantasy game.
 #
 # The underlying Dockerfile utilizes a multistage build approach to build and run the Fantasy
-# Hockey app. In the first stage, it employs the Maven image to build the application's JAR file.
+# Hockey App. In the first stage, it employs the Maven image to build the application's JAR file.
 #
 # In the second stage, it runs the application on port 8080. This multistage approach optimizes
 # the Docker image size by discarding unnecessary build dependencies after the first stage,
@@ -22,19 +22,13 @@
 #
 # == How to use this image
 #
-# todo ... at least update the image names below
-#
 # [source, bash]
 # ```
 # docker build -t local/fantasy-hockey-app:dev .
 # docker run --rm -it -p 8080:8080 local/fantasy-hockey-app:dev
 # ```
 #
-# To avoid downloading every Maven artifact with every build, the local Maven repository
-# is mounted into the container.
-# todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/9
-#
-# == Eclipse Temurin instead of JDK
+# == Eclipse Temurin Base Image instead of JDK
 #
 # On the OpenJDK link:https://hub.docker.com/_/openjdk[Docker Hub] page, you’ll find a list of
 # recommended Docker Official Images that you should use while building Java applications.
