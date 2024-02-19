@@ -150,14 +150,14 @@ jobs:
           provenance: true
           sbom: true
       - name: Docker Scout CVEs for :${{ github.sha }}
-        uses: docker/scout-action@v1.4.1
+        uses: docker/scout-action@v1.5.0
         with:
           command: cves
           image: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
           exit-code: false
           write-comment: ${{ github.event_name == 'pull_request' }}
       - name: Docker Scout Compare :${{ github.sha }} to :${{ env.IMAGE_TAG_RC }}"
-        uses: docker/scout-action@v1.4.1
+        uses: docker/scout-action@v1.5.0
         with:
           command: compare
           image: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
@@ -272,7 +272,7 @@ jobs:
         shell: bash
       # todo ... https://github.com/sommerfeld-io/fantasy-hockey/issues/17
       # - name: Docker Scout Compare :${{ env.IMAGE_TAG_RC }}" to :${{ env.IMAGE_TAG_LATEST }}
-      #   uses: docker/scout-action@v1.4.1
+      #   uses: docker/scout-action@v1.5.0
       #   with:
       #     command: compare
       #     image: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}
