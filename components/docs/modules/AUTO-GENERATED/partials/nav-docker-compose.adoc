@@ -1,2 +1,2 @@
-* xref:AUTO-GENERATED:-devcontainer/ops/docker-compose-yml.adoc[.devcontainer/ops/docker-compose.yml]
 * xref:AUTO-GENERATED:docker-compose-yml.adoc[docker-compose.yml]
+* xref:AUTO-GENERATED:-devcontainer/ops/docker-compose-yml.adoc[.devcontainer/ops/docker-compose.yml]
