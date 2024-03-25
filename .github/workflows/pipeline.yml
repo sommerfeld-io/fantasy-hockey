@@ -110,6 +110,8 @@ jobs:
     strategy:
       matrix:
         yml-file: ['docs/antora.yml']
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -138,6 +140,8 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ (github.actor != 'dependabot[bot]') }}
     needs: ['update-versions']
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
