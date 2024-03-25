@@ -103,11 +103,12 @@ jobs:
 
   update-versions:
     runs-on: ubuntu-latest
+    name: ${{ matrix.yml-file }}
     if: ${{ (github.actor != 'dependabot[bot]') }}
     needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'validate-inspec']
     strategy:
       matrix:
-        antora-yml-file: ['components/docs/antora.yml']
+        yml-file: ['components/docs/antora.yml']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -116,15 +117,15 @@ jobs:
       - name: Print Branchname
         run: echo ${{github.ref}}
         shell: bash
-      - name: Adjust version in ${{ matrix.antora-yml-file }}
+      - name: Adjust version in ${{ matrix.yml-file }}
         uses: sebastian-sommerfeld-io/github-action-update-antora-yml@main
         with:
           git_ref: ${{github.ref}}
-          file: ${{ matrix.antora-yml-file }}
-      - name: Run yamllint for ${{ matrix.antora-yml-file }}
+          file: ${{ matrix.yml-file }}
+      - name: Run yamllint for ${{ matrix.yml-file }}
         uses: ibiqlik/action-yamllint@v3
         with:
-          file_or_dir: ${{ matrix.antora-yml-file }}
+          file_or_dir: ${{ matrix.yml-file }}
       - name: Commit and push
         uses: EndBug/add-and-commit@v9
         with:
@@ -187,7 +188,7 @@ jobs:
 
   build-images:
     runs-on: ubuntu-latest
-    name: build ${{ matrix.IMAGE_NAME }}:${{ github.sha }}
+    name: ${{ matrix.image-name }}:${{ github.sha }}
     needs: ['generate-docs']
     permissions:
       contents: read
@@ -196,41 +197,41 @@ jobs:
     strategy:
       matrix:
         include:
-          - REGISTRY: docker.io
-            IMAGE_NAME: fantasy-hockey-app
-            CONTEXT: components/app
-          - REGISTRY: docker.io
-            IMAGE_NAME: fantasy-hockey-docs
-            CONTEXT: .
+          - registry: docker.io
+            image-name: fantasy-hockey-app
+            context: components/app
+          - registry: docker.io
+            image-name: fantasy-hockey-docs
+            context: .
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: ${{ matrix.CONTEXT }}/Dockerfile
+          dockerfile: ${{ matrix.context }}/Dockerfile
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Login to Container Registry ${{ matrix.REGISTRY }}
+      - name: Login to Container Registry ${{ matrix.registry }}
         uses: docker/login-action@v3
         with:
-          registry: ${{ matrix.REGISTRY }}
+          registry: ${{ matrix.registry }}
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5.5.1
         with:
-          images: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}
+          images: ${{ matrix.registry }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.image-name }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
-      - name: Build the Docker image and push to ${{ matrix.REGISTRY }}
+      - name: Build the Docker image and push to ${{ matrix.registry }}
         uses: docker/build-push-action@v5
         with:
-          context: ${{ matrix.CONTEXT }}
+          context: ${{ matrix.context }}
           platforms: linux/amd64
           push: true
-          tags: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
+          tags: ${{ matrix.registry }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.image-name }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           # cache-from: type=gha
           # cache-to: type=gha,mode=max
@@ -240,15 +241,15 @@ jobs:
         uses: docker/scout-action@v1.5.2
         with:
           command: cves
-          image: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
+          image: ${{ matrix.registry }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.image-name }}:${{ github.sha }}
           exit-code: false
           write-comment: ${{ github.event_name == 'pull_request' }}
       - name: Docker Scout Compare :${{ github.sha }} to :${{ env.IMAGE_TAG_RC }}"
         uses: docker/scout-action@v1.5.2
         with:
           command: compare
-          image: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
-          to: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}
+          image: ${{ matrix.registry }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.image-name }}:${{ github.sha }}
+          to: ${{ matrix.registry }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.image-name }}:${{ env.IMAGE_TAG_RC }}
           exit-code: false
           write-comment: ${{ github.event_name == 'pull_request' }}
 
@@ -258,6 +259,7 @@ jobs:
 
   inspec-tests:
     runs-on: ubuntu-latest
+    name: ${{ matrix.container-under-test }}
     needs: ['build-images']
     if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     strategy:
@@ -291,6 +293,7 @@ jobs:
 
   postman-tests:
     runs-on: ubuntu-latest
+    name: ${{ matrix.container-under-test }}
     needs: ['build-images']
     if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     strategy:
@@ -325,7 +328,7 @@ jobs:
 
   publish-rc:
     runs-on: ubuntu-latest
-    name: deploy ${{ matrix.IMAGE_NAME }} as release candidate
+    name: ${{ matrix.image-name }} as release candidate
     needs: ['inspec-tests', 'postman-tests']
     if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     permissions: # see build-images (duplicated because github actions does not support anchors)
@@ -335,23 +338,23 @@ jobs:
     strategy: # see build-images (duplicated because github actions does not support anchors)
       matrix:
         include:
-          - REGISTRY: docker.io
-            IMAGE_NAME: fantasy-hockey-app
-          - REGISTRY: docker.io
-            IMAGE_NAME: fantasy-hockey-docs
+          - registry: docker.io
+            image-name: fantasy-hockey-app
+          - registry: docker.io
+            image-name: fantasy-hockey-docs
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Login to Container Registry ${{ matrix.REGISTRY }}
+      - name: Login to Container Registry ${{ matrix.registry }}
         uses: docker/login-action@v3
         with:
-          registry: ${{ matrix.REGISTRY }}
+          registry: ${{ matrix.registry }}
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Re-tag image as release candicate (:${{ env.IMAGE_TAG_RC }}) and deploy to ${{ matrix.REGISTRY }}
+      - name: Re-tag image as release candicate (:${{ env.IMAGE_TAG_RC }}) and deploy to ${{ matrix.registry }}
         run: |
-          SRC_IMAGE="${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}"
-          TARGET_IMAGE="${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}"
+          SRC_IMAGE="${{ matrix.registry }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.image-name }}:${{ github.sha }}"
+          TARGET_IMAGE="${{ matrix.registry }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.image-name }}:${{ env.IMAGE_TAG_RC }}"
           docker pull "$SRC_IMAGE"
           docker tag "$SRC_IMAGE" "$TARGET_IMAGE"
           docker push "$TARGET_IMAGE"
@@ -361,8 +364,8 @@ jobs:
       #   uses: docker/scout-action@v1.5.2
       #   with:
       #     command: compare
-      #     image: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}
-      #     to: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ env.IMAGE_TAG_LATEST }}
+      #     image: ${{ matrix.registry }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.image-name }}:${{ env.IMAGE_TAG_RC }}
+      #     to: ${{ matrix.registry }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.image-name }}:${{ env.IMAGE_TAG_LATEST }}
       #     exit-code: false
       #     write-comment: ${{ github.event_name == 'pull_request' }}
 
