@@ -167,7 +167,7 @@ jobs:
 
   # ----- Commit stage (docs) -------------------
 
-  adjust-version:
+  update-versions:
     runs-on: ubuntu-latest
     if: ${{ (github.actor != 'dependabot[bot]') }}
     strategy:
@@ -200,7 +200,7 @@ jobs:
   generate-docs:
     runs-on: ubuntu-latest
     if: ${{ (github.actor != 'dependabot[bot]') }}
-    needs: ['adjust-version']
+    needs: ['update-versions']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -259,9 +259,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - profile-name: app
-            container-under-test: docker.io/sommerfeldio/fantasy-hockey-app:${{ github.sha }}
+          - container-under-test: docker.io/sommerfeldio/fantasy-hockey-app:${{ github.sha }}
             container-ports: 8080:8080
+            profile-name: app
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -332,10 +332,8 @@ jobs:
         include:
           - REGISTRY: docker.io
             IMAGE_NAME: fantasy-hockey-app
-            CONTEXT: components/app
           - REGISTRY: docker.io
             IMAGE_NAME: fantasy-hockey-docs
-            CONTEXT: .
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -368,7 +366,7 @@ jobs:
   on-failure:
     runs-on: ubuntu-latest
     needs: [
-      'adjust-version',
+      'update-versions',
       'generate-docs',
       'sonarcloud',
       'lint-yaml',
