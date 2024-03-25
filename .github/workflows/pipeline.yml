@@ -41,6 +41,7 @@ permissions:
 jobs:
 
   # ----- Commit stage --------------------------
+
   sonarcloud:
     runs-on: ubuntu-latest
     steps:
