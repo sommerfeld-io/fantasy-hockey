@@ -5,7 +5,7 @@
 # todo ... write description and brief (above)
 # todo ... something about this being part of a bigger application stack
 #
-# ! THIS SHOULD MOVE TO components/docs
+# ! THIS SHOULD MOVE TO docs
 # ! NOT IN ROOT !!!!!
 #
 # == About the tags and versions
@@ -33,13 +33,13 @@ RUN yarn global add @asciidoctor/core@~3.0.2 \
 COPY . /workspaces/fantasy-hockey
 WORKDIR /workspaces/fantasy-hockey
 
-RUN antora components/docs/playbook.yml --stacktrace
+RUN antora docs/playbook.yml --stacktrace
 
 
 FROM httpd:2.4.58-alpine3.19 AS run
 LABEL maintainer="sebastian@sommerfeld.io"
 
-COPY components/docs/httpd.conf /usr/local/apache2/conf/httpd.conf
+COPY docs/httpd.conf /usr/local/apache2/conf/httpd.conf
 
 ARG USER=www-data
 RUN chown -hR "$USER:$USER" /usr/local/apache2 \

@@ -2,7 +2,7 @@
     "asciidoc.antora.enableAntoraSupport": true,
     "yaml.schemas": {
         "https://json.schemastore.org/yamllint.json": [
-            "file:///workspaces/fantasy-hockey/components/docs/playbook.yml"
+            "file:///workspaces/fantasy-hockey/docs/playbook.yml"
         ]
     }
 }

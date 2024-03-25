@@ -8,7 +8,7 @@
 todo ... write description and brief (above)
 todo ... something about this being part of a bigger application stack
 
-! THIS SHOULD MOVE TO components/docs
+! THIS SHOULD MOVE TO docs
 ! NOT IN ROOT !!!!!
 
 == About the tags and versions

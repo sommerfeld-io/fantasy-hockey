@@ -17,7 +17,7 @@
 # docker compose --file docker-compose-lint.yml up
 #
 # # Stop and remove images
-# docker compose down --rmi all --volumes --remove-orphans
+# docker compose --file docker-compose-lint.yml down --rmi all --volumes --remove-orphans
 # ```
 
 

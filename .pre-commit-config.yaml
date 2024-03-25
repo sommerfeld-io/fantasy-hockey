@@ -27,12 +27,12 @@ repos:
       - id: check-merge-conflict
       - id: detect-private-key
   - repo: local
-    hooks:
-      - id: lint
-        name: lint
-        entry: bash -c 'docker compose --file docker-compose-lint.yml up'
-        language: system
-  - repo: local
+  #   hooks:
+  #     - id: lint
+  #       name: lint
+  #       entry: bash -c 'docker compose --file docker-compose-lint.yml up'
+  #       language: system
+  # - repo: local
     hooks:
       - id: build-app
         name: build-app

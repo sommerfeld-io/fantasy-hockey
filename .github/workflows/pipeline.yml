@@ -108,7 +108,7 @@ jobs:
     needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'validate-inspec']
     strategy:
       matrix:
-        yml-file: ['components/docs/antora.yml']
+        yml-file: ['docs/antora.yml']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -143,12 +143,12 @@ jobs:
         with:
           ref: ${{github.ref}}
       - name: Generate docs from source code
-        run: docker run --rm --volume "$(pwd):/project" --workdir "/project" sommerfeldio/source2docs:rc components/docs
+        run: docker run --rm --volume "$(pwd):/project" --workdir "/project" sommerfeldio/source2docs:rc docs
         shell: bash
       - name: README.adoc
         run: |
           TARGET_ADOC="README.adoc"
-          cp components/docs/modules/ROOT/pages/index.adoc "$TARGET_ADOC"
+          cp docs/modules/ROOT/pages/index.adoc "$TARGET_ADOC"
           {
             echo
             echo "// +-------------------------------------------+"
@@ -164,7 +164,7 @@ jobs:
       - name: LICENSE.adoc
         run: |
           TARGET_ADOC="LICENSE.adoc"
-          cp components/docs/modules/ROOT/pages/license.adoc "$TARGET_ADOC"
+          cp docs/modules/ROOT/pages/license.adoc "$TARGET_ADOC"
           {
             echo
             echo "// +-------------------------------------------+"
