@@ -99,78 +99,12 @@ jobs:
         run: docker-compose --file docker-compose-lint.yml up validate-inspec
         shell: bash
 
-  build-images:
-    runs-on: ubuntu-latest
-    name: build ${{ matrix.IMAGE_NAME }}:${{ github.sha }}
-    needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'validate-inspec']
-    permissions:
-      contents: read
-      pull-requests: write
-      security-events: write
-    strategy:
-      matrix:
-        include:
-          - REGISTRY: docker.io
-            IMAGE_NAME: fantasy-hockey-app
-            CONTEXT: components/app
-          - REGISTRY: docker.io
-            IMAGE_NAME: fantasy-hockey-docs
-            CONTEXT: .
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: hadolint
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: ${{ matrix.CONTEXT }}/Dockerfile
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to Container Registry ${{ matrix.REGISTRY }}
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ matrix.REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USER }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5.5.1
-        with:
-          images: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-      - name: Build the Docker image and push to ${{ matrix.REGISTRY }}
-        uses: docker/build-push-action@v5
-        with:
-          context: ${{ matrix.CONTEXT }}
-          platforms: linux/amd64
-          push: true
-          tags: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # cache-from: type=gha
-          # cache-to: type=gha,mode=max
-          provenance: true
-          sbom: true
-      - name: Docker Scout CVEs for :${{ github.sha }}
-        uses: docker/scout-action@v1.5.2
-        with:
-          command: cves
-          image: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
-          exit-code: false
-          write-comment: ${{ github.event_name == 'pull_request' }}
-      - name: Docker Scout Compare :${{ github.sha }} to :${{ env.IMAGE_TAG_RC }}"
-        uses: docker/scout-action@v1.5.2
-        with:
-          command: compare
-          image: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
-          to: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}
-          exit-code: false
-          write-comment: ${{ github.event_name == 'pull_request' }}
-
   # ----- Commit stage (docs) -------------------
 
   update-versions:
     runs-on: ubuntu-latest
     if: ${{ (github.actor != 'dependabot[bot]') }}
+    needs: ['lint-yaml', 'lint-folders', 'lint-filenames', 'shellcheck', 'validate-inspec']
     strategy:
       matrix:
         antora-yml-file: ['components/docs/antora.yml']
@@ -248,6 +182,75 @@ jobs:
           author_name: sebastian
           author_email: sebastian@sommerfeld.io
           message: "[Actions Bot] generate docs"
+
+  # ----- Commit stage (build) ------------------
+
+  build-images:
+    runs-on: ubuntu-latest
+    name: build ${{ matrix.IMAGE_NAME }}:${{ github.sha }}
+    needs: ['generate-docs']
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+    strategy:
+      matrix:
+        include:
+          - REGISTRY: docker.io
+            IMAGE_NAME: fantasy-hockey-app
+            CONTEXT: components/app
+          - REGISTRY: docker.io
+            IMAGE_NAME: fantasy-hockey-docs
+            CONTEXT: .
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ matrix.CONTEXT }}/Dockerfile
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Container Registry ${{ matrix.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ matrix.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Build the Docker image and push to ${{ matrix.REGISTRY }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.CONTEXT }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+      - name: Docker Scout CVEs for :${{ github.sha }}
+        uses: docker/scout-action@v1.5.2
+        with:
+          command: cves
+          image: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
+          exit-code: false
+          write-comment: ${{ github.event_name == 'pull_request' }}
+      - name: Docker Scout Compare :${{ github.sha }} to :${{ env.IMAGE_TAG_RC }}"
+        uses: docker/scout-action@v1.5.2
+        with:
+          command: compare
+          image: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ github.sha }}
+          to: ${{ matrix.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ matrix.IMAGE_NAME }}:${{ env.IMAGE_TAG_RC }}
+          exit-code: false
+          write-comment: ${{ github.event_name == 'pull_request' }}
 
   # ----- Test stage ----------------------------
 
