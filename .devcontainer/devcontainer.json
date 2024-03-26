@@ -31,7 +31,8 @@
                 "github.vscode-github-actions",
                 "redhat.vscode-yaml",
                 "alexkrechik.cucumberautocomplete",
-                "chef-software.chef"
+                "chef-software.chef",
+                "fwcd.kotlin"
             ]
 		}
 	},
