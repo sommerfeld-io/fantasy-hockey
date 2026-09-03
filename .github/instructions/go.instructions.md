@@ -45,7 +45,7 @@ nervous above four; refuse above six.
 - Comment all exported packages, types, variables, constants, functions, and methods.
 - Keep comments short, specific, and focused on behavior or rationale instead of narration.
 - Avoid redundant comments that only describe what the code already says.
-- Add a `PACKAGE.md` file to document the purpose of each package.
+- Add a `README.md` file to document the purpose of each package.
 
 ## Line-level comments
 
