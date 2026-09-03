@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go test *)",
+      "Bash(task go:build)",
+      "WebSearch",
+      "Bash(task lint *)",
+      "Bash(task go:lint)",
+      "Bash(task go:test:acceptance)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "OUTPUT=$(task go:run 2>&1); STATUS=$?; if [ $STATUS -ne 0 ]; then jq -n --arg out \"$OUTPUT\" '{\"decision\":\"block\",\"reason\":(\"`task go:run` failed:\\n\\n\" + $out)}'; fi",
+            "timeout": 300,
+            "statusMessage": "Building and running the app to verify the change (task go:run)..."
+          }
+        ]
+      }
+    ]
+  }
+}
