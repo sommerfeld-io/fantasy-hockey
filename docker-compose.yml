@@ -1,0 +1,95 @@
+---
+x-volumes: &volumes
+  - /etc/timezone:/etc/timezone:ro
+  - /etc/localtime:/etc/localtime:ro
+  - project-root-volume:/workspaces/fantasy-hockey
+x-workdir: &default-workdir /workspaces/fantasy-hockey
+x-tty: &tty true
+
+volumes:
+
+  project-root-volume:
+    driver: local
+    driver_opts:
+      type: none
+      device: .
+      o: bind
+
+services:
+
+  lint-yaml:
+    image: cytopia/yamllint:latest
+    volumes: *volumes
+    working_dir: *default-workdir
+    command: .
+    tty: *tty
+
+  lint-workflows:
+    image: rhysd/actionlint:latest
+    volumes: *volumes
+    working_dir: *default-workdir
+    command:
+      - -color
+      - .github/workflows/codeql.yml
+      - .github/workflows/copilot-setup-steps.yml
+      - .github/workflows/dev-environment.yml
+      - .github/workflows/housekeeping-issues-ai-refinement.yml
+      - .github/workflows/housekeeping-issues.yml
+      - .github/workflows/housekeeping-labels.yml
+      - .github/workflows/housekeeping-project.yml
+      - .github/workflows/pipeline.yml
+      - .github/workflows/release.yml
+      - .github/workflows/scan-container-images.yml
+    tty: *tty
+
+  lint-filenames:
+    image: lslintorg/ls-lint:1.11.2
+    volumes: *volumes
+    working_dir: *default-workdir
+    tty: *tty
+
+  lint-folders:
+    image: sommerfeldio/folderslint:latest
+    volumes: *volumes
+    working_dir: *default-workdir
+    command: .
+    tty: *tty
+
+  lint-markdown-links:
+    image: lycheeverse/lychee:latest
+    volumes: *volumes
+    working_dir: *default-workdir
+    command: --config .lychee.toml .
+    tty: *tty
+
+  # go-lint:
+  #   image: &golangci-lint-image golangci/golangci-lint:v2.12.2
+  #   volumes: *volumes
+  #   working_dir: *default-workdir-go
+  #   command: &golangci-lint-cmd golangci-lint run -v
+  #   tty: *tty
+
+  lint-gherkin:
+    image: node:23.3.0-alpine3.19
+    volumes: *volumes
+    working_dir: *default-workdir
+    command:
+      - /bin/ash
+      - -c
+      - npx --yes gherkin-lint src/acceptance-tests/features
+    tty: *tty
+
+  fantasy-hockey-lint-dockerfile:
+    image: &lint-dockerfile-image hadolint/hadolint:latest
+    volumes: *volumes
+    working_dir: *default-workdir
+    entrypoint: hadolint Dockerfile
+
+  fantasy-hockey:
+    image: ${COMPOSE_PROJECT_NAME}-app:${DEV_TAG}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      fantasy-hockey-lint-dockerfile:
+        condition: service_completed_successfully

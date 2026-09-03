@@ -1,0 +1,72 @@
+---
+version: '3.42.1'
+
+dotenv: ['.env']
+
+vars:
+  COMPOSE_SERVICE: 'fantasy-hockey'
+
+includes:
+  cleanup: .task/cleanup/taskfile.yml
+  common: .task/common/taskfile.yml
+  go: src/taskfile.yml
+
+tasks:
+
+  compose:pull:
+    desc: Pull all container images for linting and validation (exclude the app image)
+    cmds:
+      - docker compose pull $(docker compose config --services | grep -v '^fantasy-hockey$')
+
+  symlinks:
+    desc: Create symlinks for shared files
+    cmds:
+      - ln -sf "$(pwd)/.github/copilot-instructions.md" "$(pwd)/CLAUDE.md"
+      - ln -sf "$(pwd)/.github/instructions/go.instructions.md" "$(pwd)/src/CLAUDE.md"
+
+  # ===============================================================================================
+
+  github:repo:config:
+    desc: Configure GitHub.com repository settings
+    cmds:
+      - gh auth login
+      - gh repo edit --enable-discussions --enable-issues --enable-projects --enable-wiki=false
+
+  bmad:install:
+    desc: Install BMad Method (bmm module) for Claude Code if not already present. Use `--force` to update an existing installation.
+    status:
+      - test -d _bmad
+    vars:
+      ALLOW_DOWNLOAD: --yes
+      BMAD_HEADLESS_INSTALL: --yes
+    cmds:
+      - npx {{ .ALLOW_DOWNLOAD }} bmad-method install --directory . --modules bmm --tools claude-code {{ .BMAD_HEADLESS_INSTALL }}
+
+  # ===============================================================================================
+
+  lint:
+    desc: Run all project linters outside of Dockerfile linters
+    cmds:
+      - task: cleanup:filesystem
+      - task: go:cleanup
+      - task: symlinks
+      - for: ['yaml', 'workflows', 'filenames', 'folders', 'gherkin'] # , 'markdown-links'
+        cmd: docker compose up lint-{{ .ITEM }} --exit-code-from lint-{{ .ITEM }}
+      - task: go:complexity
+      - task: go:licenses
+      - task: go:lint
+
+  # ===============================================================================================
+
+  docker:build:
+    desc: Lint and build container {{ .COMPOSE_SERVICE }}
+    cmds:
+      - task: lint
+      - docker compose up {{ .COMPOSE_SERVICE }}-lint-dockerfile --exit-code-from {{ .COMPOSE_SERVICE }}-lint-dockerfile
+      - docker compose build {{ .COMPOSE_SERVICE }}
+
+  docker:run:
+    desc: Run container {{ .COMPOSE_SERVICE }}
+    cmds:
+      - task: docker:build
+      - docker compose up {{ .COMPOSE_SERVICE }}

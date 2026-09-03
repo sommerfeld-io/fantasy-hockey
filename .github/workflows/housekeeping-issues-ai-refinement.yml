@@ -1,0 +1,17 @@
+---
+name: 'Housekeeping: Issues AI Refinement'
+
+on:
+  schedule:
+    - cron: '30 5 * * *'
+
+jobs:
+
+  triage-issues:
+    uses: sommerfeld-io/.github/.github/workflows/housekeeping-issues-ai-refinement.yml@main
+    secrets:
+      COPILOT_CLI_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
+    permissions:
+      contents: read
+      issues: write
+      models: read

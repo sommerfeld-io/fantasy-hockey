@@ -1,0 +1,19 @@
+---
+name: 'Housekeeping: Labels'
+
+on:
+  schedule:
+    - cron: '0 1 * * *' # https://crontab.guru
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/housekeeping-labels.yml
+
+jobs:
+  housekeeping-labels:
+    uses: sommerfeld-io/.github/.github/workflows/housekeeping-labels.yml@main
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write

@@ -1,0 +1,1 @@
+/workspaces/fantasy-hockey/.github/instructions/go.instructions.md

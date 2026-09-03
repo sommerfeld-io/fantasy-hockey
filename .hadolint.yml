@@ -1,0 +1,20 @@
+---
+# ignored:
+# * DL3000
+# * SC1010
+
+trustedRegistries:
+  - docker.io
+  - ghcr.io
+  - quay.io
+  - mcr.microsoft.com
+
+label-schema:
+  maintainer: email
+
+failure-threshold: error
+
+override:
+  warning:
+    - DL3008  # Unpinned apt-get install versions
+    - DL3013  # Unpinned pip versions

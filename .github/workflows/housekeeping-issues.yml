@@ -1,0 +1,22 @@
+---
+name: 'Housekeeping: Issues + PRs'
+
+on:
+  issues:
+    types:
+      - opened
+  pull_request:
+    types:
+      - opened
+      - assigned
+
+jobs:
+  housekeeping-issues:
+    uses: sommerfeld-io/.github/.github/workflows/housekeeping-issues.yml@main
+    secrets:
+      GH_TOKEN_REPO_AND_PROJECT: ${{ secrets.GH_TOKEN_REPO_AND_PROJECT }}
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      repository-projects: write

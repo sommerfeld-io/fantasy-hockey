@@ -1,29 +1,25 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-# Test binary, built with `go test -c`
-*.test
-
-# Code coverage profiles and other test artifacts
-*.out
-coverage.*
-*.coverprofile
-profile.cov
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
-go.work
-go.work.sum
-
 # Editor/IDE
 # .idea/
 # .vscode/
+
+.cache
+.idea
+target
+.target
+*.log
+*.lock
+yamllint-*
+
+node_modules
+/node_modules/
+/public
+/target
+/dist
+
+## BMad Method: _bmad/ holds fetched framework code, regenerated via
+## `task bmad:install` — not tracked. _bmad-output/ (PRDs, architecture,
+## stories) is tracked as a living record.
+_bmad
+
+.claude/settings.local.json
+.claude/skills/bmad-*

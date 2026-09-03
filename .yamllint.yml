@@ -1,0 +1,27 @@
+---
+extends: default
+
+ignore: |
+  node_modules
+  .vagrant
+  target
+
+rules:
+  line-length:
+    max: 150
+    allow-non-breakable-inline-mappings: true
+    level: warning
+  new-lines:
+    type: unix
+  braces:
+    max-spaces-inside: 1
+    level: error
+  brackets:
+    max-spaces-inside: 1
+    level: error
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

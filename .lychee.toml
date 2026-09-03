@@ -1,0 +1,16 @@
+# https://lychee.cli.rs/usage/config/
+
+verbose = 'info'
+
+exclude_path = [
+    'node_modules',
+    'target'
+]
+exclude_loopback = true
+exclude = [
+    '.*fritz\.box.*'
+]
+
+format = 'detailed' # compact, detailed, json, markdown, raw
+
+accept = ['200', '429']

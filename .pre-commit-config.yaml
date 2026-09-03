@@ -1,0 +1,44 @@
+---
+## Run the defined checks before committing code to the remote repo. This should catch
+## simple violations early and lessens the amount of pipeline failures.
+##
+## Every time you clone a project using pre-commit running `pre-commit install` should always be the
+## first thing you do.
+##
+## IMPORTANT: For pre-commit to work, this file must carry the extension `.yaml`, NOT `.yml`.
+##
+## == Install the git hook scripts
+## run `pre-commit install` to set up the git hook scripts. Now pre-commit will run automatically
+## on git commit.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-added-large-files
+        exclude_types:
+          - jpeg
+          - png
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-json
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: detect-private-key
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.8.0-1
+    hooks:
+      - id: shfmt-src
+        args: [-w, -i, "2"]
+  - repo: local
+    hooks:
+      - id: lint-repo
+        name: lint-repo
+        language: script
+        entry: /bin/bash -c 'task lint'
+      # - id: go-build
+      #   name: go-build
+      #   language: script
+      #   entry: /bin/bash -c 'task go:build'

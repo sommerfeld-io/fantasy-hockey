@@ -1,0 +1,6 @@
+[submodule ".vscode"]
+	path = .vscode
+	url = git@github.com:sommerfeld-io/.vscode.git
+[submodule ".task"]
+	path = .task
+	url = git@github.com:sommerfeld-io/.task.git

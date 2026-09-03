@@ -1,0 +1,127 @@
+---
+name: "Pipeline: Release"
+
+on:
+  release:
+    types: [created]
+
+env:
+  IMAGE_TAG_EDGE: ${{ vars.IMAGE_TAG_EDGE }}
+  IMAGE_TAG_LATEST: ${{ vars.IMAGE_TAG_LATEST }}
+  REGISTRY: docker.io
+  image-name: fantasy-hockey
+  context: '.'
+
+jobs:
+
+  update-release-notes:
+    uses: sommerfeld-io/.github/.github/workflows/release.yml@main
+    permissions:
+      contents: write
+
+  upload-sbom:
+    runs-on: ubuntu-latest
+    needs: publish-release
+    permissions:
+      contents: write
+    steps:
+      - name: Login to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract version from release tag
+        id: release
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+        shell: bash
+      - name: Generate SPDX SBOM from Docker image
+        uses: anchore/sbom-action@v0
+        env:
+          SYFT_GOLANG_SEARCH_REMOTE_LICENSES: "true"
+        with:
+          image: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }}:${{ steps.release.outputs.version }}
+          format: spdx-json
+          output-file: ${{ secrets.DOCKERHUB_USER }}-${{ env.image-name }}_${{ steps.release.outputs.version }}.spdx.json
+          upload-release-assets: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: Login to DockerHub
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Deploy to DockerHub
+        env:
+          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+          IMAGE_NAME: ${{ env.image-name }}
+          IMAGE_TAG_EDGE: ${{ env.IMAGE_TAG_EDGE }}
+          IMAGE_TAG_LATEST: ${{ env.IMAGE_TAG_LATEST }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          TAG="${TAG#v}"
+          echo "[INFO] New version tag = $TAG"
+
+          SRC_IMAGE="$DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG_EDGE"
+
+          TARGET_IMAGE="$DOCKERHUB_USER/$IMAGE_NAME:$TAG"
+          docker buildx imagetools create --tag "$TARGET_IMAGE" "$SRC_IMAGE"
+
+          TARGET_IMAGE="$DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG_LATEST"
+          docker buildx imagetools create --tag "$TARGET_IMAGE" "$SRC_IMAGE"
+        shell: bash
+      - name: Update DockerHub description
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }}
+          short-description: ${{ github.event.repository.description }}
+          readme-filepath: ${{ env.context }}/README.md
+
+  docker-scout:
+    runs-on: ubuntu-latest
+    needs: publish-release
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Get current date
+        id: date
+        run: echo "job_date=$(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+        shell: bash
+      - name: Login to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Docker Scout - CVE Scan
+        uses: docker/scout-action@v1.22.0
+        with:
+          command: cves
+          image: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }}:${{ env.IMAGE_TAG_LATEST }}
+          sarif-file: sarif-output.json
+          summary: false
+          organization: ${{ secrets.DOCKERHUB_USER }}
+      - name: Upload SARIF result
+        id: upload-sarif
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sarif-output.json
+          category: 'Docker Scout CVEs - ${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }}:${{ env.IMAGE_TAG_LATEST }}'
+          checkout_path: components/${{ env.image-name }}

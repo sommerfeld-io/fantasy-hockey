@@ -1,0 +1,46 @@
+{
+  "name": "fantasy-hockey",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  "customizations": {
+    "vscode": {
+      "settings": {},
+      "extensions": [
+        "streetsidesoftware.code-spell-checker",
+        "asciidoctor.asciidoctor-vscode",
+        "ms-azuretools.vscode-containers",
+        "aaron-bond.better-comments",
+        "timonwong.shellcheck",
+        "jebbs.plantuml",
+        "github.vscode-github-actions",
+        "redhat.vscode-yaml",
+        "GitHub.copilot",
+        "anthropic.claude-code",
+        "golang.go",
+        "alexkrechik.cucumberautocomplete",
+        "DavidAnson.vscode-markdownlint",
+        "EditorConfig.EditorConfig",
+        "tamasfe.even-better-toml",
+        "task.vscode-task"
+      ]
+    }
+  },
+
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:4.1.0": {
+      "moby": false
+    }
+  },
+
+  "containerEnv": {
+    "SONARCLOUD_TOKEN": "${localEnv:SONARCLOUD_TOKEN}",
+    "SONARQUBE_TOKEN": "${localEnv:SONARCLOUD_TOKEN}",
+    "SONARQUBE_URL": "https://sonarcloud.io",
+    "SONARQUBE_ORGANIZATION": "sommerfeld-io"
+  },
+
+  "postCreateCommand": "${containerWorkspaceFolder}/.devcontainer/post-create.sh",
+  "postStartCommand": "${containerWorkspaceFolder}/.devcontainer/post-start.sh"
+}

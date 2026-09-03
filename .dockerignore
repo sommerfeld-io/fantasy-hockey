@@ -1,0 +1,9 @@
+.devcontainer
+.github
+.task
+.vscode
+
+docs
+tests/inspec
+
+src/go/fantasy-hockey

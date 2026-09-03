@@ -1,0 +1,293 @@
+---
+name: "Pipeline: Commit + Test"
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.adoc'
+      - '**.md'
+      - 'docs/**'
+      - '.devcontainer/**'
+      - '.github/workflows/scan.yml'
+      - '.github/workflows/dev-environment.yml'
+      - '.github/workflows/housekeeping-issues.yml'
+      - '.github/workflows/housekeeping-labels.yml'
+      - '.vscode/**'
+      - '.gitkeep'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+    paths-ignore:
+      - '**.adoc'
+      - '**.md'
+      - 'docs/**'
+      - '.devcontainer/**'
+      - '.github/workflows/scan.yml'
+      - '.github/workflows/dev-environment.yml'
+      - '.github/workflows/housekeeping-issues.yml'
+      - '.github/workflows/housekeeping-labels.yml'
+      - '.vscode/**'
+      - '.gitkeep'
+  schedule:
+    - cron: '0 4 * * 3'
+
+env:
+  IMAGE_TAG_EDGE: ${{ vars.IMAGE_TAG_EDGE }}
+  IMAGE_TAG_LATEST: ${{ vars.IMAGE_TAG_LATEST }}
+  REGISTRY: docker.io
+  image-name: fantasy-hockey
+  context: '.'
+
+permissions:
+  contents: read
+
+jobs:
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: Login to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          ignore_paths: node_modules target
+
+  lint:
+    runs-on: ubuntu-latest
+    name: ${{ matrix.linter }}
+    strategy:
+      matrix:
+        linter: ['yaml', 'workflows', 'filenames', 'folders', 'gherkin', 'markdown-links']
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: Login to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Run lint-${{ matrix.linter }} from docker-compose.yml
+        env:
+          LINTER: ${{ matrix.linter }}
+        run: docker compose up "lint-$LINTER" --exit-code-from "lint-$LINTER"
+        shell: bash
+
+  lint-dockerfile:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: Login to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Run ${{ env.image-name }}-lint-dockerfile from docker-compose.yml
+        env:
+          IMAGE_NAME: ${{ env.image-name }}
+        run: docker compose up "$IMAGE_NAME-lint-dockerfile" --exit-code-from "$IMAGE_NAME-lint-dockerfile"
+        shell: bash
+
+  sonar-analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+          fetch-depth: 0
+      - name: Install Task
+        uses: arduino/setup-task@v2.0.0
+        with:
+          version: 3.x
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+      - name: Test with coverage report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: task go:test
+        shell: bash
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v8.2.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # ----- Build images stage ----------------------------------------------------------------------
+
+  build-image:
+    runs-on: ubuntu-latest
+    needs: [
+      'lint',
+      'lint-dockerfile',
+      'shellcheck',
+    ]
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+      - name: Login to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v6.1.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=${{ env.image-name }}
+            org.opencontainers.image.description=${{ env.image-name }}
+            org.opencontainers.image.vendor=sommerfeld-io
+            org.opencontainers.image.authors=sebastian@sommerfeld.io
+            org.opencontainers.image.documentation=https://sommerfeld-io.github.io/container-images/images/${{ env.image-name }}
+            org.opencontainers.image.base.name=docker.io/library/alpine:3.24.0
+            dev.containers.source=https://github.com/sommerfeld-io/fantasy-hockey
+            dev.containers.release=${{ github.sha }}
+            version=${{ github.sha }}
+            org.opencontainers.image.licenses=MIT
+      - name: Build the Docker image and push to registry
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ env.context }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }}:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+
+  # ----- Scan stage ------------------------------------------------------------------------------
+
+  docker-scout:
+    runs-on: ubuntu-latest
+    needs: [
+      'build-image',
+    ]
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Login to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Docker Scout Compare with `:${{ env.IMAGE_TAG_LATEST }}` vs `:${{ github.sha }}` (pull requests only)
+        # if: ${{ github.event_name == 'pull_request' }}
+        uses: docker/scout-action@v1.22.0
+        with:
+          command: compare
+          image: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }}:${{ github.sha }}
+          to: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }}:${{ env.IMAGE_TAG_LATEST }}
+          exit-code: false
+          write-comment: true
+          only-severities: critical,high,medium
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ----- Deploy ----------------------------------------------------------------------
+
+  publish-edge:
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
+    needs: [
+      'build-image', ## replace with test stages if there are any in the future
+    ]
+    permissions:
+      contents: read
+    steps:
+      - name: Login to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Re-tag ${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }} as :${{ env.IMAGE_TAG_EDGE }} and deploy to ${{ env.REGISTRY }}
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+          IMAGE_NAME: ${{ env.image-name }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          SRC_IMAGE="$REGISTRY/$DOCKERHUB_USER/$IMAGE_NAME:$COMMIT_SHA"
+          TARGET_IMAGE="$DOCKERHUB_USER/$IMAGE_NAME:$IMAGE_TAG_EDGE"
+          docker buildx imagetools create --tag "$TARGET_IMAGE" "$SRC_IMAGE"
+        shell: bash
+
+  # ----- Release stage ---------------------------------------------------------------------------
+
+  release-code:
+    uses: sommerfeld-io/.github/.github/workflows/lib-release-code.yml@main
+    needs: [
+      'publish-edge',
+    ]
+    if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
+    secrets:
+      GH_TOKEN_REPO_AND_PROJECT: ${{ secrets.GH_TOKEN_REPO_AND_PROJECT }}
+    permissions:
+      contents: write
+
+  # ----- Cleanup -------------------------------
+
+  cleanup-dockerhub:
+    runs-on: ubuntu-latest
+    needs: ['publish-edge']
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Remove ${{ env.image-name }}:${{ github.sha }} images from registry
+        env:
+          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+          IMAGE_NAME: ${{ env.image-name }}
+          COMMIT_SHA: ${{ github.sha }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          TOKEN=$(curl -s -H "Content-Type: application/json" -X POST \
+            -d "{\"username\": \"$DOCKERHUB_USER\", \"password\": \"$DOCKERHUB_TOKEN\"}" \
+            https://hub.docker.com/v2/users/login/ | jq -r .token)
+          curl -X DELETE -H "Authorization: JWT ${TOKEN}" \
+            "https://hub.docker.com/v2/repositories/${DOCKERHUB_USER}/${IMAGE_NAME}/tags/${COMMIT_SHA}/"
+        shell: bash

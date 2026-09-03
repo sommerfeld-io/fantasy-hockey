@@ -1,0 +1,17 @@
+---
+name: Development Environment
+
+on:
+  push:
+    branches-ignore:
+      - dependabot/**
+    paths:
+      - '.devcontainer/**'
+      - '.github/workflows/dev-environment.yml'
+  schedule:
+    - cron: '0 1 * * 2'
+  workflow_dispatch:
+
+jobs:
+  dev-environment:
+    uses: sommerfeld-io/.github/.github/workflows/dev-environment.yml@main
