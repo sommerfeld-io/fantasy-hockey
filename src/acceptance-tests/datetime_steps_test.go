@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
+
 	"github.com/sommerfeld-io/fantasy-hockey/internal/clock"
 )
 

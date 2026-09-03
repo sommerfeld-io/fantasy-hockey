@@ -62,13 +62,6 @@ services:
     command: --config .lychee.toml .
     tty: *tty
 
-  # go-lint:
-  #   image: &golangci-lint-image golangci/golangci-lint:v2.12.2
-  #   volumes: *volumes
-  #   working_dir: *default-workdir-go
-  #   command: &golangci-lint-cmd golangci-lint run -v
-  #   tty: *tty
-
   lint-gherkin:
     image: node:23.3.0-alpine3.19
     volumes: *volumes

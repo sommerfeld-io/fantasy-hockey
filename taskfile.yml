@@ -50,7 +50,7 @@ tasks:
       - task: cleanup:filesystem
       - task: go:cleanup
       - task: symlinks
-      - for: ['yaml', 'workflows', 'filenames', 'folders', 'gherkin'] # , 'markdown-links'
+      - for: ['yaml', 'workflows', 'filenames', 'folders', 'gherkin', 'markdown-links']
         cmd: docker compose up lint-{{ .ITEM }} --exit-code-from lint-{{ .ITEM }}
       - task: go:complexity
       - task: go:licenses

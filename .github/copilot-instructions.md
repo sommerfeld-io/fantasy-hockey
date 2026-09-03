@@ -26,6 +26,10 @@ A scope may not contain a slash. Document breaking changes with a `BREAKING CHAN
 
 If a lint check, test, or CI step fails, fix the application code or configuration - never the pipeline itself to work around a failure.
 
+## Community Health Files
+
+This repo intentionally has no `CONTRIBUTING.md` or `SECURITY.md`. They are inherited from the `sommerfeld-io` GitHub organization's default community health files (org `.github` repo), which GitHub surfaces automatically on this repo's web UI. Do not add repo-local copies of these files.
+
 ## Development Commands
 
 All Go work runs from `src/`. The root `taskfile.yml` delegates to `src/taskfile.yml` via the `go:` namespace.
