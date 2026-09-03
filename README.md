@@ -1,6 +1,6 @@
-# fantasy-hockey
+# Fantasy Hockey
 
-NHL Fantasy Hockey Game - Web-based successor to the spreadsheet-based manual solution
+NHL Fantasy Hockey Game - Web-based successor to the spreadsheet-based manual solution.
 
 <!-- ===== START status badge ===== -->
 
@@ -13,9 +13,13 @@ NHL Fantasy Hockey Game - Web-based successor to the spreadsheet-based manual so
 - [Sonarcloud Code Quality and Security Analysis](https://sonarcloud.io/project/overview?id=sommerfeld-io_fantasy-hockey)
 - [Where to file issues](https://github.com/sommerfeld-io/fantasy-hockey/issues)
 
-## Status
+## About
 
-This project is under initial construction. The `src/` module currently contains a placeholder implementation; the build, unit test, and acceptance test pipelines are in place and will carry the real application logic in later steps.
+Lorem ipsum dolor ...
+
+## Usage
+
+Lorem ipsum dolor ...
 
 ## Licensing
 
