@@ -119,11 +119,11 @@ jobs:
           submodules: true
           fetch-depth: 0
       - name: Install Task
-        uses: arduino/setup-task@v2.0.0
+        uses: arduino/setup-task@v3.0.0
         with:
           version: 3.x
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
@@ -133,7 +133,7 @@ jobs:
         run: task go:test
         shell: bash
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v8.2.0
+        uses: SonarSource/sonarqube-scan-action@v8.2.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -168,7 +168,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v6.1.0
+        uses: docker/metadata-action@v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }}
           labels: |
@@ -213,7 +213,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Docker Scout Compare with `:${{ env.IMAGE_TAG_LATEST }}` vs `:${{ github.sha }}` (pull requests only)
         # if: ${{ github.event_name == 'pull_request' }}
-        uses: docker/scout-action@v1.22.0
+        uses: docker/scout-action@v1.24.0
         with:
           command: compare
           image: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USER }}/${{ env.image-name }}:${{ github.sha }}
