@@ -8,7 +8,11 @@ exclude_path = [
 ]
 exclude_loopback = true
 exclude = [
-    '.*fritz\.box.*'
+    '.*fritz\.box.*',
+    # Known-bad citation URLs in BMad research provenance (_bmad-output/): bot-blocked
+    # or dead pages cited for their content at time of research, not meant to be fetched by CI.
+    'https://www\.sports-reference\.com/(bot-traffic|termsofuse)\.html',
+    'https://rdrr\.io/cran/nhlscraper/man/nhl_api\.html'
 ]
 
 format = 'detailed' # compact, detailed, json, markdown, raw
