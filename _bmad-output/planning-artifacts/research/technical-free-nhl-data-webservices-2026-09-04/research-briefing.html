@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Technical Research: Free NHL Data Webservices</title>
+<style>
+  :root{
+    --bg:#f7f8fa; --panel:#ffffff; --text:#1c2128; --muted:#57606a;
+    --border:#d8dee4; --accent:#2454ff; --accent-weak:#e8edff;
+    --high:#1a7f37; --high-bg:#dcffe4;
+    --medium:#9a6700; --medium-bg:#fff8c5;
+    --low:#cf222e; --low-bg:#ffebe9;
+    --unverified:#8250df; --unverified-bg:#fbefff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e;
+      --border:#30363d; --accent:#6e93ff; --accent-weak:#1b2652;
+      --high:#3fb950; --high-bg:#0f2d16;
+      --medium:#d29922; --medium-bg:#3d2f04;
+      --low:#f85149; --low-bg:#3c1618;
+      --unverified:#c297ff; --unverified-bg:#2a1a3d;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; line-height:1.55; margin:0;}
+  .wrap{display:flex; max-width:1200px; margin:0 auto;}
+  header.page{padding:28px 24px 20px; border-bottom:1px solid var(--border); background:var(--panel);}
+  header.page h1{margin:0 0 8px; font-size:1.5rem;}
+  .meta{display:flex; flex-wrap:wrap; gap:8px 20px; font-size:.85rem; color:var(--muted);}
+  .meta b{color:var(--text);}
+  nav.toc{position:sticky; top:0; align-self:flex-start; width:230px; flex:0 0 230px; padding:20px 14px; height:100vh; overflow-y:auto; border-right:1px solid var(--border); font-size:.85rem;}
+  nav.toc a{display:block; color:var(--text); text-decoration:none; padding:6px 8px; border-radius:6px;}
+  nav.toc a:hover{background:var(--accent-weak);}
+  main{flex:1; min-width:0; padding:24px; max-width:900px;}
+  section{margin-bottom:36px;}
+  section h2{border-bottom:2px solid var(--accent); padding-bottom:6px; font-size:1.2rem;}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px;}
+  .exec{background:linear-gradient(135deg, var(--accent-weak), var(--panel)); border:1px solid var(--border);}
+  .badge{display:inline-flex; align-items:center; gap:5px; font-size:.72rem; font-weight:600; padding:2px 8px; border-radius:999px; white-space:nowrap;}
+  .badge.high{color:var(--high); background:var(--high-bg);}
+  .badge.medium{color:var(--medium); background:var(--medium-bg);}
+  .badge.low{color:var(--low); background:var(--low-bg);}
+  .badge.unverified{color:var(--unverified); background:var(--unverified-bg); border:1px dashed var(--unverified);}
+  a{color:var(--accent);}
+  a[href^="#src-"]{font-size:.85em; vertical-align:super; text-decoration:none;}
+  table{border-collapse:collapse; width:100%; font-size:.85rem;}
+  table.sources td, table.staleness td, table.staleness th{border-bottom:1px solid var(--border); padding:8px 10px; text-align:left; vertical-align:top;}
+  table.staleness th{color:var(--muted); font-weight:600; font-size:.78rem; text-transform:uppercase; letter-spacing:.03em;}
+  details{border:1px solid var(--border); border-radius:8px; padding:10px 14px; background:var(--panel);}
+  details summary{cursor:pointer; font-weight:600;}
+  .stale-yes{color:var(--low); font-weight:700;}
+  .stale-no{color:var(--high);}
+  .oq li{margin-bottom:10px;}
+  .rec{margin-bottom:16px; padding-bottom:16px; border-bottom:1px dashed var(--border);}
+  .rec:last-child{border-bottom:none;}
+  code{background:var(--accent-weak); padding:1px 5px; border-radius:4px; font-size:.9em;}
+  @media (max-width: 800px){
+    .wrap{flex-direction:column;}
+    nav.toc{position:static; width:auto; height:auto; border-right:none; border-bottom:1px solid var(--border);}
+  }
+</style>
+</head>
+<body>
+<header class="page">
+  <h1>Technical Research: Free NHL data webservices for automated fantasy-hockey scoring</h1>
+  <div class="meta">
+    <span><b>Type:</b> Technical</span>
+    <span><b>Decision:</b> Can a free public webservice be the sole data source for fully-automated scoring?</span>
+    <span><b>Date:</b> 2026-09-04</span>
+    <span><b>Depth:</b> standard preset, 2 rounds</span>
+    <span><b>Validation:</b> normal (4/4 load-bearing claims verified)</span>
+  </div>
+</header>
+<div class="wrap">
+<nav class="toc">
+  <a href="#summary">Executive Summary</a>
+  <a href="#landscape">Landscape &amp; Maturity</a>
+  <a href="#integration">Integration &amp; Interoperability</a>
+  <a href="#implementation">Implementation Reality</a>
+  <a href="#cross">Cross-Dimension Insights</a>
+  <a href="#recommendations">Recommendations</a>
+  <a href="#open">Open Questions</a>
+  <a href="#sources">Source Appendix</a>
+  <a href="#staleness">Staleness Map</a>
+</nav>
+<main>
+
+<section id="summary">
+  <h2>Executive Summary</h2>
+  <div class="card exec">
+    <p><b>Partial yes.</b> A free, no-auth NHL web API (<code>api-web.nhle.com</code>) was directly tested and confirmed live: it covers team standings, points/goals stat leaderboards (Art Ross &amp; Rocket Richard), and playoff bracket/series results — 3 of the app's 4 data needs — with no key, no signup, JSON output. <span class="badge high">high confidence</span></p>
+    <p>Two load-bearing gaps remain: <b>(1)</b> no free structured source exists for the three <i>voted</i> awards — Hart, Norris, Vezina <span class="badge high">high confidence</span> — and <b>(2)</b> the whole data layer rests on an unofficial API with no ToS of its own and a proven history of being fully replaced without notice (it happened once already, in 2023) <span class="badge high">high confidence</span>. NHL.com's own Terms of Service also prohibit automated scraping outright <span class="badge medium">medium confidence — legal ambiguity unresolved</span>.</p>
+    <p><b>Bottom line:</b> the "no scorekeeper, no admin page" design is sound for standings, Art Ross/Rocket Richard, and playoffs. It is not fully achievable as originally scoped for Hart/Norris/Vezina, and the data layer should be built assuming this source will change or break again — not merely might.</p>
+  </div>
+</section>
+
+<section id="landscape">
+  <h2>Landscape &amp; Maturity</h2>
+  <div class="card">
+    <p>The NHL does not publish an official, documented, versioned public API. The entire hobbyist/analytics community instead uses <code>api-web.nhle.com</code> (and a companion <code>api.nhle.com/stats/rest</code>) — undocumented endpoints powering the NHL's own site, reverse-engineered and catalogued by active community projects, most notably <a href="#src-1">Zmalski/NHL-API-Reference</a> <a href="#src-1" class="badge high">high</a> and <a href="#src-2">pseudo-r/Public-NHL-API</a> <a href="#src-2" class="badge medium">medium-high</a>. Direct in-session testing confirmed three endpoint families are live: <code>/v1/standings/now</code>, <code>/v1/skater-stats-leaders/current</code> (categories=points,goals — directly usable as Art Ross/Rocket Richard leaderboards), and <code>/v1/playoff-bracket/{year}</code> plus <code>/v1/playoff-series/carousel/{season}</code> <a href="#src-3" class="badge high">high</a>.</p>
+    <p>The one confirmed gap is awards: no community reference documents an award-nominee/winner endpoint <a href="#src-1" class="badge medium">medium-high</a>, and NHL.com covers awards only editorially <a href="#src-4" class="badge medium">medium</a> <a href="#src-5" class="badge medium">medium</a>. Hockey-Reference has structured historical award pages, but as HTML tables under a restrictive ToS <a href="#src-6" class="badge medium">medium</a>. MoneyPuck is bulk CSV downloads, not a queryable webservice <a href="#src-7" class="badge medium">medium</a> <a href="#src-8" class="badge high">high</a>. ESPN's NHL data is likewise only available via a reverse-engineered hidden API, having retired its official developer portal in 2014 <a href="#src-9" class="badge medium">medium</a> <a href="#src-10" class="badge medium">medium</a>. No public or hidden API was found for TSN.ca or Sportsnet.ca at all.</p>
+  </div>
+</section>
+
+<section id="integration">
+  <h2>Integration &amp; Interoperability</h2>
+  <div class="card">
+    <p><code>api-web.nhle.com</code> requires no API key and no signup — a plain GET returns JSON <a href="#src-1" class="badge high">high</a> <a href="#src-2" class="badge medium">medium-high</a>. No official rate limit is published; community guidance is informal, and at least one client library implements defensive 429 handling <a href="#src-11" class="badge low">low-medium</a>. Same pattern for ESPN's hidden API: no key, no documented limit, no SLA <a href="#src-9" class="badge medium">medium</a> <a href="#src-10" class="badge medium">medium</a>.</p>
+    <p>The clearest structural risk here is legal, not technical. NHL.com's Terms of Service — a primary, official source — explicitly prohibit automated scraping/compilation and restrict use to "non-commercial, informational, personal use" <a href="#src-12" class="badge high">high</a>. Whether this ToS actually governs the <code>nhle.com</code> API subdomain the same way could not be resolved — a genuine open question, not a settled one. <code>api-web.nhle.com</code> publishes no ToS of its own: its "public" status is purely de facto, not de jure. A Sportradar commercial-licensing addendum and ESPN's own terms were located but their clause text could not be directly retrieved this session <a href="#src-13" class="badge low">low-medium</a> <a href="#src-14" class="badge low">low</a>. Hockey-Reference's terms are more explicit and restrictive: search-indexing bots only, no "competing/substitute products," stated rate limits, temporary IP-blocking for violators <a href="#src-23" class="badge medium">medium</a> <a href="#src-24" class="badge low">low</a> — ruling it out regardless of the awards question.</p>
+  </div>
+</section>
+
+<section id="implementation">
+  <h2>Implementation Reality &amp; Ecosystem Health</h2>
+  <div class="card">
+    <p>The NHL has changed its entire public API generation once already. Around September–November 2023, <code>statsapi.web.nhl.com</code> was retired and replaced by <code>api-web.nhle.com</code>, with no advance notice <a href="#src-17" class="badge high">high</a>. This is independently confirmed by three separate publishers on three different platforms — a developer forum <a href="#src-17" class="badge high">high</a>, a GitHub issue on an unrelated repo reporting the outage directly <a href="#src-19" class="badge high">high</a>, and a GitLab issue on the leading community documentation project <a href="#src-20" class="badge medium">medium-high</a> — not one account echoed across sites. The migration broke multiple production consumer apps; some data fields were permanently lost.</p>
+    <p>Against that, the current API shows signs of a healthy reverse-engineering community: the leading reference repo has commits as recent as November 2025 <a href="#src-1" class="badge high">high</a>. No source found any documented outage tied to a specific high-traffic moment, and no one reported ever being IP-blocked for routine polling — rate-limiting risk is an open community question, not a confirmed incident <a href="#src-18" class="badge medium">medium</a>.</p>
+  </div>
+</section>
+
+<section id="cross">
+  <h2>Cross-Dimension Insights</h2>
+  <div class="card">
+    <p><b>The awards gap is narrower than it first looks.</b> Art Ross and Rocket Richard aren't voted — they're the season's points leader and goals leader, by definition. Since the stat-leaderboard endpoint is confirmed live and free, it <i>is</i> the source of truth for those two trophies once the season ends — no separate awards endpoint needed. The confirmed absence of structured award data only blocks automated scoring for the three <i>voted</i> trophies (Hart, Norris, Vezina), not all five as the original risk framing assumed.</p>
+    <p><b>Reliability risk and legal risk share one root cause.</b> The API has no official status, no ToS of its own, and no changelog — exactly why it broke without warning in 2023, and exactly why its legal standing is unresolved. Treating it as authoritative is one bet, not two: that an unofficial, unsanctioned source keeps working <i>and</i> keeps being tolerated. The project's planned resilience pattern (cron sync, write-nothing-on-failure) addresses the technical half of that bet; nothing engineers around the legal half — that risk can only be accepted.</p>
+  </div>
+</section>
+
+<section id="recommendations">
+  <h2>Recommendations</h2>
+  <div class="card">
+    <div class="rec"><b>1. Adopt <code>api-web.nhle.com</code> as the primary source for standings, Art Ross/Rocket Richard stats, and playoff series/results.</b> <span class="badge high">high confidence</span> — direct verification plus independent community corroboration. Resolves the largest share of the original open risk.</div>
+    <div class="rec"><b>2. Do not plan automated scoring for Hart, Norris, or Vezina in v1 as originally scoped.</b> <span class="badge high">high confidence</span> — four independent negative findings across distinct source types. Either accept manual/rare scoring for these three (once per season, at announcement) or defer their scoring and surface them as informational-only.</div>
+    <div class="rec"><b>3. Treat the data-source risk as structural, not incidental.</b> <span class="badge high">high confidence</span> — design the sync layer assuming a breaking change will happen again; it already has once.</div>
+    <div class="rec"><b>4. Flag the ToS ambiguity to the human decision-maker explicitly; do not resolve it by assumption.</b> <span class="badge medium">medium confidence</span> — the underlying legal question couldn't be settled by research. A 3-person non-commercial hobby app is the most favorable fact pattern available, but the ToS's plain text still technically prohibits the automated access the design depends on.</div>
+  </div>
+</section>
+
+<section id="open">
+  <h2>Open Questions</h2>
+  <div class="card">
+    <ul class="oq">
+      <li>Does NHL.com's ToS (governing <code>nhl.com</code>) actually extend to the <code>nhle.com</code> API subdomain, or does that surface sit in unaddressed legal space? Likely requires legal review, not further searching.</li>
+      <li>Does structured per-year award-winner data exist on individual <i>player</i> Wikidata items (<code>wdt:P166</code>), even though trophy items carry none? A live SPARQL query was flagged but not executed this run.</li>
+      <li>Has the NHL signaled any intent about the long-term status of <code>api-web.nhle.com</code>, or is silence the permanent norm? Nothing found in either research round.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="sources">
+  <h2>Source Appendix</h2>
+  <details open>
+    <summary>25 sources (click to collapse)</summary>
+    <div style="overflow-x:auto; margin-top:12px;">
+      <table class="sources"><thead><tr><th>#</th><th>Claim / finding</th><th>Publisher</th><th>Pub. date</th><th>Accessed</th><th>Confidence</th></tr></thead>
+      <tbody><tr id="src-1"><td>[1]</td><td><a href="https://github.com/Zmalski/NHL-API-Reference" target="_blank" rel="noopener">Zmalski/NHL-API-Reference</a> — current API endpoint catalogue, active maintenance</td><td>GitHub (community)</td><td>commits through 2025-11</td><td>2026-09-04</td><td>High</td></tr><tr id="src-2"><td>[2]</td><td><a href="https://github.com/pseudo-r/Public-NHL-API" target="_blank" rel="noopener">pseudo-r/Public-NHL-API</a> — endpoint catalogue, no awards endpoint</td><td>GitHub (community)</td><td>undated</td><td>2026-09-04</td><td>Medium-high</td></tr><tr id="src-3"><td>[3]</td><td>Direct HTTP GET, `api-web.nhle.com` standings/stats-leaders/playoff-bracket endpoints</td><td>NHL (nhle.com infrastructure)</td><td>live/undated</td><td>2026-09-04</td><td>High</td></tr><tr id="src-4"><td>[4]</td><td><a href="https://www.nhl.com/news/nhl-awards-finalists-schedule-of-announcements-for-2025-26-season" target="_blank" rel="noopener">NHL award finalists schedule</a> — awards are editorial content only</td><td>NHL.com</td><td>2025-26 season</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-5"><td>[5]</td><td><a href="https://www.nhl.com/news/hart-trophy-tracker-nikita-kucherov-of-tampa-bay-lightning-pick-for-mvp" target="_blank" rel="noopener">Hart Trophy tracker article</a></td><td>NHL.com</td><td>2025-26 season</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-6"><td>[6]</td><td><a href="https://www.hockey-reference.com/awards/voting-2025.html" target="_blank" rel="noopener">Hockey-Reference awards pages</a> — structured but HTML-table only</td><td>Sports Reference LLC</td><td>undated</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-7"><td>[7]</td><td><a href="https://moneypuck.com/data.htm" target="_blank" rel="noopener">MoneyPuck data page</a> — CSV bulk downloads, not an API</td><td>MoneyPuck</td><td>undated</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-8"><td>[8]</td><td><a href="https://moneypuck.com/about.htm" target="_blank" rel="noopener">MoneyPuck about page</a> — single-maintainer, no SLA</td><td>MoneyPuck</td><td>undated</td><td>2026-09-04</td><td>High</td></tr><tr id="src-9"><td>[9]</td><td><a href="https://github.com/pseudo-r/Public-ESPN-API" target="_blank" rel="noopener">pseudo-r/Public-ESPN-API</a></td><td>GitHub (community)</td><td>undated</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-10"><td>[10]</td><td><a href="https://gist.github.com/akeaswaran/b48b02f1c94f873c6655e7129910fc3b" target="_blank" rel="noopener">ESPN hidden API gist</a> — ESPN retired official API portal 2014</td><td>Developer gist</td><td>undated</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-11"><td>[11]</td><td><a href="https://rdrr.io/cran/nhlscraper/man/nhl_api.html" target="_blank" rel="noopener">nhlscraper CRAN docs</a> — defensive 429 handling</td><td>CRAN</td><td>undated</td><td>2026-09-04</td><td>Low-medium</td></tr><tr id="src-12"><td>[12]</td><td><a href="https://www.nhl.com/info/terms-of-service" target="_blank" rel="noopener">NHL.com Terms of Service</a> — prohibits scraping/automated compilation</td><td>NHL (primary/official)</td><td>undated</td><td>2026-09-04</td><td>High</td></tr><tr id="src-13"><td>[13]</td><td><a href="https://developer.sportradar.com/page/NHL_Addendum" target="_blank" rel="noopener">Sportradar NHL Addendum page</a> — content unverified, portal landing page only</td><td>Sportradar</td><td>undated</td><td>2026-09-04</td><td>Low-medium</td></tr><tr id="src-14"><td>[14]</td><td>ESPN terms.pdf — content unverified (fetch failed), secondary paraphrase only</td><td>ESPN</td><td>undated</td><td>2026-09-04</td><td>Low</td></tr><tr id="src-15"><td>[15]</td><td><a href="https://github.com/dword4/nhlapi" target="_blank" rel="noopener">dword4/nhlapi (GitHub)</a> — legacy API docs, no longer maintained</td><td>GitHub (community)</td><td>undated</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-16"><td>[16]</td><td><a href="https://gitlab.com/dword4/nhlapi" target="_blank" rel="noopener">dword4/nhlapi (GitLab mirror)</a></td><td>GitLab (community)</td><td>undated</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-17"><td>[17]</td><td><a href="https://discuss.tidbyt.com/t/nhl-api-change/5962" target="_blank" rel="noopener">Tidbyt developer forum — NHL API change</a> — 2023 migration broke production apps</td><td>Tidbyt forum</td><td>2023-11</td><td>2026-09-04</td><td>High</td></tr><tr id="src-18"><td>[18]</td><td><a href="https://github.com/dword4/nhlapi/issues/21" target="_blank" rel="noopener">dword4/nhlapi Issue #21 &quot;API Limits&quot;</a> — rate limits never documented</td><td>GitHub (community)</td><td>undated</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-19"><td>[19]</td><td><a href="https://github.com/Afischbacher/Nhl.Api/issues/41" target="_blank" rel="noopener">Afischbacher/Nhl.Api Issue #41</a> — independent confirmation of 2023 outage</td><td>GitHub (community)</td><td>2023-11-08</td><td>2026-09-04</td><td>High</td></tr><tr id="src-20"><td>[20]</td><td><a href="https://gitlab.com/dword4/nhlapi/-/work_items/109" target="_blank" rel="noopener">dword4/nhlapi GitLab Issue #109</a> — independent confirmation of 2023 redesign impact</td><td>GitLab (community)</td><td>~2023</td><td>2026-09-04</td><td>Medium-high</td></tr><tr id="src-21"><td>[21]</td><td><a href="https://www.nhl.com/news/nhl-awards-finalists-to-be-announced-starting-april-28" target="_blank" rel="noopener">NHL award finalists announcement</a> — no structured feed exists</td><td>NHL.com</td><td>2026 season</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-22"><td>[22]</td><td><a href="https://www.to-rss.xyz/nhl/" target="_blank" rel="noopener">to-rss.xyz NHL feed</a> — third-party feed exists because no official one does</td><td>to-rss.xyz (third-party)</td><td>undated</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-23"><td>[23]</td><td><a href="https://www.sports-reference.com/termsofuse.html" target="_blank" rel="noopener">Sports-Reference Terms of Use</a> — forbids &quot;competing/substitute products,&quot; rate-limits scraping</td><td>Sports Reference LLC</td><td>undated</td><td>2026-09-04</td><td>Medium</td></tr><tr id="src-24"><td>[24]</td><td>Sports-Reference bot-traffic page — content unverified (HTTP 403 on fetch)</td><td>Sports Reference LLC</td><td>undated</td><td>2026-09-04</td><td>Low</td></tr><tr id="src-25"><td>[25]</td><td><a href="https://www.wikidata.org/wiki/Q678383" target="_blank" rel="noopener">Wikidata — Hart Memorial Trophy (Q678383)</a> — no winner statements on the trophy item</td><td>Wikidata</td><td>live/undated</td><td>2026-09-04</td><td>High</td></tr></tbody>
+      </table>
+    </div>
+  </details>
+</section>
+
+<section id="staleness">
+  <h2>Staleness Map</h2>
+  <div class="card">
+    <table class="staleness">
+      <thead><tr><th>Claim</th><th>Class</th><th>Pub. date</th><th>Re-check by</th><th>Stale now?</th></tr></thead>
+      <tbody>
+        <tr><td>api-web.nhle.com endpoints live and free for standings/stats/playoffs</td><td>versions_compatibility</td><td>2026-09</td><td>2026-10-01</td><td class="stale-no">No</td></tr>
+        <tr><td>No free structured award-nominee/winner source exists</td><td>landscape</td><td>2026-09</td><td>2027-09-01</td><td class="stale-no">No</td></tr>
+        <tr><td>NHL.com ToS prohibits automated scraping; API has no ToS of its own</td><td>ecosystem_signals</td><td>2026-09</td><td>2027-03-01</td><td class="stale-no">No</td></tr>
+        <tr><td>NHL fully replaced its API generation in 2023 without notice</td><td>patterns</td><td>2023-11</td><td>2025-11-01</td><td class="stale-yes">Yes</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:14px; color:var(--muted); font-size:.9rem;">Earliest re-check: <b>2025-11-01</b> (already past) — on the "has this happened again" precedent claim. Worth a quick look before finalizing architecture. The endpoint-liveness claim (re-check 2026-10-01) is the one to watch most closely given how recently it was verified.</p>
+  </div>
+</section>
+
+</main>
+</div>
+</body>
+</html>

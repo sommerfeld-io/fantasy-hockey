@@ -53,8 +53,7 @@ tasks:
       - for: ['yaml', 'workflows', 'filenames', 'folders', 'gherkin', 'markdown-links']
         cmd: docker compose up lint-{{ .ITEM }} --exit-code-from lint-{{ .ITEM }}
       - task: go:complexity
-      - task: go:licenses
-      - task: go:lint
+      - task: go:licensesx
 
   # ===============================================================================================
 

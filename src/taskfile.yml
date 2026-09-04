@@ -70,11 +70,11 @@ tasks:
       - go mod tidy
       - go fmt
       - go vet
+      - task: lint
       - task: test
       - task: test:acceptance
       - task: complexity
       - task: licenses
-      - task: lint
       - task: vulncheck
       - CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o {{ .BINARY_NAME }}
 
