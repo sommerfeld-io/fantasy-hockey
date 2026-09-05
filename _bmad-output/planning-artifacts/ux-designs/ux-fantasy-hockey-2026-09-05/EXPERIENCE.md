@@ -22,7 +22,7 @@ Responsive web, single codebase, targeting desktop/tablet/mobile browsers — no
 | Login | App open, unauthenticated | Email → 6-digit code → in | [`mockups/key-login.html`](mockups/key-login.html) |
 | Predictions (home) | Post-login default landing | Everyone's Predictions across all categories, respecting the visibility rule (PRD §4.4); includes a "My Predictions" entry point | [`mockups/key-predictions-home.html`](mockups/key-predictions-home.html) |
 | Enter Predictions | "My Predictions" on the Predictions page | Entry/edit forms for all 6 Prediction types | [`mockups/key-enter-predictions.html`](mockups/key-enter-predictions.html) |
-| Award Data Entry | Nav link | Manual Hart/Norris/Vezina finalist entry (PRD §4.5) — low-traffic, not prime nav real estate. Not an admin page: any Participant can use it under the same single Participant identity as everywhere else, no separate role or account (see `DESIGN.md` — no admin visual treatment exists because none is needed). | [`mockups/key-award-data-entry.html`](mockups/key-award-data-entry.html) |
+| Management Page | Nav link ("Management") | Every real-world Result the Scoring Engine needs, entered manually (PRD §4.5): award finalists/winners for all 5 Awards with tie-support (FR-13), regular-season team results per Division — playoff qualifiers, division winner, best regular-season record (FR-23), Stanley Cup winner (FR-24), playoff Series results (FR-25), plus setting each Deadline's date/time (FR-26) and sending a manual reminder email for one (FR-27). Low-traffic, not prime nav real estate. Not an admin page: any Participant can use it under the same single Participant identity as everywhere else, no separate role or account (see `DESIGN.md` — no admin visual treatment exists because none is needed). | [`mockups/key-management-page.html`](mockups/key-management-page.html) |
 | Logout | Header action, every authenticated page | Ends session immediately | — (action, not a screen) |
 
 Standings is not a surface — it's a persistent widget (full-width bar) rendered above the nav on every authenticated page, per `DESIGN.md.Components.standings-widget` — see it in any authenticated mock above.
@@ -42,6 +42,8 @@ Plain and neutral throughout — no banter, no exclamation marks, even though th
 | "Action required until {timestamp}." (PRD FR-10) | "Don't forget to make your picks! 🏒" |
 | "Locked." | "🔒 This prediction is locked and can no longer be edited." |
 | "Session expired." | "You've been logged out due to inactivity!" |
+| "Sent to {n} Participant(s)." (PRD FR-27, recipients remain) | "Reminder sent! 📧" |
+| "Everyone has completed this Deadline." (PRD FR-27, none to send) | "No one needs a nudge — nice work team!" |
 | Short, direct sentences. | Encouragement, emoji, exclamation marks. |
 
 ## Component Patterns
@@ -53,10 +55,14 @@ Behavioral. Visual specs live in `DESIGN.md.Components`.
 | Login form | Login | One field visible at a time. Email field, submit → the email field is replaced by a code field in that same slot (same page, no navigation, no second field added alongside it) → submit → redirect to Predictions (home). Generic confirmation message regardless of whitelist match (PRD FR-1). |
 | Standings widget | Every authenticated page | Always renders from the latest Scoring Engine state (PRD FR-22) — no loading spinner variant needed since it's server-rendered with the page; no "live" indicator since there is no live tier. Shows Rank alongside Regular Season/Playoffs/Total; Participants tied on Total render the same Rank value, side by side, with no visual distinction between them (PRD FR-21). |
 | Prediction row | Predictions (home), Enter Predictions | One Series/Award/pick per row. Editable rows show input controls; locked rows show plain text only (no disabled-looking inputs). Each row saves independently (PRD FR-6) — no page-level Save button. An Award row shows each Participant's 3 finalists on one line as bordered Pick chips (`DESIGN.md` → Pick chip), alphabetically ordered left-to-right — never one comma-joined string or a stacked list. A Series row shows Winner and Game Count as two Pick chips on one line — never a blended "Team in N" string. Series rows within a round are ordered by NHL series seeding, not arbitrarily. |
-| Autocomplete input | Enter Predictions, Award Data Entry | Suggestions filter as the Participant types; selecting a suggestion is the only way to set the field (PRD FR-5). A non-matching free-text value is rejected inline on blur/submit, not as a separate error page. |
-| Button (primary) | Prediction row (Save), Predictions home ("My Predictions" entry point) | Per-row Save appears once the row's fields are valid (winner + game count both set for a Series, per FR-6). Saving is immediate — no separate "confirm" step, since edits remain changeable until the Deadline anyway. At most one primary button per screen. |
+| Autocomplete input | Enter Predictions, Management Page | Suggestions filter as the Participant types; selecting a suggestion is the only way to set the field (PRD FR-5). A non-matching free-text value is rejected inline on blur/submit, not as a separate error page. On the Management Page it validates Player names (award finalists) and Team names (division winner, Presidents' Trophy leader, Cup winner, playoff qualifiers) against the same canonical per-Season lists as Enter Predictions. |
+| Finalist/Team list | Management Page — Award finalists (FR-13), Division playoff qualifiers (FR-23) | A variable-length list of Autocomplete inputs, pre-seeded with 3 empty fields for award finalists (0 for playoff qualifiers). A trailing "Add finalist" / "Add team" text link appends one more empty field — used when a real-world tie or a Division's actual qualifier count exceeds what's already shown (FR-13's "does not hard-cap at exactly 3 entries"). No remove control in v1: an added-but-left-blank field simply saves nothing. Each list saves as one unit, independent of every other list on the page. |
+| Series result entry | Management Page — Series Results (FR-25) | Reuses the Enter Predictions Series row's Winner/Game-Count button-group controls (`winner-options`, `game-count-options`) verbatim and unchanged — same two-team choice, same 4-0/4-1/4-2/4-3 game-count choice — this time persisting a Result, not a Prediction. Always editable, no Deadline gate (a Series' real-world outcome doesn't have one). |
+| Deadline field | Management Page — Set Deadlines (FR-26) | One label + date/time input pair per Deadline (`preseason`, `round1`, `round2`, `conference_finals`, `final`), each saved independently like every other Management Page field. No ordering validation between rounds (per FR-26) — trusted to whoever enters it. |
+| Button (primary) | Prediction row (Save), Predictions home ("My Predictions" entry point), Management Page (each Award/Division/Cup/Series/Deadline save) | Appears once its row or section's fields are valid (e.g. winner + game count both set for a Series, per FR-6). Saving is immediate — no separate "confirm" step, since edits remain changeable until the Deadline anyway (or, on the Management Page, indefinitely). One primary button per independently-saveable row or section, never a page-level batch action — a screen with many such units (Enter Predictions, Management Page) may show several simultaneously, each governed only by its own row/section's validity. |
+| Button (secondary) | Management Page (Send Reminder Email) | Lower-emphasis than Button (primary) — bordered, no accent fill — reserved for an action that triggers a side effect (an email send) rather than persisting entered data, so it never visually competes with the Save buttons sitting next to it. Send Reminder Email is the only v1 instance. Shown once per Deadline field, only while that Deadline hasn't closed yet — once closed, every Prediction under it is already permanently locked (FR-8) and nothing meaningful can follow from sending, so the button is no longer shown. |
 | Locked badge / read-only marker | Prediction row (locked state) | Renders in place of input controls once a Prediction's Deadline has closed — plain "Locked" text, not a disabled-looking control (PRD FR-8). Never paired with an icon or color beyond `text-secondary`. |
-| Nav bar | Every authenticated page | Flat links: Predictions, Award Data, Logout. No icons, no collapse-to-hamburger — three links fit any viewport this app targets. |
+| Nav bar | Every authenticated page | Flat links: Predictions, Management, Logout. No icons, no collapse-to-hamburger — three links fit any viewport this app targets. |
 
 ## State Patterns
 
@@ -66,12 +72,14 @@ Behavioral. Visual specs live in `DESIGN.md.Components`.
 | Locked (post-deadline, own) | Predictions (home), Enter Predictions | Read-only text, `text-secondary`, "Locked" marker — never styled as an error or a disabled control (PRD FR-8). |
 | Hidden (others', pre-deadline) | Predictions (home) | Not rendered at all — no blurred/masked placeholder implying "something is there" (PRD FR-12). |
 | Missing at deadline | Predictions (home), post-lock | Shown as an empty/blank Prediction, scored 0 — not flagged or highlighted differently from a filled one; the score itself (once visible) tells the story (PRD FR-9). |
-| Autocomplete rejection | Enter Predictions, Award Data Entry | Inline `danger`-bordered field + one-line `meta` message. No modal, no toast. |
+| Autocomplete rejection | Enter Predictions, Management Page | Inline `danger`-bordered field + one-line `meta` message. No modal, no toast. |
 | Invalid login code | Login | Generic "Invalid code." inline, code field cleared, no lockout. |
 | Session expired | Any authenticated page | The next request after 30 minutes of inactivity (PRD FR-3) redirects to Login with a plain inline message: "Session expired." No auto-retry, no countdown warning beforehand — consistent with no loading/status chrome elsewhere. |
-| Concurrent Award Data Entry edit | Award Data Entry | No visible conflict state at all — per PRD FR-13, the later save silently wins. Nothing in the UI ever indicates a conflict occurred. |
+| Concurrent Management Page edit | Management Page (all of FR-13, FR-23–26) | No visible conflict state at all — per PRD FR-13/23–26, the later save silently wins for every section (award finalists, team results, Cup winner, series results, deadlines alike). Nothing in the UI ever indicates a conflict occurred. |
+| Send Reminder Email outcome | Management Page (FR-27) | Inline `meta`-sized confirmation appears next to the button after it's clicked: "Sent to {n} Participant(s)." when at least one Participant hadn't completed the Deadline, or "Everyone has completed this Deadline." when none did (skip-completed still ran, it just had nobody left to email). Neither is styled as an error or a success — plain `text-secondary`, same tone as every other confirmation. |
+| Deadline closed (Management Page) | Management Page — Send Reminder Email (FR-27) | Once a Deadline has closed, its Send Reminder Email button is no longer shown next to that Deadline field — every Prediction under it is already permanently locked (FR-8), so nothing meaningful could follow from sending. The Deadline field itself stays visible (its past date/time), just without the button. |
 
-Award Data Entry (PRD FR-13) is exempt from the Deadline lifecycle entirely — it has no Deadline, so none of the Locked/Hidden/Missing states above ever apply to it; its fields are always editable.
+The Management Page's Result-entry sections (FR-13, FR-23–25) and Set Deadlines (FR-26) are exempt from the Deadline lifecycle entirely — none of them has a Deadline of their own, so none of the Locked/Hidden/Missing states above ever apply to their fields; they're always editable. Send Reminder Email (FR-27) is the one Management Page control that *does* respond to a Deadline's state — see "Deadline closed" above.
 
 There is no loading/sync-status state exposed anywhere in the UI — the Sync (PRD §4.6) is invisible by design; a page always simply shows the latest computed state, per FR-16/FR-22's no-in-app-indicator rule.
 
@@ -127,6 +135,16 @@ Edge case: leaves mid-way through → returns later, unsaved rows are simply sti
 4. Compares informally; takes no action in-app.
 
 Edge case: if Sadl checks before the Deadline closes, the others' rows for that Deadline simply aren't in the page at all (not shown as locked-but-blank) — nothing to imply information exists that he can't see.
+
+### UJ-3 — Sadl records Round 1 results and opens Round 2
+
+1. Sadl logs in, goes to the Management Page ("Management" nav link).
+2. Round 1's Series have all finished. He works through each Series Result row: picks the winner and exact game count, saves — each row independently (Component Patterns → Series result entry), same control he already knows from Enter Predictions.
+3. Turns to Set Deadlines, finds the Round 2 field still empty, enters the date/time for when Round 2 picks must be in, saves.
+4. Clicks "Send Reminder Email" next to the Round 2 field.
+5. **Climax:** the inline confirmation reads "Sent to 2 Participant(s)." — Basti and Tobbi haven't entered their Round 2 picks yet; Sadl himself, having already entered his, wouldn't have been emailed either.
+
+Edge case: if Sadl clicks Send Reminder Email again a minute later before anyone's acted, it sends again, unlimited (PRD FR-27) — no cooldown, no "already sent" state to check first.
 
 ### Login — component pattern, not a named journey
 

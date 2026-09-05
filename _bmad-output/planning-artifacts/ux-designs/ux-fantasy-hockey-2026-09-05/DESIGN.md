@@ -55,6 +55,11 @@ components:
     background: '{colors.accent}'
     text: '{colors.surface-base}'
     rounded: '{rounded.sm}'
+  button-secondary:
+    background: 'transparent'
+    border: '{colors.border-hairline}'
+    text: '{colors.text-primary}'
+    rounded: '{rounded.sm}'
   input-autocomplete:
     background: '{colors.surface-base}'
     border: '{colors.border-hairline}'
@@ -106,12 +111,16 @@ No shadows. Surface Raised vs. Surface Base tone-separation is the only depth cu
 ## Components
 
 - **Standings widget** — full-width bar, `surface-raised`, sitting above the nav on every page. Three rows (one per Participant), columns for Rank / Regular Season / Playoffs / Total, all in the `data` role. Participants sharing a Total show the identical Rank value (e.g., two Participants both showing "1") — no secondary tiebreaker rendering of any kind. The signed-in Participant's own row is the only one distinguished — a thin `accent` left-border, nothing louder.
-- **Nav bar** — flat text links (Predictions, Award Data, Logout), `accent` underline on the active link, no icons.
+- **Nav bar** — flat text links (Predictions, Management, Logout), `accent` underline on the active link, no icons.
 - **Prediction row** — one Series or Award per row, `surface-raised` panel, hairline border between stacked rows. A locked row shows its saved value in `text-secondary` with no input controls at all — not a disabled-looking input, simply read-only text, since a locked Prediction isn't an error state. An Award row's 3 finalist names per Participant render on one line as three bordered chips (see Components → Pick chip), alphabetically ordered left-to-right — never a comma-joined string or a stacked list — since the three names carry no ranking between them. A Series row's Winner and Game Count each render as one Pick chip, side by side on one line, never blended into one string like "Team in N" — the Game Count chip shows the Glossary's own notation (`4-0`/`4-1`/`4-2`/`4-3`), never a raw "games played" number. Each Series row's title carries a visible seed label (e.g. "Eastern · Series A") in `meta` style, and rows within a round are ordered by that same NHL series seeding, never arbitrary/entry order.
 - **Pick chip** — a bordered box (`border-hairline`, `rounded/sm`, standard input padding) holding one value: one Award finalist's name, a Series Winner, or a Game Count. Deliberately reuses the same border/radius/padding as the selectable controls in Enter Predictions (`winner-options`, `game-count-options`) so a read-only Prediction visually echoes the control it was entered with — a viewer recognizes "this looks like a team pick" or "this looks like a game count" on sight. No accent fill and no dot indicator in the read-only state (those are reserved for the interactive, editable version in Enter Predictions) — a hairline border only.
 - **Login form** — a plain text field (email, then the 6-digit code), same visual treatment as the Autocomplete input below (`surface-base`, `border-hairline`, `rounded/sm`) minus the suggestions panel. An invalid code shows the same `danger`-bordered, inline-`meta`-message treatment as a rejected autocomplete entry — one consistent error pattern across the whole app.
 - **Autocomplete input** — `surface-base` field, `border-hairline`, suggestions drop in a `surface-raised` panel below. A rejected (non-matching) entry shows the `danger` color on the border only, with an inline `meta`-sized message — no toast, no modal.
-- **Button (primary)** — `accent` background, `surface-base` text (dark text on the light-relative accent for contrast), `rounded/sm`. One primary button per screen at most (Save, or the "My Predictions" entry point).
+- **Finalist/Team list** — a vertical stack of Autocomplete inputs (Management Page's award finalists and Division playoff qualifiers), each one full-width within its section, `spacing.2` gap between fields. A trailing text link ("+ Add finalist" / "+ Add team") in `accent` color, no button chrome, sits below the last field — clicking it appends one more empty Autocomplete input in place.
+- **Series result entry** — identical markup and styling to the Series row's Winner/Game-Count controls in Enter Predictions (same `winner-options`/`game-count-options`, same `option-btn`/`count-btn` treatment) — no visual variant for "this is a Result, not a Prediction."
+- **Deadline field** — a `meta`-style label above a plain `surface-base`/`border-hairline`/`rounded/sm` date-time input, matching the Autocomplete input's field chrome minus the suggestions panel. A Button (secondary) sits inline to its right once the Deadline hasn't closed.
+- **Button (primary)** — `accent` background, `surface-base` text (dark text on the light-relative accent for contrast), `rounded/sm`. One per independently-saveable row or section (see `EXPERIENCE.md` → Component Patterns) — a page with many such units, like Enter Predictions or the Management Page, shows several at once.
+- **Button (secondary)** — `border-hairline` border, `text-primary` text, transparent background, `rounded/sm` — same shape as Button (primary), deliberately lower-emphasis (no accent fill) since it triggers a side effect (Send Reminder Email) rather than persisting data, and often sits directly beside a Button (primary) it must not visually outcompete.
 - **Locked badge / read-only marker** — text only ("Locked" in `text-secondary`, `meta` size), never an icon or colored pill — consistent with the "not an error" posture above.
 
 ## Do's and Don'ts
@@ -123,4 +132,5 @@ No shadows. Surface Raised vs. Surface Base tone-separation is the only depth cu
 | Hairline borders for all separation | Card shadows or elevation for hierarchy |
 | Tabular-aligned numbers in standings/predictions | Numbers that jitter or misalign as digits change |
 | Single accent per screen for the primary action | Multiple competing buttons of equal visual weight |
+| Button (secondary), unfilled, for a side-effect action next to a Save | Accent-filled buttons for both Save and Send Reminder Email side by side |
 | Dark-only, tuned for low-light viewing | A light mode nobody asked for, or a toggle to maintain |

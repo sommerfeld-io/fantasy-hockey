@@ -13,7 +13,7 @@ inputDocuments:
 
 This document provides the complete epic and story breakdown for Fantasy Hockey, decomposing the requirements from the PRD, UX Design (DESIGN.md/EXPERIENCE.md), and Architecture Spine (ARCHITECTURE-SPINE.md) into implementable stories.
 
-**Known gap:** the UX design contract predates the PRD's sync-reversal update and does not cover the Management Page's newer capabilities (FR-23–27: team results, Cup winner, series results, deadline-setting, manual reminder trigger). Stories touching that surface are flagged `[NEEDS UX]` rather than inventing visual detail.
+The UX design contract (`bmad-ux` Update, 2026-09-05) now covers the Management Page's full v1 scope, including FR-23–27 (team results, Cup winner, series results, deadline-setting, manual reminder trigger) — see UX-DR17–19 below. No `[NEEDS UX]` gaps remain.
 
 ## Requirements Inventory
 
@@ -84,13 +84,14 @@ UX-DR8: **Pick chip** component — a bordered box (reused, unmodified, between 
 UX-DR9: **Prediction row** — one Series/Award per row; locked rows show plain read-only text with a "Locked" meta marker, never a disabled-looking input; Series rows carry a visible seed label (e.g. "Eastern · Series A") and are ordered by that seeding.
 UX-DR10: **Login form** — single field visible at a time; requesting a code replaces the email field with the code field in the same slot (never both shown together); invalid-code error uses the same bordered/inline-message pattern as autocomplete rejection.
 UX-DR11: **Autocomplete input** — suggestions drop below the field; a non-matching entry shows a `danger`-bordered field + inline `meta`-sized message, no toast/modal.
-UX-DR12: **Button (primary)** — accent background, at most one per screen.
+UX-DR12: **Button (primary)** — accent background; one per independently-saveable row or section, not one per screen — a page with many such units (Enter Predictions, Management Page) shows several simultaneously, each governed by its own row/section validity.
 UX-DR13: Plain/neutral voice throughout — no exclamation marks, emoji, or banter. Exact strings specified: "Check the entered email address.", "Invalid code.", "Action required until {timestamp}.", "Locked.", "Session expired."
 UX-DR14: Accessibility floor — WCAG AA contrast for body/data text, full keyboard operability (autocomplete included), comfortable touch targets, focus order follows visual/reading order. No higher formal compliance target.
 UX-DR15: Single responsive layout across desktop/tablet/mobile — no separate mobile design; content stays single-column, nav stays flat links at every width.
 UX-DR16: Explicit anti-patterns to avoid: sports-broadcast visual clichés (team-color gradients, ice/rink textures, trophy iconography), gamification chrome (streaks, badges, celebratory animations), carousels, hero animations, notification badge counts, any auto-refresh/polling UI.
-UX-DR17: Information Architecture (as designed — **stale for FR-23–27**, see gap note above): Login (unauthenticated) → Predictions home (default landing, "My Predictions" entry point) → Enter Predictions → Award Data Entry (nav link, low-traffic) → Logout (header action). Standings is not a page — see UX-DR6.
-UX-DR18 [NEEDS UX]: No design exists yet for FR-23 (team results entry), FR-24 (Cup winner entry), FR-25 (series results entry), FR-26 (deadline date/time fields), or FR-27 (send-reminder button) — these are new Management Page capabilities added after the UX spines were finalized. Stories touching this surface should reuse UX-DR1–14's established component language (Pick chip, autocomplete input, button primary, plain/neutral voice) by extension, but the actual layout/flow is undesigned.
+UX-DR17: Information Architecture: Login (unauthenticated) → Predictions home (default landing, "My Predictions" entry point) → Enter Predictions → Management Page (nav link, labeled "Management", low-traffic) → Logout (header action). Standings is not a page — see UX-DR6.
+UX-DR18: **Management Page components** — *Finalist/Team list*: a variable-length stack of Autocomplete inputs (pre-seeded with 3 empty fields for award finalists, 0 for playoff qualifiers) with a trailing "+ Add finalist"/"+ Add team" text link that appends one more empty field, for ties past 3rd place (FR-13) or a Division's actual qualifier count (FR-23); no remove control in v1. *Series result entry*: reuses Enter Predictions' Winner/Game-Count button-group controls (`winner-options`, `game-count-options`) verbatim for Series Results (FR-25), always editable, no Deadline gate. *Deadline field*: a `meta`-label + date/time input pair per Deadline key (FR-26), saved independently, no cross-round ordering validation. Team-result fields (division winner, Presidents' Trophy leader, Cup winner) use the plain Autocomplete input against the full Team list (FR-23/24).
+UX-DR19: **Button (secondary)** — bordered, no accent fill, lower-emphasis than Button (primary); the only v1 use is Send Reminder Email (FR-27), placed beside each Deadline field, shown only while that Deadline hasn't closed yet. After clicking, inline `meta` confirmation reads "Sent to {n} Participant(s)." or "Everyone has completed this Deadline." (skip-completed).
 
 ### FR Coverage Map
 
@@ -134,12 +135,12 @@ Participants can securely log in via an emailed one-time code and log out; sessi
 ### Epic 2: Game Management
 Any Participant can set every Deadline's date/time and record all real-world outcomes (award winners for all 5 trophies, team standings, Stanley Cup winner, playoff series results).
 **FRs covered:** FR-13, FR-23, FR-24, FR-25, FR-26
-**Implementation notes:** New `internal/results` package (Architecture AD-32). Introduces Season/Team bootstrap (AD-29) — a Season row must exist before Results can be recorded against it. New `Deadline` entity (AD-32). **No UX design exists yet for this epic's screen(s)** (UX-DR18) — story-level UI detail should reuse the established component language (Pick chip, autocomplete input, button primary, plain/neutral voice) but layout/flow needs a UX pass.
+**Implementation notes:** New `internal/results` package (Architecture AD-32). Introduces Season/Team bootstrap (AD-29) — a Season row must exist before Results can be recorded against it. New `Deadline` entity (AD-32). UX fully specified: Finalist/Team list, Series result entry, Deadline field (UX-DR18), Autocomplete input (UX-DR11), Button (primary) (UX-DR12).
 
 ### Epic 3: Predictions
 Participants can enter, incrementally save, and edit their predictions across all 6 prediction types before each Deadline; predictions lock automatically at the Deadline; a Participant always sees their own picks and sees others' picks only once locked; and anyone can send a reminder to whoever hasn't finished predicting.
 **FRs covered:** FR-5, FR-6, FR-7, FR-8, FR-9, FR-10, FR-11, FR-12, FR-27
-**Implementation notes:** New `internal/predictions` package. Reads `Deadline` values written by Epic 2 (does not write them). Fully designed in UX (Pick chip UX-DR8, Prediction row UX-DR9, autocomplete UX-DR11) except the reminder button itself, which shares Epic 2's `[NEEDS UX]` gap. Reminder send is synchronous/request-triggered, no ticker (AD-33) — deliberately placed last in this epic since it needs this epic's own completion-check data plus Epic 2's Deadlines.
+**Implementation notes:** New `internal/predictions` package. Reads `Deadline` values written by Epic 2 (does not write them). Fully designed in UX: Pick chip (UX-DR8), Prediction row (UX-DR9), Autocomplete input (UX-DR11), and the reminder button itself as Button (secondary) (UX-DR19). Reminder send is synchronous/request-triggered, no ticker (AD-33) — deliberately placed last in this epic since it needs this epic's own completion-check data plus Epic 2's Deadlines.
 
 ### Epic 4: Scoring & Standings
 Participants see a live, always-accurate standings view (Total, Regular Season, Playoffs, Rank) computed automatically from their predictions and Epic 2's recorded results — no manual math, no stale data, ties share rank.
@@ -223,8 +224,6 @@ So that my session ends immediately on this device.
 ## Epic 2: Game Management
 
 Any Participant can set every Deadline's date/time and record all real-world outcomes (award winners for all 5 trophies, team standings, Stanley Cup winner, playoff series results). (Reminder emails are Epic 3, Story 3.4 — see note below.)
-
-**[NEEDS UX]** No design exists yet for this epic's screen(s) (UX-DR18) — stories below specify behavior precisely but reuse established component language (Pick chip, autocomplete input, button primary, plain/neutral voice) for layout, pending an actual UX pass.
 
 ### Story 2.1: Season & Team Bootstrap
 

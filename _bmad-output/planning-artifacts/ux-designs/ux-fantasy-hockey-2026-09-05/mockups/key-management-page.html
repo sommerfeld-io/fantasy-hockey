@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Management Page — Fantasy Hockey Mock</title>
+<style>
+/*
+  Governs: DESIGN.md § Components (Standings widget, Nav bar, Autocomplete
+  input, Finalist/Team list, Series result entry, Deadline field,
+  Button primary, Button secondary); DESIGN.md § Colors, Typography,
+  Layout & Spacing, Elevation & Depth, Shapes, Do's and Don'ts.
+  EXPERIENCE.md § Information Architecture (Management Page — reached from
+  the nav link, not an admin page, any Participant can use it under the
+  same single Participant identity as everywhere else); Component Patterns
+  (Autocomplete input, Finalist/Team list, Series result entry, Deadline
+  field, Button primary, Button secondary, Nav bar); State Patterns
+  (Management Page result-entry sections are exempt from the Deadline
+  lifecycle; concurrent edits are invisible, later save silently wins;
+  Send Reminder Email outcome; Deadline closed hides its Send Reminder
+  button); Voice and Tone (Send Reminder Email confirmation copy).
+*/
+
+:root {
+  --surface-base: #151a1f;
+  --surface-raised: #1c2229;
+  --border-hairline: #2b333b;
+  --accent: #6f9bb8;
+  --text-primary: #e2e6ea;
+  --text-secondary: #8b98a3;
+  --danger: #c97b72;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-raised);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text-primary);
+}
+
+body {
+  padding: 32px 16px;
+}
+
+.browser-frame {
+  max-width: 1240px;
+  margin: 0 auto;
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.browser-chrome {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.chrome-dots { display: flex; gap: 6px; }
+
+.chrome-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-hairline);
+  display: inline-block;
+}
+
+.chrome-address {
+  flex: 1;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+
+.page-body {
+  width: 1200px;
+  max-width: 100%;
+}
+
+/* Standings widget — identical, persistent across all authenticated pages */
+.standings-widget {
+  background: var(--surface-raised);
+  padding: 16px 24px;
+}
+
+.standings-header,
+.standings-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.4fr 1.2fr 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.standings-header {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.standings-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-hairline);
+  border-left: 3px solid transparent;
+  padding-left: 8px;
+}
+
+.standings-row:last-child { border-bottom: none; }
+.standings-row.own-row { border-left: 3px solid var(--accent); }
+
+.standings-name { font-size: 1rem; font-weight: 400; }
+.standings-data {
+  font-size: 0.95rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Nav bar — Management is the active link on this screen */
+.nav-bar {
+  display: flex;
+  gap: 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.nav-bar a {
+  display: inline-block;
+  padding: 12px 0;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 1rem;
+  border-bottom: 2px solid transparent;
+}
+
+.nav-bar a.active {
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+}
+
+.content { padding: 24px; }
+
+h1.page-heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+h2.section-heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.page-intro { margin-bottom: 32px; }
+.page-intro .meta {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.section { margin-bottom: 40px; }
+
+.entry-row {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 16px 24px;
+}
+
+.entry-row + .entry-row { margin-top: 12px; }
+
+.entry-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.row-controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control-label {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--surface-base);
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+
+/* Autocomplete input */
+.autocomplete-wrap { position: relative; width: 240px; }
+
+.autocomplete-input {
+  width: 100%;
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 1rem;
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.autocomplete-input:focus { outline: none; border-color: var(--accent); }
+.autocomplete-input::placeholder { color: var(--text-secondary); }
+
+/* Finalist/Team list */
+.pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.add-link {
+  color: var(--accent);
+  font-size: 0.95rem;
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-block;
+  margin-top: 4px;
+}
+
+/* Series result entry — same control names as Enter Predictions */
+.winner-options { display: flex; gap: 12px; }
+.game-count-options { display: flex; gap: 8px; }
+
+.option-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 8px 14px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.option-btn.selected { border-color: var(--accent); color: var(--accent); }
+
+.option-btn .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-hairline);
+}
+
+.option-btn.selected .dot { background: var(--accent); }
+
+.count-btn {
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 8px 14px;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.count-btn.selected { border-color: var(--accent); color: var(--accent); }
+
+.series-seed {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+/* Deadline field */
+.deadline-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.deadline-input {
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 1rem;
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  width: 220px;
+}
+
+.reminder-status {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.division-panel { margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<div class="browser-frame">
+  <div class="browser-chrome">
+    <div class="chrome-dots"><span></span><span></span><span></span></div>
+    <div class="chrome-address">https://fantasy-hockey.local/management</div>
+  </div>
+
+  <div class="page-body">
+    <div class="standings-widget">
+      <div class="standings-header">
+        <div>Participant</div><div>Rank</div><div>Regular Season</div><div>Playoffs</div><div>Total</div>
+      </div>
+      <div class="standings-row own-row">
+        <div class="standings-name">Sadl</div><div class="standings-data">1</div>
+        <div class="standings-data">138</div><div class="standings-data">42</div><div class="standings-data">180</div>
+      </div>
+      <div class="standings-row">
+        <div class="standings-name">Basti</div><div class="standings-data">1</div>
+        <div class="standings-data">142</div><div class="standings-data">38</div><div class="standings-data">180</div>
+      </div>
+      <div class="standings-row">
+        <div class="standings-name">Tobbi</div><div class="standings-data">3</div>
+        <div class="standings-data">125</div><div class="standings-data">30</div><div class="standings-data">155</div>
+      </div>
+    </div>
+
+    <nav class="nav-bar">
+      <a href="#">Predictions</a>
+      <a href="#" class="active">Management</a>
+      <a href="#">Logout</a>
+    </nav>
+
+    <div class="content">
+      <div class="page-intro">
+        <h1 class="page-heading">Management</h1>
+        <div class="meta">No deadline governs this page — any Participant can enter or update these Results at any time. Later save always wins on a conflicting edit.</div>
+      </div>
+
+      <!-- FR-13: Award finalists/winners, 5 trophies, tie-aware -->
+      <div class="section">
+        <h2 class="section-heading">Award Finalists &amp; Winners</h2>
+
+        <div class="entry-row">
+          <div class="entry-title">Hart Trophy</div>
+          <div class="pick-list">
+            <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Nathan MacKinnon" autocomplete="off"></div>
+            <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Connor McDavid" autocomplete="off"></div>
+            <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Auston Matthews" autocomplete="off"></div>
+          </div>
+          <a class="add-link">+ Add finalist</a>
+          <div class="row-controls" style="margin-top: 12px;">
+            <button class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+
+        <div class="entry-row">
+          <div class="entry-title">Norris Trophy — 3-way tie for 3rd</div>
+          <div class="pick-list">
+            <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Cale Makar" autocomplete="off"></div>
+            <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Quinn Hughes" autocomplete="off"></div>
+            <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Adam Fox" autocomplete="off"></div>
+            <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Rasmus Dahlin" autocomplete="off"></div>
+            <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Roman Josi" autocomplete="off"></div>
+          </div>
+          <a class="add-link">+ Add finalist</a>
+          <div class="row-controls" style="margin-top: 12px;">
+            <button class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FR-23: Regular-season team results, per Division + Presidents' Trophy -->
+      <div class="section">
+        <h2 class="section-heading">Regular-Season Team Results</h2>
+
+        <div class="entry-row division-panel">
+          <div class="entry-title">Atlantic Division</div>
+          <div class="row-controls">
+            <div class="control-group">
+              <span class="control-label">Division winner</span>
+              <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Panthers" autocomplete="off"></div>
+            </div>
+          </div>
+          <div class="control-group" style="margin-top: 16px;">
+            <span class="control-label">Made the playoffs</span>
+            <div class="pick-list">
+              <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Panthers" autocomplete="off"></div>
+              <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Maple Leafs" autocomplete="off"></div>
+              <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" value="Lightning" autocomplete="off"></div>
+            </div>
+            <a class="add-link">+ Add team</a>
+          </div>
+          <div class="row-controls" style="margin-top: 16px;">
+            <button class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+
+        <div class="entry-row">
+          <div class="entry-title">Presidents' Trophy — best regular-season record</div>
+          <div class="row-controls">
+            <div class="control-group">
+              <span class="control-label">Team</span>
+              <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" placeholder="Team name" autocomplete="off"></div>
+            </div>
+            <button class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FR-24: Stanley Cup winner -->
+      <div class="section">
+        <h2 class="section-heading">Stanley Cup Winner</h2>
+        <div class="entry-row">
+          <div class="row-controls">
+            <div class="control-group">
+              <span class="control-label">Team</span>
+              <div class="autocomplete-wrap"><input class="autocomplete-input" type="text" placeholder="Team name" autocomplete="off"></div>
+            </div>
+            <button class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FR-25: Playoff series results -->
+      <div class="section">
+        <h2 class="section-heading">Playoff Series Results</h2>
+
+        <div class="entry-row">
+          <div class="series-seed">Eastern · Series A</div>
+          <div class="row-controls">
+            <div class="control-group">
+              <span class="control-label">Winner</span>
+              <div class="winner-options">
+                <span class="option-btn selected"><span class="dot"></span>Maple Leafs</span>
+                <span class="option-btn"><span class="dot"></span>Bruins</span>
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-label">Games</span>
+              <div class="game-count-options">
+                <span class="count-btn">4-0</span><span class="count-btn">4-1</span>
+                <span class="count-btn selected">4-2</span><span class="count-btn">4-3</span>
+              </div>
+            </div>
+            <button class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+
+        <div class="entry-row">
+          <div class="series-seed">Western · Series A</div>
+          <div class="row-controls">
+            <div class="control-group">
+              <span class="control-label">Winner</span>
+              <div class="winner-options">
+                <span class="option-btn"><span class="dot"></span>Oilers</span>
+                <span class="option-btn"><span class="dot"></span>Golden Knights</span>
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-label">Games</span>
+              <div class="game-count-options">
+                <span class="count-btn">4-0</span><span class="count-btn">4-1</span>
+                <span class="count-btn">4-2</span><span class="count-btn">4-3</span>
+              </div>
+            </div>
+            <button class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FR-26 + FR-27: Deadlines and manual reminder -->
+      <div class="section">
+        <h2 class="section-heading">Deadlines</h2>
+
+        <div class="entry-row">
+          <div class="entry-title">Round 1</div>
+          <div class="deadline-row">
+            <div class="control-group">
+              <span class="control-label">Closes</span>
+              <input class="deadline-input" type="text" value="2026-04-18 18:00" readonly>
+            </div>
+            <div class="reminder-status">Deadline closed — reminder no longer available.</div>
+            <button class="btn-primary" type="button" style="margin-left:auto;">Save</button>
+          </div>
+        </div>
+
+        <div class="entry-row">
+          <div class="entry-title">Round 2</div>
+          <div class="deadline-row">
+            <div class="control-group">
+              <span class="control-label">Closes</span>
+              <input class="deadline-input" type="text" value="2026-05-02 18:00">
+            </div>
+            <button class="btn-secondary" type="button">Send Reminder Email</button>
+            <div class="reminder-status">Sent to 2 Participant(s).</div>
+            <button class="btn-primary" type="button" style="margin-left:auto;">Save</button>
+          </div>
+        </div>
+
+        <div class="entry-row">
+          <div class="entry-title">Conference Finals</div>
+          <div class="deadline-row">
+            <div class="control-group">
+              <span class="control-label">Closes</span>
+              <input class="deadline-input" type="text" placeholder="Not set yet">
+            </div>
+            <button class="btn-secondary" type="button">Send Reminder Email</button>
+            <div class="reminder-status">Everyone has completed this Deadline.</div>
+            <button class="btn-primary" type="button" style="margin-left:auto;">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
