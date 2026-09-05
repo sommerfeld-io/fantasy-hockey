@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Enter Predictions — Fantasy Hockey Mock</title>
+<style>
+/*
+  Governs: DESIGN.md § Components (Standings widget, Nav bar, Prediction row,
+  Autocomplete input, Button primary); DESIGN.md § Colors, Typography, Layout
+  & Spacing, Elevation & Depth, Shapes, Do's and Don'ts.
+  EXPERIENCE.md § Information Architecture (Enter Predictions); Component
+  Patterns (Standings widget, Prediction row, Autocomplete input, Button
+  primary, Nav bar); State Patterns (Autocomplete rejection); Interaction
+  Primitives (per-row save, keyboard-navigable autocomplete); Voice and Tone;
+  Key Flows UJ-1 (step 4).
+*/
+
+:root {
+  --surface-base: #151a1f;
+  --surface-raised: #1c2229;
+  --border-hairline: #2b333b;
+  --accent: #6f9bb8;
+  --text-primary: #e2e6ea;
+  --text-secondary: #8b98a3;
+  --danger: #c97b72;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-raised);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text-primary);
+}
+
+body {
+  padding: 32px 16px;
+}
+
+.browser-frame {
+  max-width: 1240px;
+  margin: 0 auto;
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.browser-chrome {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.chrome-dots { display: flex; gap: 6px; }
+
+.chrome-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-hairline);
+  display: inline-block;
+}
+
+.chrome-address {
+  flex: 1;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+
+.page-body {
+  width: 1200px;
+  max-width: 100%;
+}
+
+/* Standings widget — identical, persistent across pages */
+.standings-widget {
+  background: var(--surface-raised);
+  padding: 16px 24px;
+}
+
+.standings-header,
+.standings-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.4fr 1.2fr 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.standings-header {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.standings-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-hairline);
+  border-left: 3px solid transparent;
+  padding-left: 8px;
+}
+
+.standings-row:last-child { border-bottom: none; }
+
+.standings-row.own-row {
+  border-left: 3px solid var(--accent);
+}
+
+.standings-name {
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.standings-data {
+  font-size: 0.95rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Nav bar */
+.nav-bar {
+  display: flex;
+  gap: 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.nav-bar a {
+  display: inline-block;
+  padding: 12px 0;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 1rem;
+  border-bottom: 2px solid transparent;
+}
+
+.nav-bar a.active {
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+}
+
+/* Content */
+.content {
+  padding: 24px;
+}
+
+h2.section-heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.category {
+  margin-bottom: 32px;
+}
+
+/* Prediction row (form variant) */
+.prediction-row {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 16px 24px;
+}
+
+.prediction-row + .prediction-row {
+  margin-top: 12px;
+}
+
+.series-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.series-seed {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-right: 8px;
+}
+
+.row-controls {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control-label {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.winner-options {
+  display: flex;
+  gap: 12px;
+}
+
+.option-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 1rem;
+  color: var(--text-primary);
+  background: var(--surface-base);
+}
+
+.option-btn .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--text-secondary);
+  display: inline-block;
+}
+
+.option-btn.selected {
+  border-color: var(--accent);
+}
+
+.option-btn.selected .dot {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.game-count-options {
+  display: flex;
+  gap: 8px;
+}
+
+.count-btn {
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  background: var(--surface-base);
+}
+
+.count-btn.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface-base);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--surface-base);
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+/* Autocomplete input — DESIGN.md § Components: input-autocomplete */
+.autocomplete-wrap {
+  position: relative;
+  width: 320px;
+}
+
+.autocomplete-input {
+  width: 100%;
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 1rem;
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.autocomplete-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.autocomplete-input.invalid {
+  border-color: var(--danger);
+}
+
+.autocomplete-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.autocomplete-suggestions .suggestion {
+  padding: 8px 12px;
+  font-size: 1rem;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.autocomplete-suggestions .suggestion:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-suggestions .suggestion.highlighted {
+  background: var(--surface-base);
+  color: var(--accent);
+}
+
+.field-error {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--danger);
+  margin-top: 6px;
+}
+</style>
+</head>
+<body>
+<div class="browser-frame">
+  <div class="browser-chrome">
+    <div class="chrome-dots"><span></span><span></span><span></span></div>
+    <div class="chrome-address">https://fantasy-hockey.local/predictions/enter</div>
+  </div>
+
+  <div class="page-body">
+    <div class="standings-widget">
+      <div class="standings-header">
+        <div>Participant</div>
+        <div>Rank</div>
+        <div>Regular Season</div>
+        <div>Playoffs</div>
+        <div>Total</div>
+      </div>
+      <div class="standings-row own-row">
+        <div class="standings-name">Basti</div>
+        <div class="standings-data">1</div>
+        <div class="standings-data">142</div>
+        <div class="standings-data">38</div>
+        <div class="standings-data">180</div>
+      </div>
+      <div class="standings-row">
+        <div class="standings-name">Sadl</div>
+        <div class="standings-data">1</div>
+        <div class="standings-data">138</div>
+        <div class="standings-data">42</div>
+        <div class="standings-data">180</div>
+      </div>
+      <div class="standings-row">
+        <div class="standings-name">Tobbi</div>
+        <div class="standings-data">3</div>
+        <div class="standings-data">125</div>
+        <div class="standings-data">30</div>
+        <div class="standings-data">155</div>
+      </div>
+    </div>
+
+    <nav class="nav-bar">
+      <a href="#" class="active">Predictions</a>
+      <a href="#">Award Data</a>
+      <a href="#">Logout</a>
+    </nav>
+
+    <div class="content">
+      <div class="category">
+        <h2 class="section-heading">Round 1</h2>
+
+        <div class="prediction-row">
+          <div class="series-title"><span class="series-seed">Eastern · Series A</span>Toronto Maple Leafs vs. Boston Bruins</div>
+          <div class="row-controls">
+            <div class="control-group">
+              <span class="control-label">Winner</span>
+              <div class="winner-options">
+                <span class="option-btn selected"><span class="dot"></span>Maple Leafs</span>
+                <span class="option-btn"><span class="dot"></span>Bruins</span>
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-label">Games</span>
+              <div class="game-count-options">
+                <span class="count-btn">4-0</span>
+                <span class="count-btn">4-1</span>
+                <span class="count-btn selected">4-2</span>
+                <span class="count-btn">4-3</span>
+              </div>
+            </div>
+            <button class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+
+        <div class="prediction-row">
+          <div class="series-title"><span class="series-seed">Eastern · Series B</span>Carolina Hurricanes vs. New York Rangers</div>
+          <div class="row-controls">
+            <div class="control-group">
+              <span class="control-label">Winner</span>
+              <div class="winner-options">
+                <span class="option-btn"><span class="dot"></span>Hurricanes</span>
+                <span class="option-btn selected"><span class="dot"></span>Rangers</span>
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-label">Games</span>
+              <div class="game-count-options">
+                <span class="count-btn">4-0</span>
+                <span class="count-btn selected">4-1</span>
+                <span class="count-btn">4-2</span>
+                <span class="count-btn">4-3</span>
+              </div>
+            </div>
+            <button class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+
+        <div class="prediction-row">
+          <div class="series-title"><span class="series-seed">Western · Series A</span>Edmonton Oilers vs. Vegas Golden Knights</div>
+          <div class="row-controls">
+            <div class="control-group">
+              <span class="control-label">Winner</span>
+              <div class="winner-options">
+                <span class="option-btn selected"><span class="dot"></span>Oilers</span>
+                <span class="option-btn"><span class="dot"></span>Golden Knights</span>
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-label">Games</span>
+              <div class="game-count-options">
+                <span class="count-btn">4-0</span>
+                <span class="count-btn">4-1</span>
+                <span class="count-btn">4-2</span>
+                <span class="count-btn selected">4-3</span>
+              </div>
+            </div>
+            <button class="btn-primary" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="category">
+        <h2 class="section-heading">Awards</h2>
+
+        <div class="prediction-row">
+          <div class="series-title">Hart Trophy</div>
+          <div class="row-controls">
+            <div class="control-group">
+              <span class="control-label">Finalist 1</span>
+              <div class="autocomplete-wrap">
+                <input class="autocomplete-input" type="text" value="Mac" autocomplete="off">
+                <div class="autocomplete-suggestions">
+                  <div class="suggestion highlighted">Nathan MacKinnon</div>
+                  <div class="suggestion">Connor McDavid</div>
+                  <div class="suggestion">Cale Makar</div>
+                </div>
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-label">Finalist 2</span>
+              <div class="autocomplete-wrap">
+                <input class="autocomplete-input" type="text" value="Connor McDavid" autocomplete="off">
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-label">Finalist 3</span>
+              <div class="autocomplete-wrap">
+                <input class="autocomplete-input" type="text" value="Auston Matthews" autocomplete="off">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prediction-row">
+          <div class="series-title">Norris Trophy</div>
+          <div class="row-controls">
+            <div class="control-group">
+              <span class="control-label">Finalist 1</span>
+              <div class="autocomplete-wrap">
+                <input class="autocomplete-input" type="text" value="Cale Makar" autocomplete="off">
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-label">Finalist 2</span>
+              <div class="autocomplete-wrap">
+                <input class="autocomplete-input" type="text" value="Quinn Hughes" autocomplete="off">
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-label">Finalist 3</span>
+              <div class="autocomplete-wrap">
+                <input class="autocomplete-input invalid" type="text" value="Erik Karlson" autocomplete="off">
+                <div class="field-error">No match found.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

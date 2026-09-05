@@ -2,7 +2,7 @@
 title: 'Fantasy Hockey'
 status: final
 created: '2026-09-04'
-updated: '2026-09-04'
+updated: '2026-09-05'
 ---
 
 # PRD: Fantasy Hockey
@@ -15,7 +15,7 @@ This PRD defines the requirements for a small, self-hosted web app that replaces
 
 Three friends — Basti, Sadl, and Tobbi — run a private NHL prediction game once per season, currently tracked on a hand-maintained Excel sheet. The sheet works well enough that the game keeps happening, but it fails in ways that erode trust in it: scoring is hand-calculated and has produced a confirmed real error (a correct 20-point Stanley Cup pick that was never credited), nothing enforces prediction deadlines, and typo'd data makes any kind of automated checking impossible.
 
-This app replaces the sheet with the same game, played the same way, minus the manual failure points. It automates scoring against a live NHL data source, enforces deadlines server-side, and gives the three participants a shared, always-correct standings view. It is not trying to grow beyond these three people or become a bigger product — it exists purely to remove friction from something they already enjoy playing every year.
+This app replaces the sheet with the same game, played the same way, minus the manual failure points. It automates the scoring *computation* — the Carolina-pick-style formula error becomes structurally impossible — enforces deadlines server-side, and gives the three participants a shared, always-correct standings view. Real-world Results are entered manually via a Management Page in v1 (a deliberate scope choice — automating that data pull remains a validated, deferred idea for later, see §4.6), not automatically fetched. It is not trying to grow beyond these three people or become a bigger product — it exists purely to remove friction from something they already enjoy playing every year.
 
 ## 2. Target User
 
@@ -60,9 +60,10 @@ This app is explicitly not for anyone beyond the three named participants (Basti
 - **Deadline** — the point after which a given group of Predictions becomes read-only. Deadlines apply at three points: before the season (Awards, team marks, Early Pick, Presidents' Trophy), before Round 1 (Late Pick, Round 1 Series), and before each subsequent round (that round's Series only).
 - **Early Pick / Late Pick** — the two Stanley Cup winner Predictions: Early (locked before the season) and Late (locked before Round 1, made with more information).
 - **Presidents' Trophy** — the Prediction for which Team will have the best regular-season record.
-- **Result** — the real-world outcome recorded against a Prediction (from the automated NHL data sync), used to compute points.
+- **Result** — the real-world outcome recorded against a Prediction, used to compute points. In v1, every Result is entered manually via the Management Page (§4.5); a v2+ automated Sync (§4.6, deferred) remains a valid future path for the same data.
 - **Standings** — the live, computed view of every Participant's points, shown as Total, split into a Regular Season bucket and a Playoffs bucket.
-- **Sync** — the automated, cron-scheduled process that pulls Results from the NHL's free data source and feeds the scoring engine. No Participant or admin enters Results manually.
+- **Management Page** — the page where any Participant manually records real-world Results (award winners/finalists, team standings outcomes, playoff series results), sets each Deadline's date/time, and triggers reminder emails. Uses the same single Participant identity as everywhere else — not a separate admin role (§4.5).
+- **Sync** — a deferred (v2+) automated, cron-scheduled process that would pull Results from the NHL's free data source instead of manual entry. Not built in v1 (§4.6).
 
 _(Note: "Standings" deliberately covers both the live points view and the general concept of "who's winning" as one Glossary term — the product has no separate leaderboard concept to split it from.)_
 
@@ -111,7 +112,7 @@ An authenticated Participant can log out, immediately ending their session.
 
 ### 4.2 Enter Predictions
 
-**Description:** A Participant enters all Predictions for a Season through dedicated forms: 5 Awards (3 finalist names each), regular-season Team marks (playoff berth and/or division winner per Division), the Early Pick, the Presidents' Trophy pick, the Late Pick, and every Series once its round unlocks. Every Team or Player name field uses autocomplete against the canonical list already known to the system (from the Sync and the per-Season Team list) and rejects any value that doesn't match — the typo problem that made the old spreadsheet unscoreable cannot recur. Realizes the entry path in UJ-1.
+**Description:** A Participant enters all Predictions for a Season through dedicated forms: 5 Awards (3 finalist names each), regular-season Team marks (playoff berth and/or division winner per Division), the Early Pick, the Presidents' Trophy pick, the Late Pick, and every Series once its round unlocks. Every Team or Player name field uses autocomplete against the canonical, per-Season list already known to the system and rejects any value that doesn't match — the typo problem that made the old spreadsheet unscoreable cannot recur. Realizes the entry path in UJ-1.
 
 **Functional Requirements:**
 
@@ -145,7 +146,7 @@ A Participant can revise any of their own Predictions any number of times up unt
 
 ### 4.3 Deadline Enforcement & Reminders
 
-**Description:** Every Prediction is governed by one of the game's Deadlines (§3 Glossary). Once a Deadline closes, the Predictions under it become permanently read-only for their owner, with no grace period. Participants are proactively reminded before each of their own Deadlines closes, but never sent any other email content.
+**Description:** Every Prediction is governed by one of the game's Deadlines (§3 Glossary). Once a Deadline closes, the Predictions under it become permanently read-only for their owner, with no grace period. Each Deadline's date/time is set via the Management Page (§4.5, FR-27); reminders are sent via the Management Page's manual trigger (§4.5, FR-28), never sent automatically on a schedule.
 
 **Functional Requirements:**
 
@@ -164,16 +165,14 @@ A required Prediction left empty when its Deadline closes scores zero points for
 **Consequences (testable):**
 - An empty Series pick at Round 1's close contributes 0 points for that Series and does not prevent entering Round 2 picks once Round 2 unlocks.
 
-#### FR-10: Deadline Reminder Emails
+#### FR-10: Deadline Reminder Emails (Manually Triggered)
 
-For each upcoming Deadline, a Participant who has not yet completed all Predictions under it receives exactly two reminder emails before it closes, each a plain call-to-action ("action required until TIMESTAMP") with no other content.
+Clicking "Send Reminder Email" on the Management Page (FR-28) for a given Deadline emails every Participant who has not yet completed all Predictions under it, a plain call-to-action ("action required until TIMESTAMP") with no other content. No automatic, scheduled reminder exists — sending is entirely at the discretion of whoever uses the Management Page, and can be repeated any number of times before the Deadline closes.
 
 **Consequences (testable):**
-- A Participant who has already completed every Prediction under a Deadline before a scheduled reminder is not sent that reminder.
+- A Participant who has already completed every Prediction under a Deadline is not sent the reminder, even if the button is clicked.
 - No result summaries, standings updates, or other informational email content is ever sent.
-
-**Feature-specific NFRs:**
-- Reminder timing (how many hours/days before each Deadline the two reminders fire) is an implementation parameter, not a product decision made in this PRD — see Open Questions.
+- There is no cap on how many times the button can be clicked for the same Deadline before it closes.
 
 ### 4.4 Predictions Visibility
 
@@ -193,28 +192,74 @@ A Participant can view another Participant's Predictions under a given Deadline 
 - Before Round 1's Deadline closes, no Participant can see any other Participant's Round 1 Series picks.
 - Immediately after that Deadline closes, all three Participants' Round 1 picks become visible to all three.
 
-### 4.5 Manual Award Data Entry
+### 4.5 Management Page
 
-**Description:** Hart, Norris, and Vezina have no free, structured data source (confirmed in `research.md`) — unlike Art Ross and Rocket Richard, which are scored automatically from live stat leaderboards (§4.7). A dedicated page lets any Participant manually enter the official finalists for these three trophies once the NHL announces them. This does not introduce a new role or account: it uses the same single Participant identity as everything else, on the trust that three intrinsically-motivated Participants are review enough — no approval/confirmation step beyond the autocomplete validation already used elsewhere (§4.2).
+**Description:** In v1, there is no automated data source at all (§4.6 is deferred) — every real-world Result the Scoring Engine needs is recorded here: award finalists/winners for all 5 trophies, regular-season team outcomes (playoff qualifiers, division winners, Presidents' Trophy, Stanley Cup winner), and every playoff Series result. The same page also sets each Deadline's date/time and triggers reminder emails. This does not introduce a new role or account: it uses the same single Participant identity as everything else, on the trust that three intrinsically-motivated Participants are review enough — no approval/confirmation step beyond the autocomplete validation already used elsewhere (§4.2).
 
 **Functional Requirements:**
 
-#### FR-13: Enter Official Award Finalists
+#### FR-13: Enter Award Finalists/Winners
 
-Any authenticated Participant can enter or edit the 3 official finalists for Hart, Norris, and Vezina for the current Season.
+Any authenticated Participant can enter or edit the top-3-with-ties finalist/winner set (§4.7 FR-17) for all 5 Awards (Hart, Norris, Vezina, Art Ross, Rocket Richard) for the current Season.
 
 **Consequences (testable):**
 - Finalist name fields use the same Player autocomplete/validation as FR-5.
+- The field set supports entering more than 3 names for a given Award when a real-world tie extends past 3rd place (FR-17) — the page does not hard-cap at exactly 3 entries.
 - Saving finalists for a trophy makes them immediately available to the Scoring Engine (FR-17) for that trophy — no separate publish step.
 - This page carries no Deadline of its own and can be edited at any time during the Season.
 - If two Participants save finalists for the same trophy at effectively the same time, the later write wins — no merge, no conflict error. [ASSUMPTION: acceptable given three intrinsically-motivated Participants and the rarity of simultaneous edits to a page nobody visits often.]
 
+#### FR-23: Enter Regular-Season Team Results
+
+Any authenticated Participant can record, per Division, which Teams made the playoffs and which Team won the division, and can record which Team has the best regular-season record (for Presidents' Trophy scoring, FR-19).
+
+**Consequences (testable):**
+- Team fields use the same autocomplete/validation as FR-5.
+- Saving a Division's results makes them immediately available to the Scoring Engine (FR-18) — no separate publish step.
+- Editable at any time during the Season, same last-write-wins behavior as FR-13.
+
+#### FR-24: Enter Stanley Cup Winner Result
+
+Any authenticated Participant can record which Team won the Stanley Cup for the current Season, used to score both the Early Pick and the Late Pick (FR-19).
+
+**Consequences (testable):**
+- Same autocomplete/validation, editability, and last-write-wins behavior as FR-23.
+
+#### FR-25: Enter Playoff Series Results
+
+Any authenticated Participant can record, for each playoff Series once it concludes, the winning Team and the exact game count (4-0/4-1/4-2/4-3).
+
+**Consequences (testable):**
+- Team fields use the same autocomplete/validation as FR-5; game count is restricted to the four valid values.
+- Saving a Series result makes it immediately available to the Scoring Engine (FR-20) — no separate publish step.
+- Same editability and last-write-wins behavior as FR-23.
+
+#### FR-26: Set Deadlines
+
+Any authenticated Participant can set or edit the date/time for each of the game's Deadlines (§3 Glossary): before the season, before Round 1, and before each subsequent round.
+
+**Consequences (testable):**
+- Changing a Deadline's date/time before it has closed changes when the Predictions under it lock (FR-8); once a Deadline has closed per FR-8, its date/time can no longer be edited to reopen it — FR-8's no-reopening guarantee holds regardless of this page.
+- No validation beyond the field being a valid date/time is required (e.g., no enforced ordering between rounds) — trusted to the Participant entering it.
+
+#### FR-27: Send Reminder Email
+
+Any authenticated Participant can trigger a reminder email for a specific Deadline from the Management Page (realizes FR-10).
+
+**Consequences (testable):**
+- Triggering the action for a Deadline emails only Participants who have not yet completed all Predictions under it (FR-10).
+- The action can be triggered any number of times before that Deadline closes; there is no cooldown or maximum-sends limit.
+
 **Out of Scope:**
-- This page is not a general override for any other synced data (standings, stat leaders, playoff results) — those remain exclusively sourced from the automated Sync (§4.6) with no manual fallback.
+- No approval, review, or second-Participant confirmation step exists for anything entered on this page — the same trust model as FR-13.
 
-### 4.6 Automated Data Sync
+### 4.6 Automated Data Sync — DEFERRED TO v2+, NOT BUILT IN v1
 
-**Description:** A scheduled background process pulls Team standings, Art Ross/Rocket Richard stat leaders, and playoff bracket/series results from the NHL's free data API (per `research.md`) and makes them available to the Scoring Engine. There is no manual entry or override path for this data, and no admin page — see FR-13's Out of Scope.
+**Status:** the user reversed this decision for v1 (see §6 MVP Scope) — all Result data is entered manually via the Management Page (§4.5) instead. This feature description and its FRs (FR-14–16) are kept, numbered, and unchanged as a validated future-enhancement design, not a live v1 requirement — nothing here is built until a later version explicitly picks it back up. FR IDs are preserved rather than removed so the architecture spine's existing citations of them stay accurate.
+
+**Description (v2+):** a scheduled background process would pull Team standings, Art Ross/Rocket Richard stat leaders, and playoff bracket/series results from the NHL's free data API (per `research.md`) and make them available to the Scoring Engine, replacing the Management Page's manual Result entry (§4.5) for that data. Award finalists for the 3 voted trophies (Hart/Norris/Vezina) would remain manual even in v2+, per `research.md`'s confirmed data-availability split — only §4.5's award-entry FR (FR-13) is genuinely permanent, not merely deferred.
+
+**In v1, the per-Season Team list (technical IDs, independent of display name — see Glossary) is seeded at deployment time rather than loaded at runtime by either a Sync or a Participant** — there is no Participant-facing "manage teams" UI in v1 or v2+; FR-15 below describes the v2+ automated alternative to that same one-time seeding step.
 
 **Functional Requirements:**
 
@@ -247,7 +292,7 @@ If the NHL data source is unreachable, returns an error, or returns a response t
 
 ### 4.7 Scoring Engine
 
-**Description:** Computes every Participant's points automatically from synced Results (§4.6) and manually entered award finalists (§4.5), whenever either changes. No human ever calculates or overrides a score — the single failure mode that motivated this whole rebuild (the uncredited Carolina pick) becomes structurally impossible.
+**Description:** Computes every Participant's points automatically from the Results and award finalists entered on the Management Page (§4.5), whenever either changes. No human ever calculates or overrides a score — the single failure mode that motivated this whole rebuild (the uncredited Carolina pick) becomes structurally impossible, regardless of whether the underlying Result data was entered manually (v1) or synced automatically (deferred §4.6).
 
 **Functional Requirements:**
 
@@ -257,22 +302,22 @@ For each of the 5 Awards, each of a Participant's 3 predicted names scores 5 poi
 
 **Consequences (testable):**
 - Given a 3-way tie for 3rd place (5 total qualifying names across 1st/2nd/tied-3rd), a Participant who predicted 0 of the top 2 but all 3 tied-for-3rd names scores 15 points (3 × 5) for that Award.
-- Hart, Norris, and Vezina score against the finalists entered via FR-13; Art Ross and Rocket Richard score against the live stat leaderboard from the Sync (§4.6) — same scoring rule, different data source.
+- In v1, all 5 Awards — including Art Ross and Rocket Richard — score against the finalist/winner set entered via FR-13; same scoring rule for all 5, same manual data source in v1. (In a v2+ that revives §4.6, Art Ross/Rocket Richard could instead score against a live stat leaderboard, with no change to this scoring rule.)
 
 #### FR-18: Regular-Season Team Scoring
 
-A Team-makes-playoffs mark scores 5 points if correct; a division-winner mark scores 15 points if that Team wins its division, or 5 points (not 20) if that Team only makes the playoffs.
+A Team-makes-playoffs mark scores 5 points if correct; a division-winner mark scores 15 points if that Team wins its division, or 5 points (not 20) if that Team only makes the playoffs. In v1, scores against the Results entered via FR-23.
 
 #### FR-19: Cup Picks and Presidents' Trophy
 
-The Early Pick and Late Pick each score 20 points if the predicted Team wins the Stanley Cup; the Presidents' Trophy pick scores 20 points if the predicted Team has the best regular-season record.
+The Early Pick and Late Pick each score 20 points if the predicted Team wins the Stanley Cup; the Presidents' Trophy pick scores 20 points if the predicted Team has the best regular-season record. In v1, scores against the Results entered via FR-24 (Cup winner) and FR-23 (Presidents' Trophy).
 
 **Consequences (testable):**
 - Early Pick and Late Pick points are attributed to the Playoffs bucket (§4.8), not Regular Season, since they resolve during the playoffs.
 
 #### FR-20: Playoff Series Scoring (Exact Result Replaces Winner-Only)
 
-Each Series scores by round: Round 1 correct-winner 15 / exact-result 25; Round 2 correct-winner 25 / exact-result 35; Conference Finals correct-winner 30 / exact-result 45; Stanley Cup Final correct-winner 30 / exact-result 50. Exact-result points replace correct-winner points; they are not additive.
+Each Series scores by round: Round 1 correct-winner 15 / exact-result 25; Round 2 correct-winner 25 / exact-result 35; Conference Finals correct-winner 30 / exact-result 45; Stanley Cup Final correct-winner 30 / exact-result 50. Exact-result points replace correct-winner points; they are not additive. In v1, scores against the Results entered via FR-25.
 
 #### FR-21: No Tie-Break
 
@@ -289,28 +334,29 @@ When two or more Participants have equal Total points, they share the same rank;
 Standings show, per Participant: Regular Season points, Playoffs points, and Total (their sum), reflecting the latest state from the Scoring Engine (§4.7) at all times.
 
 **Consequences (testable):**
-- There is no separate "live/projected" tier distinct from the last completed Sync or manual award entry — the displayed Standings always equal what the Scoring Engine last computed, nothing more current and nothing stale-but-labeled-current.
+- There is no separate "live/projected" tier distinct from the last entered Result — the displayed Standings always equal what the Scoring Engine last computed from whatever's been entered on the Management Page (§4.5), nothing more current and nothing stale-but-labeled-current.
 - Participants tied on Total are displayed at the same rank (FR-21).
 - A displayed Standings value always matches what a manual hand-check of the underlying Results and Predictions would produce — there is no code path that computes or displays a score independently of the Scoring Engine (§4.7).
 
 ## Cross-Cutting NFRs
 
-- **No partial writes.** Every automated write (Sync, Scoring Engine recompute) either completes fully or leaves prior state untouched — never a half-updated Season.
-- **Reproducibility.** Given the same synced Results and the same Predictions, the Scoring Engine always computes the same points — no hidden state, no manual adjustment path exists anywhere (§4.7 explains why this matters).
+- **No partial writes.** Every write (Management Page Result entry, Scoring Engine recompute) either completes fully or leaves prior state untouched — never a half-updated Season.
+- **Reproducibility.** Given the same entered Results and the same Predictions, the Scoring Engine always computes the same points — no hidden state, no manual adjustment path exists anywhere (§4.7 explains why this matters).
 - **No enumeration leaks.** Any user-facing response (login, elsewhere) must not reveal information about the fixed Participant list or other Participants' state beyond what §4.4's visibility rules explicitly allow.
-- **Observability without in-app alerting.** Sync and Scoring Engine failures are surfaced through externally exported metrics/logs (destination is an implementation detail, out of scope for this PRD) — never through in-app UI, since there is no admin role to act on such an alert.
+- **Observability without in-app alerting.** Scoring Engine failures are surfaced through externally exported metrics/logs (destination is an implementation detail, out of scope for this PRD) — never through in-app UI, since there is no admin role to act on such an alert. (§4.6's deferred Sync would add its own failure-observability need if revived in v2+.)
 
 ## Constraints and Guardrails
 
-- **Cost.** The entire external data dependency (NHL Sync) must remain free — no paid API tier, no paid data provider. Confirmed feasible for standings/Art Ross/Rocket Richard/playoffs; confirmed infeasible for Hart/Norris/Vezina, hence FR-13's manual entry.
+- **Cost.** v1 has no external data dependency at all (§4.6 deferred) — moot for v1. If a v2+ revives automated Sync, that dependency must remain free — no paid API tier, no paid data provider; `research.md` already confirmed this is feasible for standings/Art Ross/Rocket Richard/playoffs and infeasible for Hart/Norris/Vezina, which is why FR-13's manual entry is permanent regardless of §4.6's fate.
 - **Deployment.** Ships only as a Docker image, run via docker-compose — no other deployment target is in scope.
-- **Legal.** NHL.com's own Terms of Service prohibit automated scraping in general — but whether that ToS actually extends to the specific API subdomain this app depends on is, per `research.md`, a genuinely open legal question, not a settled one. This ambiguity is knowingly accepted for personal, non-commercial, 3-person use rather than resolved here, and it is not blocking for this hobby-tier build.
+- **Legal.** Moot for v1 (no automated access to the NHL's data source exists). If a v2+ revives §4.6: NHL.com's own Terms of Service prohibit automated scraping in general — but whether that ToS actually extends to the specific API subdomain this app would depend on is, per `research.md`, a genuinely open legal question, not a settled one, to be knowingly accepted or resolved at that time.
+- **Manual-entry accuracy.** v1's reversal to manual Result entry (§4.5) reintroduces a class of risk the original automated-Sync design was meant to eliminate: FR-5's autocomplete prevents *name* typos, but nothing prevents a Participant from entering a factually wrong outcome (the wrong Team as series winner, a wrong game count). Accepted knowingly, consistent with the app's existing no-admin, no-approval-step trust model (§4.5) — the same three intrinsically-motivated Participants who enter their own Predictions also enter the real-world Results.
 
 ## 5. Non-Goals (Explicit)
 
 - Not a multi-league or multi-group platform — the Participant list is exactly three people, hardcoded, forever (no invite/join flow ever planned).
 - Not introducing any role beyond the single Participant identity — no admin, no scorekeeper, no spectator/read-only account.
-- Not pursuing real-time scoring — freshness is bounded by the Sync's cron interval, by design.
+- Not pursuing real-time or automated scoring inputs in v1 — freshness is bounded by how promptly a Participant enters a Result on the Management Page, by design (see §4.6 for the deferred automated alternative).
 - Not a mobile app — web only.
 - Not monetized, not built for or intended to attract any user beyond the three named Participants.
 
@@ -318,13 +364,13 @@ Standings show, per Participant: Regular Season points, Playoffs points, and Tot
 
 ### 6.1 In Scope
 
-- Authentication (FR-1–4), Enter Predictions for all 6 Prediction types (FR-5–7), Deadline Enforcement & Reminders (FR-8–10), Predictions Visibility (FR-11–12)
-- Manual Award Data Entry for Hart/Norris/Vezina (FR-13)
-- Automated Data Sync for standings, Art Ross/Rocket Richard stats, and playoff results, plus Team list bootstrap and failure resilience (FR-14–16)
-- Full Scoring Engine (FR-17–21) and persistent Standings (FR-22)
+- Authentication (FR-1–4), Enter Predictions for all 6 Prediction types (FR-5–7), Deadline Enforcement & Reminders — manually triggered (FR-8–10), Predictions Visibility (FR-11–12)
+- Management Page: award finalists/winners for all 5 Awards, regular-season team Results, Cup winner, playoff Series Results, Deadline scheduling, manual reminder trigger (FR-13, FR-23–27)
+- Full Scoring Engine (FR-17–21) and persistent Standings (FR-22), scored entirely against manually entered Results in v1
 
 ### 6.2 Out of Scope for MVP
 
+- **Automated Data Sync** (FR-14–16, §4.6). Reversed out of v1 Must by explicit user decision — all Result data is manually entered instead (Management Page, §4.5). The design remains valid and is kept, numbered, in the PRD for a future version to pick back up unchanged; it is a deferred enhancement, not an abandoned idea.
 - **Multi-season data model and season-selector.** Deferred to v2 — v1 supports exactly one Season at a time.
 - **Season Hub landing page.** Deferred to v2, grouped with multi-season support since its main content (season context, quick links) only earns its place once more than one Season exists.
 - **Hall of Fame page** (championship/runner-up/third-place counts across seasons). Deferred to v2 for the same reason — needs at least two completed Seasons to be meaningful. [NOTE FOR PM: this was the idea the user was most visibly enthusiastic about during brainstorming — worth actively revisiting once Season 2 is in view, not just leaving parked indefinitely.]
@@ -339,14 +385,13 @@ Standings show, per Participant: Regular Season points, Playoffs points, and Tot
 - **SM-3:** The Excel sheet is never opened again for an active Season once this app is in use.
 
 **Counter-metrics (do not optimize)**
-- **SM-C1:** Session frequency / time-in-app. This app succeeds by being forgettable between Deadlines — rising engagement would signal friction (confusing UI driving repeat visits to figure something out), not success. Counterbalances any temptation to add engagement-driving features. Counterbalances SM-2 (don't chase completion by nagging harder than the two-reminder rule already set in FR-10).
+- **SM-C1:** Session frequency / time-in-app. This app succeeds by being forgettable between Deadlines — rising engagement would signal friction (confusing UI driving repeat visits to figure something out), not success. Counterbalances any temptation to add engagement-driving features. Counterbalances SM-2 (don't chase completion by nagging via repeated FR-27 reminder sends — the button's lack of a cap is a convenience for whoever manages deadlines, not license to spam).
 
 ## 8. Open Questions
 
-1. Exact timing of the two Deadline reminder emails (FR-10) — how many hours/days before each Deadline each of the two reminders fires. Implementation parameter, not fixed in this PRD.
-2. Whether a structured, automatable source for Hart/Norris/Vezina finalists might exist after all via a Wikidata SPARQL query against player-level `wdt:P166` statements — flagged as an unexecuted lead in `research.md`, not confirmed either way. Worth a quick check before or during build; FR-13's manual entry stands regardless as the v1 answer.
-3. Whether the NHL's free data API changing or breaking again (as it did in 2023, per `research.md`) should have any user-visible handling beyond FR-16's silent retry-next-cycle behavior, or whether silent is acceptable indefinitely given there's no admin role to notify anyway.
-4. Exact backoff bound for FR-16's rate-limit tolerance (e.g., a maximum backoff delay or retry count within one Sync run) — implementation parameter, not fixed in this PRD.
+1. Whether a structured, automatable source for Hart/Norris/Vezina finalists might exist after all via a Wikidata SPARQL query against player-level `wdt:P166` statements — flagged as an unexecuted lead in `research.md`, not confirmed either way. Only relevant if a future version revives any automated data path; FR-13's manual entry is the permanent v1 (and likely v2+) answer for these 3 trophies regardless.
+2. (Relevant only if a future version revives §4.6.) Whether the NHL's free data API changing or breaking again (as it did in 2023, per `research.md`) should have any user-visible handling beyond FR-16's silent retry-next-cycle behavior.
+3. (Relevant only if a future version revives §4.6.) Exact backoff bound for FR-16's rate-limit tolerance (e.g., a maximum backoff delay or retry count within one Sync run).
 
 ## 9. Assumptions Index
 

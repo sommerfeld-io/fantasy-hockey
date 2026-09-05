@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fantasy Hockey — Dark Theme Options</title>
+<style>
+/* ============================================================
+   FANTASY HOCKEY — DARK THEME EXPLORATION (color-themes-1)
+   5 distinct dark-theme variations. Concrete hex values below,
+   scoped to each variation via [data-theme="..."] blocks so
+   they can be lifted individually later.
+   ============================================================ */
+
+/* ---- Page chrome (not one of the candidate themes) ---- */
+* { box-sizing: border-box; }
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #0a0c10;
+    color: #dfe4ea;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+body {
+    padding: 28px;
+}
+.page-header {
+    max-width: 1400px;
+    margin: 0 auto 24px;
+}
+.page-header h1 {
+    font-size: 20px;
+    margin: 0 0 4px;
+    color: #f2f4f7;
+}
+.page-header p {
+    margin: 0;
+    color: #8b93a1;
+    font-size: 13px;
+}
+.grid {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    align-items: start;
+}
+
+/* ---- Shared card skeleton (colors come entirely from tokens below) ---- */
+.card {
+    border-radius: 10px;
+    padding: 16px;
+    background: var(--bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+.card h2 {
+    margin: 0 0 2px;
+    font-size: 16px;
+    color: var(--text-primary);
+}
+.card .register {
+    margin: 0 0 14px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+.chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    padding: 4px 8px 4px 4px;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    line-height: 1.3;
+}
+.chip .swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.15);
+    flex-shrink: 0;
+}
+.chip b {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+.widget {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+}
+.widget h3 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+}
+table.standings {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+table.standings th {
+    text-align: right;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 11px;
+    padding: 0 0 6px;
+    border-bottom: 1px solid var(--border);
+}
+table.standings th:first-child,
+table.standings td:first-child {
+    text-align: left;
+}
+table.standings td {
+    padding: 7px 0;
+    text-align: right;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border);
+}
+table.standings tr:last-child td {
+    border-bottom: none;
+}
+table.standings td.name {
+    font-weight: 600;
+}
+table.standings td.total {
+    font-weight: 700;
+    color: var(--accent);
+}
+.badge-lead {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: var(--success);
+    color: var(--bg);
+}
+.badge-warn {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--warning);
+    color: var(--bg);
+    font-weight: 600;
+}
+
+/* ============================================================
+   1. RINK LIGHTS — cool, crisp, late-night hockey energy
+   background:      #10151c
+   surface/card:     #171f29
+   primary/accent:   #4da3ff
+   text-primary:     #e8edf4
+   text-secondary:   #94a3b8
+   border:           #263140
+   success:          #3ddc97
+   warning/danger:   #ef7b6a
+   ============================================================ */
+[data-theme="rink-lights"] {
+    --bg: #10151c;
+    --surface: #171f29;
+    --accent: #4da3ff;
+    --text-primary: #e8edf4;
+    --text-secondary: #94a3b8;
+    --border: #263140;
+    --success: #3ddc97;
+    --warning: #ef7b6a;
+}
+
+/* ============================================================
+   2. STEEL ICE — muted steel-blue, utilitarian, understated
+   background:      #151a1f
+   surface/card:     #1c2229
+   primary/accent:   #6f9bb8
+   text-primary:     #dde3e8
+   text-secondary:   #8a97a3
+   border:           #2b333b
+   success:          #6fbf8b
+   warning/danger:   #d98a5f
+   ============================================================ */
+[data-theme="steel-ice"] {
+    --bg: #151a1f;
+    --surface: #1c2229;
+    --accent: #6f9bb8;
+    --text-primary: #dde3e8;
+    --text-secondary: #8a97a3;
+    --border: #2b333b;
+    --success: #6fbf8b;
+    --warning: #d98a5f;
+}
+
+/* ============================================================
+   3. FROZEN POND — teal/ice tint, glassy and cool
+   background:      #0f1e1f
+   surface/card:     #16292b
+   primary/accent:   #22d3c9
+   text-primary:     #e3f2f1
+   text-secondary:   #8fb3b0
+   border:           #204244
+   success:          #4ade80
+   warning/danger:   #f59e6c
+   ============================================================ */
+[data-theme="frozen-pond"] {
+    --bg: #0f1e1f;
+    --surface: #16292b;
+    --accent: #22d3c9;
+    --text-primary: #e3f2f1;
+    --text-secondary: #8fb3b0;
+    --border: #204244;
+    --success: #4ade80;
+    --warning: #f59e6c;
+}
+
+/* ============================================================
+   4. LOCKER ROOM — warm dark slate, blue used only as accent
+   background:      #1a1714
+   surface/card:     #221e1a
+   primary/accent:   #5b8def
+   text-primary:     #ede8e2
+   text-secondary:   #a89f93
+   border:           #332c25
+   success:          #7cbf8e
+   warning/danger:   #d97757
+   ============================================================ */
+[data-theme="locker-room"] {
+    --bg: #1a1714;
+    --surface: #221e1a;
+    --accent: #5b8def;
+    --text-primary: #ede8e2;
+    --text-secondary: #a89f93;
+    --border: #332c25;
+    --success: #7cbf8e;
+    --warning: #d97757;
+}
+
+/* ============================================================
+   5. OVERTIME NAVY — moody near-navy, dramatic, deep
+   background:      #0d1224
+   surface/card:     #161b34
+   primary/accent:   #7c9cff
+   text-primary:     #e6e8f5
+   text-secondary:   #9498b8
+   border:           #262c4a
+   success:          #4ade9a
+   warning/danger:   #ff8a65
+   ============================================================ */
+[data-theme="overtime-navy"] {
+    --bg: #0d1224;
+    --surface: #161b34;
+    --accent: #7c9cff;
+    --text-primary: #e6e8f5;
+    --text-secondary: #9498b8;
+    --border: #262c4a;
+    --success: #4ade9a;
+    --warning: #ff8a65;
+}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+    <h1>Fantasy Hockey — Dark Theme Options</h1>
+    <p>5 candidate dark palettes for the 3-friend NHL prediction app. Each card shows its semantic tokens and the standings widget as it will appear on every page.</p>
+</div>
+
+<div class="grid">
+
+    <!-- 1. RINK LIGHTS -->
+    <div class="card" data-theme="rink-lights">
+        <h2>Rink Lights</h2>
+        <p class="register">Cool, crisp, late-night hockey energy</p>
+        <div class="chips">
+            <span class="chip"><span class="swatch" style="background:#10151c"></span>background <b>#10151c</b></span>
+            <span class="chip"><span class="swatch" style="background:#171f29"></span>surface <b>#171f29</b></span>
+            <span class="chip"><span class="swatch" style="background:#4da3ff"></span>accent <b>#4da3ff</b></span>
+            <span class="chip"><span class="swatch" style="background:#e8edf4"></span>text-1 <b>#e8edf4</b></span>
+            <span class="chip"><span class="swatch" style="background:#94a3b8"></span>text-2 <b>#94a3b8</b></span>
+            <span class="chip"><span class="swatch" style="background:#263140"></span>border <b>#263140</b></span>
+            <span class="chip"><span class="swatch" style="background:#3ddc97"></span>success <b>#3ddc97</b></span>
+            <span class="chip"><span class="swatch" style="background:#ef7b6a"></span>warn/danger <b>#ef7b6a</b></span>
+        </div>
+        <div class="widget">
+            <h3>Standings</h3>
+            <table class="standings">
+                <tr><th>Player</th><th>Reg. Season</th><th>Playoffs</th><th>Total</th></tr>
+                <tr><td class="name">Sadl<span class="badge-lead">1st</span></td><td>76</td><td>41</td><td class="total">117</td></tr>
+                <tr><td class="name">Basti</td><td>82</td><td>34</td><td class="total">116</td></tr>
+                <tr><td class="name">Tobbi</td><td>69</td><td>28</td><td class="total">97</td></tr>
+            </table>
+            <span class="badge-warn">Tobbi: 2 picks missed deadline</span>
+        </div>
+    </div>
+
+    <!-- 2. STEEL ICE -->
+    <div class="card" data-theme="steel-ice">
+        <h2>Steel Ice</h2>
+        <p class="register">Muted, utilitarian, steel-blue calm</p>
+        <div class="chips">
+            <span class="chip"><span class="swatch" style="background:#151a1f"></span>background <b>#151a1f</b></span>
+            <span class="chip"><span class="swatch" style="background:#1c2229"></span>surface <b>#1c2229</b></span>
+            <span class="chip"><span class="swatch" style="background:#6f9bb8"></span>accent <b>#6f9bb8</b></span>
+            <span class="chip"><span class="swatch" style="background:#dde3e8"></span>text-1 <b>#dde3e8</b></span>
+            <span class="chip"><span class="swatch" style="background:#8a97a3"></span>text-2 <b>#8a97a3</b></span>
+            <span class="chip"><span class="swatch" style="background:#2b333b"></span>border <b>#2b333b</b></span>
+            <span class="chip"><span class="swatch" style="background:#6fbf8b"></span>success <b>#6fbf8b</b></span>
+            <span class="chip"><span class="swatch" style="background:#d98a5f"></span>warn/danger <b>#d98a5f</b></span>
+        </div>
+        <div class="widget">
+            <h3>Standings</h3>
+            <table class="standings">
+                <tr><th>Player</th><th>Reg. Season</th><th>Playoffs</th><th>Total</th></tr>
+                <tr><td class="name">Sadl<span class="badge-lead">1st</span></td><td>76</td><td>41</td><td class="total">117</td></tr>
+                <tr><td class="name">Basti</td><td>82</td><td>34</td><td class="total">116</td></tr>
+                <tr><td class="name">Tobbi</td><td>69</td><td>28</td><td class="total">97</td></tr>
+            </table>
+            <span class="badge-warn">Tobbi: 2 picks missed deadline</span>
+        </div>
+    </div>
+
+    <!-- 3. FROZEN POND -->
+    <div class="card" data-theme="frozen-pond">
+        <h2>Frozen Pond</h2>
+        <p class="register">Glassy, icy, a touch of teal</p>
+        <div class="chips">
+            <span class="chip"><span class="swatch" style="background:#0f1e1f"></span>background <b>#0f1e1f</b></span>
+            <span class="chip"><span class="swatch" style="background:#16292b"></span>surface <b>#16292b</b></span>
+            <span class="chip"><span class="swatch" style="background:#22d3c9"></span>accent <b>#22d3c9</b></span>
+            <span class="chip"><span class="swatch" style="background:#e3f2f1"></span>text-1 <b>#e3f2f1</b></span>
+            <span class="chip"><span class="swatch" style="background:#8fb3b0"></span>text-2 <b>#8fb3b0</b></span>
+            <span class="chip"><span class="swatch" style="background:#204244"></span>border <b>#204244</b></span>
+            <span class="chip"><span class="swatch" style="background:#4ade80"></span>success <b>#4ade80</b></span>
+            <span class="chip"><span class="swatch" style="background:#f59e6c"></span>warn/danger <b>#f59e6c</b></span>
+        </div>
+        <div class="widget">
+            <h3>Standings</h3>
+            <table class="standings">
+                <tr><th>Player</th><th>Reg. Season</th><th>Playoffs</th><th>Total</th></tr>
+                <tr><td class="name">Sadl<span class="badge-lead">1st</span></td><td>76</td><td>41</td><td class="total">117</td></tr>
+                <tr><td class="name">Basti</td><td>82</td><td>34</td><td class="total">116</td></tr>
+                <tr><td class="name">Tobbi</td><td>69</td><td>28</td><td class="total">97</td></tr>
+            </table>
+            <span class="badge-warn">Tobbi: 2 picks missed deadline</span>
+        </div>
+    </div>
+
+    <!-- 4. LOCKER ROOM -->
+    <div class="card" data-theme="locker-room">
+        <h2>Locker Room</h2>
+        <p class="register">Warm dark slate, blue only as an accent</p>
+        <div class="chips">
+            <span class="chip"><span class="swatch" style="background:#1a1714"></span>background <b>#1a1714</b></span>
+            <span class="chip"><span class="swatch" style="background:#221e1a"></span>surface <b>#221e1a</b></span>
+            <span class="chip"><span class="swatch" style="background:#5b8def"></span>accent <b>#5b8def</b></span>
+            <span class="chip"><span class="swatch" style="background:#ede8e2"></span>text-1 <b>#ede8e2</b></span>
+            <span class="chip"><span class="swatch" style="background:#a89f93"></span>text-2 <b>#a89f93</b></span>
+            <span class="chip"><span class="swatch" style="background:#332c25"></span>border <b>#332c25</b></span>
+            <span class="chip"><span class="swatch" style="background:#7cbf8e"></span>success <b>#7cbf8e</b></span>
+            <span class="chip"><span class="swatch" style="background:#d97757"></span>warn/danger <b>#d97757</b></span>
+        </div>
+        <div class="widget">
+            <h3>Standings</h3>
+            <table class="standings">
+                <tr><th>Player</th><th>Reg. Season</th><th>Playoffs</th><th>Total</th></tr>
+                <tr><td class="name">Sadl<span class="badge-lead">1st</span></td><td>76</td><td>41</td><td class="total">117</td></tr>
+                <tr><td class="name">Basti</td><td>82</td><td>34</td><td class="total">116</td></tr>
+                <tr><td class="name">Tobbi</td><td>69</td><td>28</td><td class="total">97</td></tr>
+            </table>
+            <span class="badge-warn">Tobbi: 2 picks missed deadline</span>
+        </div>
+    </div>
+
+    <!-- 5. OVERTIME NAVY -->
+    <div class="card" data-theme="overtime-navy">
+        <h2>Overtime Navy</h2>
+        <p class="register">Moody, deep, dramatic near-navy</p>
+        <div class="chips">
+            <span class="chip"><span class="swatch" style="background:#0d1224"></span>background <b>#0d1224</b></span>
+            <span class="chip"><span class="swatch" style="background:#161b34"></span>surface <b>#161b34</b></span>
+            <span class="chip"><span class="swatch" style="background:#7c9cff"></span>accent <b>#7c9cff</b></span>
+            <span class="chip"><span class="swatch" style="background:#e6e8f5"></span>text-1 <b>#e6e8f5</b></span>
+            <span class="chip"><span class="swatch" style="background:#9498b8"></span>text-2 <b>#9498b8</b></span>
+            <span class="chip"><span class="swatch" style="background:#262c4a"></span>border <b>#262c4a</b></span>
+            <span class="chip"><span class="swatch" style="background:#4ade9a"></span>success <b>#4ade9a</b></span>
+            <span class="chip"><span class="swatch" style="background:#ff8a65"></span>warn/danger <b>#ff8a65</b></span>
+        </div>
+        <div class="widget">
+            <h3>Standings</h3>
+            <table class="standings">
+                <tr><th>Player</th><th>Reg. Season</th><th>Playoffs</th><th>Total</th></tr>
+                <tr><td class="name">Sadl<span class="badge-lead">1st</span></td><td>76</td><td>41</td><td class="total">117</td></tr>
+                <tr><td class="name">Basti</td><td>82</td><td>34</td><td class="total">116</td></tr>
+                <tr><td class="name">Tobbi</td><td>69</td><td>28</td><td class="total">97</td></tr>
+            </table>
+            <span class="badge-warn">Tobbi: 2 picks missed deadline</span>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

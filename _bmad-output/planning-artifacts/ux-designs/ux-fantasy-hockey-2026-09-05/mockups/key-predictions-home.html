@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Predictions (Home) — Fantasy Hockey Mock</title>
+<style>
+/*
+  Governs: DESIGN.md § Components (Standings widget, Nav bar, Prediction row,
+  Button primary, Locked badge / read-only marker); DESIGN.md § Colors,
+  Typography, Layout & Spacing, Elevation & Depth, Shapes, Do's and Don'ts.
+  EXPERIENCE.md § Information Architecture (Predictions (home)); Component
+  Patterns (Standings widget, Prediction row, Button primary, Nav bar, Locked
+  badge / read-only marker); State Patterns (Locked (post-deadline, own),
+  Hidden (others', pre-deadline) — implied by only-visible rows being shown);
+  Voice and Tone; Key Flows UJ-1 (step 2, step 6), UJ-2 (step 2, step 3).
+*/
+
+:root {
+  --surface-base: #151a1f;
+  --surface-raised: #1c2229;
+  --border-hairline: #2b333b;
+  --accent: #6f9bb8;
+  --text-primary: #e2e6ea;
+  --text-secondary: #8b98a3;
+  --danger: #c97b72;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-raised);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text-primary);
+}
+
+body {
+  padding: 32px 16px;
+}
+
+.browser-frame {
+  max-width: 1240px;
+  margin: 0 auto;
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.browser-chrome {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.chrome-dots { display: flex; gap: 6px; }
+
+.chrome-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-hairline);
+  display: inline-block;
+}
+
+.chrome-address {
+  flex: 1;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+
+.page-body {
+  width: 1200px;
+  max-width: 100%;
+}
+
+/* Standings widget — DESIGN.md § Components: standings-widget */
+.standings-widget {
+  background: var(--surface-raised);
+  padding: 16px 24px;
+}
+
+.standings-header,
+.standings-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.4fr 1.2fr 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.standings-header {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.standings-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-hairline);
+  border-left: 3px solid transparent;
+  padding-left: 8px;
+}
+
+.standings-row:last-child { border-bottom: none; }
+
+.standings-row.own-row {
+  border-left: 3px solid var(--accent);
+}
+
+.standings-name {
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.standings-data {
+  font-size: 0.95rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Nav bar — DESIGN.md § Components: nav bar */
+.nav-bar {
+  display: flex;
+  gap: 24px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.nav-bar a {
+  display: inline-block;
+  padding: 12px 0;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 1rem;
+  border-bottom: 2px solid transparent;
+}
+
+.nav-bar a.active {
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+}
+
+/* Content */
+.content {
+  padding: 24px;
+}
+
+h1.section-heading, h2.section-heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.my-predictions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 16px 24px;
+  margin-bottom: 32px;
+}
+
+.my-predictions-text .meta {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--surface-base);
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+
+.category {
+  margin-bottom: 32px;
+}
+
+.category h2 {
+  margin-bottom: 12px;
+}
+
+/* Prediction row — DESIGN.md § Components: prediction row */
+.prediction-row {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 16px 24px;
+}
+
+.prediction-row + .prediction-row {
+  margin-top: 12px;
+}
+
+.series-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pick-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.pick-name {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  min-width: 60px;
+}
+
+.pick-value {
+  font-size: 0.95rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.locked-marker {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.pick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pick-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  background: var(--surface-base);
+}
+
+.series-seed {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-right: 8px;
+}
+</style>
+</head>
+<body>
+<div class="browser-frame">
+  <div class="browser-chrome">
+    <div class="chrome-dots"><span></span><span></span><span></span></div>
+    <div class="chrome-address">https://fantasy-hockey.local/predictions</div>
+  </div>
+
+  <div class="page-body">
+    <div class="standings-widget">
+      <div class="standings-header">
+        <div>Participant</div>
+        <div>Rank</div>
+        <div>Regular Season</div>
+        <div>Playoffs</div>
+        <div>Total</div>
+      </div>
+      <div class="standings-row own-row">
+        <div class="standings-name">Basti</div>
+        <div class="standings-data">1</div>
+        <div class="standings-data">142</div>
+        <div class="standings-data">38</div>
+        <div class="standings-data">180</div>
+      </div>
+      <div class="standings-row">
+        <div class="standings-name">Sadl</div>
+        <div class="standings-data">1</div>
+        <div class="standings-data">138</div>
+        <div class="standings-data">42</div>
+        <div class="standings-data">180</div>
+      </div>
+      <div class="standings-row">
+        <div class="standings-name">Tobbi</div>
+        <div class="standings-data">3</div>
+        <div class="standings-data">125</div>
+        <div class="standings-data">30</div>
+        <div class="standings-data">155</div>
+      </div>
+    </div>
+
+    <nav class="nav-bar">
+      <a href="#" class="active">Predictions</a>
+      <a href="#">Award Data</a>
+      <a href="#">Logout</a>
+    </nav>
+
+    <div class="content">
+      <div class="my-predictions">
+        <div class="my-predictions-text">
+          <h1 class="section-heading">My Predictions</h1>
+          <div class="meta">Action required until Apr 20, 2026, 7:00 PM.</div>
+        </div>
+        <button class="btn-primary" type="button">Enter / Edit</button>
+      </div>
+
+      <div class="category">
+        <h2 class="section-heading">Round 1</h2>
+
+        <div class="prediction-row">
+          <div class="series-title"><span class="series-seed">Eastern · Series A</span>Toronto Maple Leafs vs. Boston Bruins</div>
+          <div class="pick-list">
+            <div class="pick-line">
+              <span class="pick-name">Basti</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Maple Leafs</span>
+                <span class="pick-chip">4-2</span>
+              </div>
+              <span class="locked-marker">Locked</span>
+            </div>
+            <div class="pick-line">
+              <span class="pick-name">Sadl</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Bruins</span>
+                <span class="pick-chip">4-3</span>
+              </div>
+            </div>
+            <div class="pick-line">
+              <span class="pick-name">Tobbi</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Maple Leafs</span>
+                <span class="pick-chip">4-1</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prediction-row">
+          <div class="series-title"><span class="series-seed">Eastern · Series B</span>Carolina Hurricanes vs. New York Rangers</div>
+          <div class="pick-list">
+            <div class="pick-line">
+              <span class="pick-name">Basti</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Hurricanes</span>
+                <span class="pick-chip">4-2</span>
+              </div>
+            </div>
+            <div class="pick-line">
+              <span class="pick-name">Sadl</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Rangers</span>
+                <span class="pick-chip">4-2</span>
+              </div>
+            </div>
+            <div class="pick-line">
+              <span class="pick-name">Tobbi</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Hurricanes</span>
+                <span class="pick-chip">4-3</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prediction-row">
+          <div class="series-title"><span class="series-seed">Western · Series A</span>Edmonton Oilers vs. Vegas Golden Knights</div>
+          <div class="pick-list">
+            <div class="pick-line">
+              <span class="pick-name">Basti</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Oilers</span>
+                <span class="pick-chip">4-1</span>
+              </div>
+            </div>
+            <div class="pick-line">
+              <span class="pick-name">Sadl</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Oilers</span>
+                <span class="pick-chip">4-2</span>
+              </div>
+            </div>
+            <div class="pick-line">
+              <span class="pick-name">Tobbi</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Golden Knights</span>
+                <span class="pick-chip">4-3</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="category">
+        <h2 class="section-heading">Awards</h2>
+
+        <div class="prediction-row">
+          <div class="series-title">Hart Trophy</div>
+          <div class="pick-list">
+            <div class="pick-line">
+              <span class="pick-name">Basti</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Auston Matthews</span>
+                <span class="pick-chip">Connor McDavid</span>
+                <span class="pick-chip">Nathan MacKinnon</span>
+              </div>
+            </div>
+            <div class="pick-line">
+              <span class="pick-name">Sadl</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Connor McDavid</span>
+                <span class="pick-chip">Leon Draisaitl</span>
+                <span class="pick-chip">Nikita Kucherov</span>
+              </div>
+            </div>
+            <div class="pick-line">
+              <span class="pick-name">Tobbi</span>
+              <div class="pick-chips">
+                <span class="pick-chip">David Pastrnak</span>
+                <span class="pick-chip">Nathan MacKinnon</span>
+                <span class="pick-chip">Nikita Kucherov</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prediction-row">
+          <div class="series-title">Norris Trophy</div>
+          <div class="pick-list">
+            <div class="pick-line">
+              <span class="pick-name">Basti</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Adam Fox</span>
+                <span class="pick-chip">Cale Makar</span>
+                <span class="pick-chip">Quinn Hughes</span>
+              </div>
+            </div>
+            <div class="pick-line">
+              <span class="pick-name">Sadl</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Cale Makar</span>
+                <span class="pick-chip">Quinn Hughes</span>
+                <span class="pick-chip">Rasmus Dahlin</span>
+              </div>
+            </div>
+            <div class="pick-line">
+              <span class="pick-name">Tobbi</span>
+              <div class="pick-chips">
+                <span class="pick-chip">Adam Fox</span>
+                <span class="pick-chip">Cale Makar</span>
+                <span class="pick-chip">Quinn Hughes</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

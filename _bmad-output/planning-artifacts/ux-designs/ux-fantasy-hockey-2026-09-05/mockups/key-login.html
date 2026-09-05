@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Login — Fantasy Hockey Mock</title>
+<style>
+/*
+  Governs: DESIGN.md § Components (Login form, Button primary); DESIGN.md §
+  Colors, Typography, Layout & Spacing, Elevation & Depth, Shapes, Do's and
+  Don'ts.
+  EXPERIENCE.md § Information Architecture (Login — unauthenticated, no
+  standings widget, no nav bar); Component Patterns (Login form — single
+  email field → submit → code field appears on the same page, no
+  navigation → submit → redirect to Predictions); State Patterns (Invalid
+  login code — generic "Invalid code." inline, code field cleared, no
+  lockout); Voice and Tone (plain, neutral, no exclamation marks).
+
+  This file shows three states of the one Login screen side by side (email
+  step, code step, invalid-code step) since they are all the same page in
+  the real app — no separate mock per state, per the key-screens tool's
+  convention for load-bearing alternate states.
+*/
+
+:root {
+  --surface-base: #151a1f;
+  --surface-raised: #1c2229;
+  --border-hairline: #2b333b;
+  --accent: #6f9bb8;
+  --text-primary: #e2e6ea;
+  --text-secondary: #8b98a3;
+  --danger: #c97b72;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--surface-raised);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text-primary);
+}
+
+body {
+  padding: 32px 16px;
+}
+
+.browser-frame {
+  max-width: 1240px;
+  margin: 0 auto;
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.browser-chrome {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-hairline);
+}
+
+.chrome-dots { display: flex; gap: 6px; }
+
+.chrome-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-hairline);
+  display: inline-block;
+}
+
+.chrome-address {
+  flex: 1;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+
+/* Unauthenticated: no standings widget, no nav bar — plain page on surface-base */
+.page-body {
+  width: 1200px;
+  max-width: 100%;
+  background: var(--surface-base);
+  min-height: 640px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+}
+
+.app-name {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 48px;
+}
+
+.state-columns {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 1080px;
+}
+
+.state-column {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: 320px;
+}
+
+.state-caption {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.flow-note {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 480px;
+  margin: 0 auto 28px;
+}
+
+.flow-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 1.4rem;
+  padding-top: 40px;
+  text-align: center;
+}
+
+.flow-arrow-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  max-width: 90px;
+}
+
+.login-panel {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control-label {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* Login form — DESIGN.md § Components: Login form (same treatment as
+   Autocomplete input, minus the suggestions panel) */
+.login-input {
+  width: 100%;
+  background: var(--surface-base);
+  border: 1px solid var(--border-hairline);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 1rem;
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.login-input.invalid {
+  border-color: var(--danger);
+}
+
+.login-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--surface-base);
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.meta {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.field-error {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--danger);
+}
+</style>
+</head>
+<body>
+<div class="browser-frame">
+  <div class="browser-chrome">
+    <div class="chrome-dots"><span></span><span></span><span></span></div>
+    <div class="chrome-address">https://fantasy-hockey.local/login</div>
+  </div>
+
+  <div class="page-body">
+    <div class="app-name">Fantasy Hockey</div>
+
+    <div class="flow-note">One field at a time — requesting a code replaces the email field with the code field in the same slot. Never both fields at once.</div>
+
+    <div class="state-columns">
+      <div class="state-column">
+        <div class="state-caption">Before request — email field</div>
+        <div class="login-panel">
+          <div class="control-group">
+            <span class="control-label">Email</span>
+            <input class="login-input" type="email" placeholder="you@example.com" autocomplete="off">
+          </div>
+          <button class="btn-primary" type="button">Request code</button>
+        </div>
+      </div>
+
+      <div class="flow-arrow">→<br><span class="flow-arrow-label">email field replaced by</span></div>
+
+      <div class="state-column">
+        <div class="state-caption">After request — code field (same slot)</div>
+        <div class="login-panel">
+          <div class="control-group">
+            <span class="control-label">Code</span>
+            <input class="login-input" type="text" value="482913" autocomplete="off">
+          </div>
+          <div class="meta">Code sent — valid for 10 minutes.</div>
+          <button class="btn-primary" type="button">Log in</button>
+        </div>
+      </div>
+
+      <div class="state-column">
+        <div class="state-caption">Code field — invalid code entered</div>
+        <div class="login-panel">
+          <div class="control-group">
+            <span class="control-label">Code</span>
+            <input class="login-input invalid" type="text" placeholder="" value="" autocomplete="off">
+            <div class="field-error">Invalid code.</div>
+          </div>
+          <button class="btn-primary" type="button">Log in</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
