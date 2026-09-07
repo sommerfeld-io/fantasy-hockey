@@ -4,7 +4,10 @@ verbose = 'info'
 
 exclude_path = [
     'node_modules',
-    'target'
+    'target',
+    # Go html/template source: its "/login" and "/static/..." paths are
+    # server-routed by internal/web, not filesystem-relative links.
+    'src/internal/web/templates'
 ]
 exclude_loopback = true
 exclude = [

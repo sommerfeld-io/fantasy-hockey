@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.26.4-alpine3.24 AS build
+FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine3.24 AS build
 LABEL maintainer="sebastian@sommerfeld.io"
 
 ARG TARGETOS

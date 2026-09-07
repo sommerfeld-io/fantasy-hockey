@@ -1,0 +1,11 @@
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-request-login-code.md`
+  summary: internal/store's own Postgres-backed tests (Migrate, ParticipantByEmail, InsertLoginCode, UpsertParticipants) never run in task go:test, task go:build, the Docker build, or CI — they always skip because nothing in those paths sets POSTGRES_TEST_DSN or starts the docker-compose postgres service.
+  evidence: Deliberate consequence of the interface+fake decision for Story 1.1 (task go:build's acceptance-test stage runs inside the Docker build with no network path to a sibling Postgres container). A broken SQL query or migration in internal/store could merge with every automated check green. Closing this needs either a new CI job that brings up postgres and runs `go test ./internal/store/...` with POSTGRES_TEST_DSN set, or an equivalent local-only gate — worth deciding deliberately rather than folding into a future story's diff.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-request-login-code.md`
+  summary: Login codes are hashed with unsalted SHA-256 over only a 6-digit numeric value (1,000,000 possibilities) per Architecture AD-22 ("the stored value is sha256(code)") — cheap to precompute entirely, so a login_code table read (DB compromise or backup leak) trivially recovers every plaintext code.
+  evidence: This is the architecture-adopted scheme (AD-22), not something this story introduced or has authority to change unilaterally — changing it (e.g. adding a per-row salt/pepper) is a cross-cutting decision the architecture owner should make once, not something to vary story-by-story. Flagged for a deliberate architecture-level revisit rather than a silent fix here.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-1-request-login-code.md`
+  summary: No test exercises main.go's own wiring (`run`/`openStore`) end-to-end — only its extracted pure helpers (`resolveDatabaseURL`, `readParticipants`, etc.) are unit tested.
+  evidence: Testing `run`/`openStore` end-to-end would require either a live database (unavailable in the same contexts as the internal/store gap above) or turning `store.NewStore` itself into an injectable interface, which is a larger architectural change than this story's scope. Worth reconsidering once a real integration-test environment exists.

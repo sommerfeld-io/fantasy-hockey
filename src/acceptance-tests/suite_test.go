@@ -25,6 +25,7 @@ func TestAcceptanceSuite(t *testing.T) {
 		Name: "acceptance",
 		ScenarioInitializer: func(ctx *godog.ScenarioContext) {
 			InitializeScenario(ctx)
+			InitializeLoginScenario(ctx)
 		},
 		Options: &opts,
 	}
