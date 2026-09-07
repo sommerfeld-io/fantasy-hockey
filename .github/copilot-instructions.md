@@ -43,6 +43,14 @@ task lint                # project-wide linters (YAML, Markdown, filenames, Gher
 task docker:build         # lint, test, and build the container image
 ```
 
+## Verification Workflow
+
+There is no automated Stop hook running `task go:run` after every turn - verification is the agent's own responsibility.
+
+- After every change, run `task go:run` yourself to confirm the app still builds and starts.
+- A non-zero exit from `task go:run` caused solely by `govulncheck` findings is acceptable and must not block the change - but still attempt a fix when one is available (e.g. bump an affected dependency) before accepting the finding as-is. If the only fix requires touching a protected file (see above), stop and ask the user rather than editing it or silently leaving the finding unaddressed.
+- When a feature is complete, verify it with `task docker:build` - this is the authoritative check, since it builds and lints the actual container image (including whatever Go toolchain the `Dockerfile` pins) rather than relying on whatever Go version happens to be installed locally.
+
 ## Test-Driven Development
 
 Always follow TDD - the test comes before the implementation. Red (failing test) - Green (minimum implementation) - Refactor. Test observable behavior, not internal state. For every "should do X" test, add a "should not do Y" counterpart where it increases confidence.

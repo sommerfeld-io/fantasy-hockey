@@ -106,7 +106,5 @@ services:
       - path: .env.secrets
         required: false
     depends_on:
-      fantasy-hockey-lint-dockerfile:
-        condition: service_completed_successfully
       postgres:
         condition: service_healthy
