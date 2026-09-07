@@ -1,6 +1,6 @@
 module github.com/sommerfeld-io/fantasy-hockey
 
-go 1.26.4
+go 1.26.6
 
 require (
 	github.com/cucumber/godog v0.16.0

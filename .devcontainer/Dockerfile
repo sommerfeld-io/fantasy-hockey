@@ -12,7 +12,7 @@ LABEL maintainer="sebastian@sommerfeld.io"
 ##
 ## The Go version can be configured via the GO_VERSION build argument.
 
-ARG GO_VERSION=1.26.4
+ARG GO_VERSION=1.26.6
 ARG ARCH=linux-amd64
 
 USER root

@@ -6,7 +6,6 @@ GoDog (Cucumber/Gherkin) acceptance tests for the fantasy-hockey application.
 
 The Gherkin scenarios in `features/` describe the observable behaviour of the application as defined in the `*.feature` files:
 
-- `current-datetime.feature` is a placeholder scenario covering the dummy `internal/clock` package; it keeps the acceptance test pipeline in place.
 - `request-login-code.feature` covers Story 1.1 (Request Login Code): it exercises `internal/auth` + `internal/web` + `internal/mailer` end-to-end through `internal/web`'s HTTP handlers, against in-memory fakes of `internal/auth`'s `Store`/`Mailer` interfaces defined in `login_steps_test.go`. No real PostgreSQL/SMTP connection is needed, since `task go:build`'s Docker-stage tests have no network path to a sibling database container.
 
 ## How the tests work
@@ -18,7 +17,7 @@ TestAcceptanceSuite (suite_test.go)
   │
   └─ godog.TestSuite{...}.Run()
         Executes every Gherkin scenario in features/.
-        Each step calls the production package directly (e.g. internal/clock).
+        Each step calls the production package directly (e.g. internal/auth).
 ```
 
 ## Running the tests
