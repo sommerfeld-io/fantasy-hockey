@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -120,6 +121,39 @@ func TestReadParticipantsShouldFailFastWhenAnyVarIsMissing(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "PARTICIPANT_2_EMAIL") {
 		t.Errorf("expected the error to name the missing variable, got %q", err.Error())
+	}
+}
+
+// TestLoadConfigShouldThreadSessionSecretIntoConfig guards against
+// SESSION_SECRET being read but silently discarded instead of ending up on
+// the returned config, as happened before it was wired into auth.NewService.
+// os.Args is temporarily narrowed to just the binary name: loadConfig calls
+// resolveDatabaseURL with os.Args[1:], and go test's own flags (e.g.
+// -test.v) would otherwise be rejected by the "database-url"-only flag set.
+func TestLoadConfigShouldThreadSessionSecretIntoConfig(t *testing.T) {
+	origArgs := os.Args
+	os.Args = []string{origArgs[0]}
+	t.Cleanup(func() { os.Args = origArgs })
+
+	const wantSessionSecret = "super-secret-session-value"
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("SESSION_SECRET", wantSessionSecret)
+	t.Setenv("PARTICIPANT_1_NAME", "Basti")
+	t.Setenv("PARTICIPANT_1_EMAIL", "basti@example.com")
+	t.Setenv("PARTICIPANT_2_NAME", "Sadl")
+	t.Setenv("PARTICIPANT_2_EMAIL", "sadl@example.com")
+	t.Setenv("PARTICIPANT_3_NAME", "Tobbi")
+	t.Setenv("PARTICIPANT_3_EMAIL", "tobbi@example.com")
+	t.Setenv("SMTP_USERNAME", "smtp-user")
+	t.Setenv("SMTP_APP_PASSWORD", "smtp-pass")
+
+	cfg, err := loadConfig()
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.sessionSecret != wantSessionSecret {
+		t.Errorf("expected config.sessionSecret %q, got %q", wantSessionSecret, cfg.sessionSecret)
 	}
 }
 

@@ -269,3 +269,125 @@ func TestInsertLoginCodeShouldAllowMultipleValidCodesForTheSameParticipant(t *te
 		t.Errorf("expected 2 login codes for participant after a repeat request, got %d", got)
 	}
 }
+
+// seedParticipantWithLoginCode upserts a fresh Participant and inserts one
+// LoginCode issued at issuedAt, returning both for the calling test to
+// exercise UnusedLoginCodesForParticipant/MarkLoginCodeUsed against.
+func seedParticipantWithLoginCode(t *testing.T, st *store.Store, issuedAt time.Time, usedAt *time.Time) (store.Participant, store.LoginCode) {
+	t.Helper()
+	ctx := context.Background()
+	slot := nextSlot()
+	email := uniqueEmail(t)
+
+	if err := st.UpsertParticipants(ctx, []store.ParticipantSeed{{Slot: slot, Name: "Code Window Participant", Email: email}}); err != nil {
+		t.Fatalf("UpsertParticipants returned error: %v", err)
+	}
+	participant, err := st.ParticipantByEmail(ctx, email)
+	if err != nil {
+		t.Fatalf("ParticipantByEmail returned error: %v", err)
+	}
+
+	code := store.LoginCode{
+		ID:            uuid.NewString(),
+		ParticipantID: participant.ID,
+		CodeHash:      "hash-" + uuid.NewString(),
+		IssuedAt:      issuedAt,
+		UsedAt:        usedAt,
+	}
+	if err := st.InsertLoginCode(ctx, code); err != nil {
+		t.Fatalf("InsertLoginCode returned error: %v", err)
+	}
+
+	return participant, code
+}
+
+func TestUnusedLoginCodesForParticipantShouldReturnACodeIssuedAfterTheCutoff(t *testing.T) {
+	st := newTestStore(t)
+	cutoff := time.Now().UTC().Add(-10 * time.Minute)
+	participant, code := seedParticipantWithLoginCode(t, st, time.Now().UTC(), nil)
+
+	got, err := st.UnusedLoginCodesForParticipant(context.Background(), participant.ID, cutoff)
+	if err != nil {
+		t.Fatalf("UnusedLoginCodesForParticipant returned error: %v", err)
+	}
+
+	if len(got) != 1 || got[0].ID != code.ID {
+		t.Fatalf("expected exactly the seeded code to be returned, got %+v", got)
+	}
+}
+
+func TestUnusedLoginCodesForParticipantShouldExcludeCodesIssuedBeforeTheCutoff(t *testing.T) {
+	st := newTestStore(t)
+	cutoff := time.Now().UTC().Add(-10 * time.Minute)
+	participant, _ := seedParticipantWithLoginCode(t, st, cutoff.Add(-time.Minute), nil)
+
+	got, err := st.UnusedLoginCodesForParticipant(context.Background(), participant.ID, cutoff)
+	if err != nil {
+		t.Fatalf("UnusedLoginCodesForParticipant returned error: %v", err)
+	}
+
+	if len(got) != 0 {
+		t.Errorf("expected no codes issued before the cutoff to be returned, got %+v", got)
+	}
+}
+
+func TestUnusedLoginCodesForParticipantShouldExcludeAlreadyUsedCodes(t *testing.T) {
+	st := newTestStore(t)
+	cutoff := time.Now().UTC().Add(-10 * time.Minute)
+	usedAt := time.Now().UTC()
+	participant, _ := seedParticipantWithLoginCode(t, st, time.Now().UTC(), &usedAt)
+
+	got, err := st.UnusedLoginCodesForParticipant(context.Background(), participant.ID, cutoff)
+	if err != nil {
+		t.Fatalf("UnusedLoginCodesForParticipant returned error: %v", err)
+	}
+
+	if len(got) != 0 {
+		t.Errorf("expected no already-used codes to be returned, got %+v", got)
+	}
+}
+
+func TestMarkLoginCodeUsedShouldRemoveTheCodeFromTheUnusedSet(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	cutoff := time.Now().UTC().Add(-10 * time.Minute)
+	participant, code := seedParticipantWithLoginCode(t, st, time.Now().UTC(), nil)
+
+	if err := st.MarkLoginCodeUsed(ctx, code.ID); err != nil {
+		t.Fatalf("MarkLoginCodeUsed returned error: %v", err)
+	}
+
+	got, err := st.UnusedLoginCodesForParticipant(ctx, participant.ID, cutoff)
+	if err != nil {
+		t.Fatalf("UnusedLoginCodesForParticipant returned error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("expected the marked-used code to no longer be returned as unused, got %+v", got)
+	}
+}
+
+func TestMarkLoginCodeUsedShouldReturnErrLoginCodeAlreadyUsedWhenTheCodeIsAlreadyUsed(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	_, code := seedParticipantWithLoginCode(t, st, time.Now().UTC(), nil)
+
+	if err := st.MarkLoginCodeUsed(ctx, code.ID); err != nil {
+		t.Fatalf("first MarkLoginCodeUsed returned error: %v", err)
+	}
+
+	err := st.MarkLoginCodeUsed(ctx, code.ID)
+
+	if !errors.Is(err, store.ErrLoginCodeAlreadyUsed) {
+		t.Errorf("expected ErrLoginCodeAlreadyUsed when marking an already-used code used again, got %v", err)
+	}
+}
+
+func TestMarkLoginCodeUsedShouldReturnErrLoginCodeAlreadyUsedForAnUnknownID(t *testing.T) {
+	st := newTestStore(t)
+
+	err := st.MarkLoginCodeUsed(context.Background(), uuid.NewString())
+
+	if !errors.Is(err, store.ErrLoginCodeAlreadyUsed) {
+		t.Errorf("expected ErrLoginCodeAlreadyUsed when marking an unknown id used, got %v", err)
+	}
+}

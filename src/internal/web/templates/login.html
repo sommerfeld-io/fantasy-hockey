@@ -9,19 +9,29 @@
   <main class="page-body">
     <h1 class="app-name">Fantasy Hockey</h1>
 
-    {{if eq .Step "confirmation"}}
     <div class="login-panel">
-      <p class="meta">{{.Message}}</p>
+      {{if .Message}}<p class="meta">{{.Message}}</p>{{end}}
+
+      {{if eq .Step "code"}}
+      <form method="post" action="/login/code">
+        <input type="hidden" name="email" value="{{.Email}}">
+        <div class="control-group">
+          <label class="control-label" for="code">Code</label>
+          <input class="login-input{{if .Error}} invalid{{end}}" type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+          {{if .Error}}<p class="field-error">{{.Error}}</p>{{end}}
+        </div>
+        <button class="btn-primary" type="submit">Verify code</button>
+      </form>
+      {{else}}
+      <form method="post" action="/login">
+        <div class="control-group">
+          <label class="control-label" for="email">Email</label>
+          <input class="login-input" type="email" id="email" name="email" autocomplete="off" required>
+        </div>
+        <button class="btn-primary" type="submit">Request code</button>
+      </form>
+      {{end}}
     </div>
-    {{else}}
-    <form class="login-panel" method="post" action="/login">
-      <div class="control-group">
-        <label class="control-label" for="email">Email</label>
-        <input class="login-input" type="email" id="email" name="email" autocomplete="off" required>
-      </div>
-      <button class="btn-primary" type="submit">Request code</button>
-    </form>
-    {{end}}
   </main>
 </body>
 </html>

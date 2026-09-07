@@ -120,10 +120,11 @@ func readParticipants(getenv func(string) string) ([]participantEnv, error) {
 // process fails fast, before any I/O (DB connection, migrations, listening),
 // if anything required is missing.
 type config struct {
-	databaseURL  string
-	participants []participantEnv
-	smtpUsername string
-	smtpPassword string
+	databaseURL   string
+	participants  []participantEnv
+	smtpUsername  string
+	smtpPassword  string
+	sessionSecret string
 }
 
 // loadConfig resolves the connection string and validates every required
@@ -134,7 +135,8 @@ func loadConfig() (config, error) {
 	if err != nil {
 		return config{}, err
 	}
-	if _, err := requireEnv(os.Getenv, "SESSION_SECRET"); err != nil {
+	sessionSecret, err := requireEnv(os.Getenv, "SESSION_SECRET")
+	if err != nil {
 		return config{}, err
 	}
 	participants, err := readParticipants(os.Getenv)
@@ -151,10 +153,11 @@ func loadConfig() (config, error) {
 	}
 
 	return config{
-		databaseURL:  dsn,
-		participants: participants,
-		smtpUsername: smtpUsername,
-		smtpPassword: smtpPassword,
+		databaseURL:   dsn,
+		participants:  participants,
+		smtpUsername:  smtpUsername,
+		smtpPassword:  smtpPassword,
+		sessionSecret: sessionSecret,
 	}, nil
 }
 
@@ -203,7 +206,7 @@ func run() error {
 	}
 	defer st.Close()
 
-	authSvc := auth.NewService(st, mailer.New(cfg.smtpUsername, cfg.smtpPassword))
+	authSvc := auth.NewService(st, mailer.New(cfg.smtpUsername, cfg.smtpPassword), cfg.sessionSecret)
 	handler := web.NewServer(authSvc)
 
 	addr := os.Getenv("HTTP_ADDR")

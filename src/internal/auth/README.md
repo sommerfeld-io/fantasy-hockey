@@ -1,11 +1,13 @@
 # Package: `auth`
 
-Implements the login-code request flow: given a submitted email, decide whether to generate, persist, and email a one-time login code - without ever revealing that decision to the caller.
+Implements the login-code request/validation flow and the stateless session mechanism built on top of it: given a submitted email, decide whether to generate, persist, and email a one-time login code, later check a submitted code against it, and sign/verify the session cookie that keeps a Participant logged in - without ever revealing more than intended to the caller.
 
 ## Responsibilities
 
 - `Service.RequestLoginCode` looks up the email against `Store`, and on a match generates a random 6-digit code, hashes it (sha256), persists it, and emails it via `Mailer`.
 - On a non-matching email, it returns `nil` with no side effects - the same outcome as a successful match, so `internal/web` can render an identical response either way (no enumeration leak, see FR-1).
+- `Service.ValidateLoginCode` checks a submitted code against every still-unused code issued for the Participant within the last 10 minutes, marking the matching one used the moment it succeeds. A wrong, expired, or already-used code all return the identical `ErrInvalidCode` - the caller can't tell which applies, and neither can a visitor.
+- `Service.EncodeSession`/`Service.DecodeSession` sign and verify a stateless, HMAC-SHA256 session token (`SESSION_SECRET`-keyed, no server-side session table - AD-12). `DecodeSession` also enforces the 30-minute sliding timeout, returning `ErrSessionExpired` once a token's issued-at is too old; this is the only place that 30-minute constant lives.
 
 ## Consumer-defined interfaces
 

@@ -20,6 +20,8 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" database/sql driver used by Migrate
 
 	"github.com/golang-migrate/migrate/v4"
+
+	"github.com/sommerfeld-io/fantasy-hockey/internal/clock"
 )
 
 // normalizeEmail trims and lowercases an email address so lookups and writes
@@ -156,6 +158,63 @@ func (s *Store) InsertLoginCode(ctx context.Context, code LoginCode) error {
 
 	if _, err := s.pool.Exec(ctx, query, code.ID, code.ParticipantID, code.CodeHash, code.IssuedAt, code.UsedAt); err != nil {
 		return fmt.Errorf("store: insert login code: %w", err)
+	}
+
+	return nil
+}
+
+// UnusedLoginCodesForParticipant returns every LoginCode for participantID
+// that has not yet been used and was issued after issuedAfter. Multiple rows
+// can come back since more than one code may be valid for a Participant at
+// once - the caller is responsible for matching the submitted code against
+// each candidate.
+func (s *Store) UnusedLoginCodesForParticipant(ctx context.Context, participantID string, issuedAfter time.Time) ([]LoginCode, error) {
+	const query = `
+		SELECT id, participant_id, code_hash, issued_at, used_at
+		FROM login_code
+		WHERE participant_id = $1 AND used_at IS NULL AND issued_at > $2`
+
+	rows, err := s.pool.Query(ctx, query, participantID, issuedAfter)
+	if err != nil {
+		return nil, fmt.Errorf("store: query unused login codes: %w", err)
+	}
+	defer rows.Close()
+
+	var codes []LoginCode
+	for rows.Next() {
+		var c LoginCode
+		if err := rows.Scan(&c.ID, &c.ParticipantID, &c.CodeHash, &c.IssuedAt, &c.UsedAt); err != nil {
+			return nil, fmt.Errorf("store: scan login code: %w", err)
+		}
+		codes = append(codes, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate unused login codes: %w", err)
+	}
+
+	return codes, nil
+}
+
+// ErrLoginCodeAlreadyUsed is returned by MarkLoginCodeUsed when the update
+// affected zero rows - the code was already redeemed (possibly by a
+// concurrent request racing to claim it) or does not exist. Callers mid
+// redemption must treat this the same as any other authentication failure
+// rather than assuming they won the race.
+var ErrLoginCodeAlreadyUsed = errors.New("store: login code already used")
+
+// MarkLoginCodeUsed marks the login code identified by id as used at the
+// current time. It returns ErrLoginCodeAlreadyUsed if no row was updated,
+// letting a caller detect that it lost a race to redeem the code instead of
+// unconditionally treating the call as a successful claim.
+func (s *Store) MarkLoginCodeUsed(ctx context.Context, id string) error {
+	const query = `UPDATE login_code SET used_at = $2 WHERE id = $1 AND used_at IS NULL`
+
+	tag, err := s.pool.Exec(ctx, query, id, clock.NowTime())
+	if err != nil {
+		return fmt.Errorf("store: mark login code used: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrLoginCodeAlreadyUsed
 	}
 
 	return nil
