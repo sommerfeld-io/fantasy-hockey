@@ -67,6 +67,5 @@ tasks:
   docker:run:
     desc: Run container {{ .COMPOSE_SERVICE }}
     cmds:
-      - cp .env.secrets.example .env.secrets
       - task: docker:build
       - docker compose up {{ .COMPOSE_SERVICE }}
