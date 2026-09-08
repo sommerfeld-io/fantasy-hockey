@@ -26,6 +26,7 @@ ls:
   .css: kebab-case
   .html: kebab-case
   .js: kebab-case
+  .config.js: kebab-case
   .hbs: kebab-case
   .svg: kebab-case
 
@@ -48,6 +49,7 @@ ignore:
   - .task
   - _bmad
   - _bmad-output
+  - assets/clickdummy
   - .claude/skills
   - node_modules
   - target/docs/site
