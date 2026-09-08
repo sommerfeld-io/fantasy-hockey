@@ -265,6 +265,7 @@ jobs:
     uses: sommerfeld-io/.github/.github/workflows/lib-release-code.yml@main
     needs: [
       'publish-edge',
+      'docker-scout',
     ]
     if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     secrets:
