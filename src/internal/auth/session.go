@@ -12,9 +12,17 @@ import (
 	"github.com/sommerfeld-io/fantasy-hockey/internal/clock"
 )
 
-// sessionCookieName is the cookie IssueSessionCookie sets and
-// ParseSessionCookie reads back.
-const sessionCookieName = "session"
+// SessionCookieName is the cookie IssueSessionCookie sets and
+// ParseSessionCookie reads back. Exported so other packages (e.g.
+// internal/web's session middleware) read the cookie by the same name it's
+// signed under, instead of duplicating the literal.
+const SessionCookieName = "session"
+
+// SessionIdleTimeout is how long a session cookie remains valid without a
+// fresh request. ValidateSession rejects any cookie older than this,
+// sliding the timeout forward on every request a caller re-issues the
+// cookie for (PRD FR-3).
+const SessionIdleTimeout = 30 * time.Minute
 
 // IssueSessionCookie builds a signed session cookie for playerID. The
 // cookie's value is base64url(player_id) + "|" + issued_at_RFC3339 + "." +
@@ -30,7 +38,7 @@ func IssueSessionCookie(playerID, secret string) *http.Cookie {
 	payload := sessionPayload(playerID, issuedAt)
 
 	return &http.Cookie{
-		Name:     sessionCookieName,
+		Name:     SessionCookieName,
 		Value:    encodeSessionValue(payload, secret),
 		Path:     "/",
 		HttpOnly: true,
@@ -72,6 +80,23 @@ func ParseSessionCookie(c *http.Cookie, secret string) (playerID string, issuedA
 	}
 
 	return string(idBytes), parsed, true
+}
+
+// ValidateSession parses and verifies c against secret via
+// ParseSessionCookie, then confirms it carries a non-empty player id issued
+// within SessionIdleTimeout. A missing/invalid/tampered cookie, an empty
+// decoded player id, and an idle-expired issued_at all yield the identical
+// ok=false - deliberately collapsed into one outcome so a caller (e.g. a
+// redirect-to-/login middleware) can't distinguish which case occurred.
+func ValidateSession(c *http.Cookie, secret string) (playerID string, ok bool) {
+	id, issuedAt, ok := ParseSessionCookie(c, secret)
+	if !ok || id == "" {
+		return "", false
+	}
+	if clock.NowTime().Sub(issuedAt) > SessionIdleTimeout {
+		return "", false
+	}
+	return id, true
 }
 
 // sessionPayload builds the pre-signing "base64url(player_id)|issued_at"

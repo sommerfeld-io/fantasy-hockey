@@ -36,6 +36,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializePortScenario(ctx)
 			InitializeLoginScenario(ctx)
 			InitializeEnterLoginCodeScenario(ctx)
+			InitializeStayLoggedInScenario(ctx)
 		},
 		Options: &opts,
 	}

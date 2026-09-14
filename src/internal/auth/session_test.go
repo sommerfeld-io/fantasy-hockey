@@ -3,6 +3,7 @@ package auth_test
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"net/http"
 	"testing"
@@ -134,6 +135,88 @@ func TestParseSessionCookieShouldRejectAWrongShapeCookie(t *testing.T) {
 
 func TestParseSessionCookieShouldRejectANilCookie(t *testing.T) {
 	if _, _, ok := auth.ParseSessionCookie(nil, "test-secret"); ok {
+		t.Fatal("expected a nil cookie to be rejected")
+	}
+}
+
+// buildSessionCookie signs a session cookie value directly, mirroring
+// IssueSessionCookie's payload format ("base64url(player_id)|issued_at"
+// signed with HMAC-SHA256) - unlike IssueSessionCookie, which always stamps
+// the current time, this lets a test pin issuedAt to an arbitrary point so
+// idle-timeout behavior can be tested deterministically.
+func buildSessionCookie(playerID string, issuedAt time.Time, secret string) *http.Cookie {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(playerID)) + "|" + issuedAt.UTC().Format(time.RFC3339)
+	return &http.Cookie{
+		Name:  auth.SessionCookieName,
+		Value: payload + "." + signPayload(payload, secret),
+	}
+}
+
+func TestValidateSessionShouldAcceptAFreshSession(t *testing.T) {
+	c := auth.IssueSessionCookie("basti", "test-secret")
+
+	playerID, ok := auth.ValidateSession(c, "test-secret")
+	if !ok {
+		t.Fatal("expected a freshly issued session to be valid")
+	}
+	if playerID != "basti" {
+		t.Errorf("expected player id %q, got %q", "basti", playerID)
+	}
+}
+
+func TestValidateSessionShouldAcceptASessionJustUnderTheIdleTimeout(t *testing.T) {
+	c := buildSessionCookie("basti", time.Now().UTC().Add(-29*time.Minute), "test-secret")
+
+	_, ok := auth.ValidateSession(c, "test-secret")
+	if !ok {
+		t.Fatal("expected a session just under the idle timeout to be accepted")
+	}
+}
+
+// Note: the exact instant issuedAt == SessionIdleTimeout ago can't be tested
+// deterministically against a real wall clock - by the time ValidateSession
+// reads clock.NowTime(), real execution delay has always pushed the elapsed
+// duration slightly past the target, so a cookie built to land exactly on
+// the boundary always measures as just over it. Confirming the intended
+// strict greater-than behavior (an exact match is still valid) is left to
+// code inspection - it matches store.ConsumeLoginCode's identical pattern.
+
+func TestValidateSessionShouldRejectASessionIssuedOverThirtyMinutesAgo(t *testing.T) {
+	c := buildSessionCookie("basti", time.Now().UTC().Add(-31*time.Minute), "test-secret")
+
+	_, ok := auth.ValidateSession(c, "test-secret")
+	if ok {
+		t.Fatal("expected an idle-expired session to be rejected")
+	}
+}
+
+func TestValidateSessionShouldRejectAnEmptyPlayerID(t *testing.T) {
+	c := buildSessionCookie("", time.Now().UTC(), "test-secret")
+
+	_, ok := auth.ValidateSession(c, "test-secret")
+	if ok {
+		t.Fatal("expected an empty player id to be rejected")
+	}
+}
+
+func TestValidateSessionShouldRejectATamperedSignature(t *testing.T) {
+	c := auth.IssueSessionCookie("basti", "test-secret")
+
+	last := c.Value[len(c.Value)-1]
+	replacement := byte('0')
+	if last == replacement {
+		replacement = '1'
+	}
+	c.Value = c.Value[:len(c.Value)-1] + string(replacement)
+
+	_, ok := auth.ValidateSession(c, "test-secret")
+	if ok {
+		t.Fatal("expected a tampered signature to be rejected")
+	}
+}
+
+func TestValidateSessionShouldRejectANilCookie(t *testing.T) {
+	if _, ok := auth.ValidateSession(nil, "test-secret"); ok {
 		t.Fatal("expected a nil cookie to be rejected")
 	}
 }

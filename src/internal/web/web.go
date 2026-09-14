@@ -63,15 +63,48 @@ type loginCodeData struct {
 // NewServer wires the application's routes and returns an http.Handler
 // ready to be served. st and send back the login-code request flow
 // (GET/POST /login, POST /login/code); secret signs the session cookie a
-// successful POST /login/code sets. The existing home route is untouched.
+// successful POST /login/code sets and verifies the ones requireSession
+// reads back. GET /{$} is the first authenticated route: it's registered on
+// its own authMux, which requireSession wraps before it's mounted on the
+// outer mux alongside the public routes (AD-2/AD-11) - a future protected
+// route joins authMux the same way, without touching how public routes are
+// wired.
 func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler {
+	authMux := http.NewServeMux()
+	authMux.HandleFunc("GET /{$}", handleHome)
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", handleHome)
+	mux.Handle("GET /{$}", requireSession(secret, authMux))
 	mux.HandleFunc("GET /login", handleLoginForm)
 	mux.HandleFunc("POST /login", handleLoginSubmit(st, send))
 	mux.HandleFunc("POST /login/code", handleLoginCodeSubmit(st, secret))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFiles())))
 	return mux
+}
+
+// requireSession wraps next so it only runs for a request carrying a valid,
+// unexpired session cookie (auth.ValidateSession). A valid session is
+// re-issued with a fresh issued_at before next runs, sliding the idle
+// timeout forward (PRD FR-3); anything else - a missing cookie, a bad
+// signature, an empty decoded player id, or one idle-expired past
+// auth.SessionIdleTimeout - redirects to /login with no distinguishing
+// message, since auth.ValidateSession never says which case occurred. Every
+// authenticated response also gets Cache-Control: no-store, since a shared
+// cache in front of the app could otherwise serve one player's page to
+// another once this route's content stops being identical for everyone.
+func requireSession(secret string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, _ := r.Cookie(auth.SessionCookieName)
+		playerID, ok := auth.ValidateSession(c, secret)
+		if !ok {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+
+		http.SetCookie(w, auth.IssueSessionCookie(playerID, secret))
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // staticFiles returns static/'s contents rooted at "/", so a request for

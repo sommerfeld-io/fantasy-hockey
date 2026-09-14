@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
+
+	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 )
 
 // rfc1123Pattern matches the timestamp format the home page renders.
@@ -20,8 +22,9 @@ var rfc1123Pattern = regexp.MustCompile(`[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d
 // scenario. A fresh instance is created per scenario so state never leaks
 // between runs.
 type homePageScenarioState struct {
-	server *httptest.Server
-	body   string
+	server        *httptest.Server
+	sessionCookie *http.Cookie
+	body          string
 }
 
 func newHomePageScenarioState() *homePageScenarioState {
@@ -32,8 +35,23 @@ func (s *homePageScenarioState) close() {
 	s.server.Close()
 }
 
+// aPlayerIsLoggedIn issues a valid session cookie for the home page's now-
+// protected route, since GET / no longer serves an anonymous visitor.
+func (s *homePageScenarioState) aPlayerIsLoggedIn() error {
+	s.sessionCookie = auth.IssueSessionCookie("basti", testSessionSecret)
+	return nil
+}
+
 func (s *homePageScenarioState) aVisitorOpensTheHomePage() error {
-	resp, err := http.Get(s.server.URL + "/")
+	req, err := http.NewRequest(http.MethodGet, s.server.URL+"/", nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	if s.sessionCookie != nil {
+		req.AddCookie(s.sessionCookie)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("get /: %w", err)
 	}
@@ -81,6 +99,7 @@ func InitializeHomePageScenario(ctx *godog.ScenarioContext) {
 		return gctx, nil
 	})
 
+	ctx.Step(`^a player is logged in$`, s.aPlayerIsLoggedIn)
 	ctx.Step(`^a visitor opens the home page$`, s.aVisitorOpensTheHomePage)
 	ctx.Step(`^the response shows "([^"]*)"$`, s.theResponseShows)
 	ctx.Step(`^the response shows the current date and time$`, s.theResponseShowsTheCurrentDateAndTime)

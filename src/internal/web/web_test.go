@@ -1,7 +1,9 @@
 package web
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"html"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
@@ -30,6 +33,20 @@ const testSecret = "test-session-secret"
 // noopSender never sends anything and never fails, for tests that don't
 // care about the outgoing email itself.
 func noopSender(_, _, _ string) error { return nil }
+
+// signedSessionCookie builds a validly-signed session cookie value for
+// playerID issued at issuedAt, mirroring internal/auth's cookie format
+// (base64url(player_id) + "|" + issued_at RFC3339, HMAC-SHA256-signed with
+// secret) - unlike auth.IssueSessionCookie, which always stamps the current
+// time, this lets a test pin issuedAt precisely to exercise the idle
+// timeout deterministically.
+func signedSessionCookie(playerID string, issuedAt time.Time, secret string) *http.Cookie {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(playerID)) + "|" + issuedAt.UTC().Format(time.RFC3339)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(payload))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	return &http.Cookie{Name: auth.SessionCookieName, Value: payload + "." + sig}
+}
 
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
@@ -53,6 +70,7 @@ players:
 
 func TestNewServerShouldReturnOKForTheHomePage(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
 	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
@@ -64,6 +82,7 @@ func TestNewServerShouldReturnOKForTheHomePage(t *testing.T) {
 
 func TestNewServerShouldShowTheApplicationNameOnTheHomePage(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
 	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
@@ -76,6 +95,7 @@ func TestNewServerShouldShowTheApplicationNameOnTheHomePage(t *testing.T) {
 func TestNewServerShouldShowTheCurrentDateAndTimeOnTheHomePage(t *testing.T) {
 	before := time.Now().UTC()
 	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
 	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
@@ -103,6 +123,103 @@ func TestNewServerShouldReturn404ForAnUnknownPath(t *testing.T) {
 
 	if rec.Code != 404 {
 		t.Errorf("expected status 404 for an unknown path, got %d", rec.Code)
+	}
+}
+
+// assertRedirectsToLoginWithNoCookie asserts rec is a 302 to /login carrying
+// no Set-Cookie header - a regression that both redirected and leaked/
+// re-issued a cookie on this path would otherwise go unnoticed.
+func assertRedirectsToLoginWithNoCookie(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status %d, got %d", http.StatusFound, rec.Code)
+	}
+	if rec.Header().Get("Location") != "/login" {
+		t.Errorf("expected a redirect to %q, got %q", "/login", rec.Header().Get("Location"))
+	}
+	if cookies := rec.Result().Cookies(); len(cookies) != 0 {
+		t.Errorf("expected no cookie to be set on a redirect, got %v", cookies)
+	}
+}
+
+func TestGetHomeShouldRedirectToLoginWithNoSessionCookie(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+	assertRedirectsToLoginWithNoCookie(t, rec)
+}
+
+func TestGetHomeShouldRedirectToLoginForAnIdleExpiredSession(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(signedSessionCookie("basti", time.Now().UTC().Add(-31*time.Minute), testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+	assertRedirectsToLoginWithNoCookie(t, rec)
+}
+
+func TestGetHomeShouldRedirectToLoginForATamperedSessionCookie(t *testing.T) {
+	c := auth.IssueSessionCookie("basti", testSecret)
+	last := c.Value[len(c.Value)-1]
+	replacement := byte('0')
+	if last == replacement {
+		replacement = '1'
+	}
+	c.Value = c.Value[:len(c.Value)-1] + string(replacement)
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(c)
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+	assertRedirectsToLoginWithNoCookie(t, rec)
+}
+
+func TestGetHomeShouldRedirectToLoginForAnEmptyPlayerIDSession(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(signedSessionCookie("", time.Now().UTC(), testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+	assertRedirectsToLoginWithNoCookie(t, rec)
+}
+
+func TestGetHomeShouldReIssueTheSessionCookieOnAValidRequest(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	before := time.Now().UTC()
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	after := time.Now().UTC()
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("expected exactly 1 cookie to be re-issued, got %d", len(cookies))
+	}
+	c := cookies[0]
+	if c.Name != auth.SessionCookieName {
+		t.Errorf("expected cookie name %q, got %q", auth.SessionCookieName, c.Name)
+	}
+
+	playerID, issuedAt, ok := auth.ParseSessionCookie(c, testSecret)
+	if !ok {
+		t.Fatal("expected the re-issued cookie to parse successfully")
+	}
+	if playerID != "basti" {
+		t.Errorf("expected player id %q, got %q", "basti", playerID)
+	}
+	if issuedAt.Before(before.Add(-time.Second)) || issuedAt.After(after.Add(time.Second)) {
+		t.Errorf("expected a freshly re-issued issued_at, got %v", issuedAt)
 	}
 }
 
