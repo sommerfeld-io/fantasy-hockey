@@ -323,6 +323,105 @@ func TestPostLoginShouldReturn500WhenTheRequestBodyIsMalformed(t *testing.T) {
 	}
 }
 
+// assertClearsSessionCookieAndRedirectsToLogin asserts rec is a 302 to
+// /login carrying a Set-Cookie that instructs the browser to delete the
+// session cookie immediately (empty value, negative Max-Age).
+func assertClearsSessionCookieAndRedirectsToLogin(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status %d, got %d", http.StatusFound, rec.Code)
+	}
+	if rec.Header().Get("Location") != "/login" {
+		t.Errorf("expected a redirect to %q, got %q", "/login", rec.Header().Get("Location"))
+	}
+
+	cookies := rec.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("expected exactly 1 cookie to be set, got %d", len(cookies))
+	}
+	c := cookies[0]
+	if c.Name != auth.SessionCookieName {
+		t.Errorf("expected cookie name %q, got %q", auth.SessionCookieName, c.Name)
+	}
+	if c.Value != "" {
+		t.Errorf("expected an empty cookie value, got %q", c.Value)
+	}
+	if c.MaxAge >= 0 {
+		t.Errorf("expected a negative Max-Age so the browser deletes the cookie immediately, got %d", c.MaxAge)
+	}
+
+	// Assert the literal wire text too, not just the parsed MaxAge field:
+	// Go's net/http renders any MaxAge<0 as "Max-Age=0" (RFC 6265's
+	// immediate-deletion form), and this is the exact instruction that
+	// actually reaches a browser or cookiejar - a regression here wouldn't
+	// necessarily be caught by asserting the parsed struct field alone.
+	if raw := rec.Header().Get("Set-Cookie"); !strings.Contains(raw, "Max-Age=0") {
+		t.Errorf("expected the raw Set-Cookie header to contain %q, got %q", "Max-Age=0", raw)
+	}
+}
+
+func TestPostLogoutShouldClearTheSessionCookieAndRedirectToLoginWithAValidSession(t *testing.T) {
+	req := httptest.NewRequest("POST", "/logout", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+	assertClearsSessionCookieAndRedirectsToLogin(t, rec)
+}
+
+func TestPostLogoutShouldClearTheSessionCookieAndRedirectToLoginWithNoSessionCookie(t *testing.T) {
+	req := httptest.NewRequest("POST", "/logout", nil)
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+	assertClearsSessionCookieAndRedirectsToLogin(t, rec)
+}
+
+func TestPostLogoutShouldClearTheSessionCookieAndRedirectToLoginWithAnExpiredSessionCookie(t *testing.T) {
+	req := httptest.NewRequest("POST", "/logout", nil)
+	req.AddCookie(signedSessionCookie("basti", time.Now().UTC().Add(-31*time.Minute), testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+	assertClearsSessionCookieAndRedirectsToLogin(t, rec)
+}
+
+func TestPostLogoutShouldClearTheSessionCookieAndRedirectToLoginWithATamperedSessionCookie(t *testing.T) {
+	c := auth.IssueSessionCookie("basti", testSecret)
+	last := c.Value[len(c.Value)-1]
+	replacement := byte('0')
+	if last == replacement {
+		replacement = '1'
+	}
+	c.Value = c.Value[:len(c.Value)-1] + string(replacement)
+
+	req := httptest.NewRequest("POST", "/logout", nil)
+	req.AddCookie(c)
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+	assertClearsSessionCookieAndRedirectsToLogin(t, rec)
+}
+
+func TestGetLogoutShouldNotClearTheSessionOrRedirect(t *testing.T) {
+	req := httptest.NewRequest("GET", "/logout", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusFound {
+		t.Fatalf("expected GET /logout not to redirect like POST /logout does, got status %d", rec.Code)
+	}
+	if len(rec.Result().Cookies()) != 0 {
+		t.Errorf("expected GET /logout not to touch the session cookie, got %v", rec.Result().Cookies())
+	}
+}
+
 func TestGetStaticStylesheetShouldBeServed(t *testing.T) {
 	req := httptest.NewRequest("GET", "/static/styles.css", nil)
 	rec := httptest.NewRecorder()

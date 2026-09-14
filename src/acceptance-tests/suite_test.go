@@ -8,14 +8,20 @@
 package acceptance_test
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/cucumber/godog"
 
+	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
@@ -37,6 +43,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeLoginScenario(ctx)
 			InitializeEnterLoginCodeScenario(ctx)
 			InitializeStayLoggedInScenario(ctx)
+			InitializeLogOutScenario(ctx)
 		},
 		Options: &opts,
 	}
@@ -75,3 +82,33 @@ func newTempStore() *store.Store {
 func noopSender(_, _, _ string) error { return nil }
 
 var _ mailer.Sender = noopSender
+
+// signedSessionCookieForTest builds a validly-signed session cookie value
+// for playerID issued at issuedAt, mirroring internal/auth's cookie format
+// (base64url(player_id) + "|" + issued_at RFC3339, HMAC-SHA256-signed with
+// the shared testSessionSecret) - unlike auth.IssueSessionCookie, which
+// always stamps the current time, this lets a scenario pin issuedAt
+// precisely to exercise the idle timeout deterministically. Shared by
+// scenarios across multiple files so the signing logic can't drift.
+func signedSessionCookieForTest(playerID string, issuedAt time.Time) *http.Cookie {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(playerID)) + "|" + issuedAt.UTC().Format(time.RFC3339)
+	mac := hmac.New(sha256.New, []byte(testSessionSecret))
+	mac.Write([]byte(payload))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	return &http.Cookie{Name: auth.SessionCookieName, Value: payload + "." + sig}
+}
+
+// tamperSessionCookie flips c's last signature byte to a value guaranteed
+// different from the original, invalidating its HMAC - swapping in a fixed
+// digit unconditionally would be a no-op on the ~1-in-16 runs where that
+// digit was already there, making the caller flaky. Shared by scenarios
+// across multiple files so this fiddly byte-flip logic can't drift.
+func tamperSessionCookie(c *http.Cookie) *http.Cookie {
+	last := c.Value[len(c.Value)-1]
+	replacement := byte('0')
+	if last == replacement {
+		replacement = '1'
+	}
+	c.Value = c.Value[:len(c.Value)-1] + string(replacement)
+	return c
+}

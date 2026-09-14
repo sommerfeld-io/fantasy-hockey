@@ -68,7 +68,9 @@ type loginCodeData struct {
 // its own authMux, which requireSession wraps before it's mounted on the
 // outer mux alongside the public routes (AD-2/AD-11) - a future protected
 // route joins authMux the same way, without touching how public routes are
-// wired.
+// wired. POST /logout is registered directly on the outer mux rather than
+// authMux, since clearing the session cookie must work even when the
+// presented cookie is missing, expired, or tampered.
 func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler {
 	authMux := http.NewServeMux()
 	authMux.HandleFunc("GET /{$}", handleHome)
@@ -78,6 +80,7 @@ func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler 
 	mux.HandleFunc("GET /login", handleLoginForm)
 	mux.HandleFunc("POST /login", handleLoginSubmit(st, send))
 	mux.HandleFunc("POST /login/code", handleLoginCodeSubmit(st, secret))
+	mux.HandleFunc("POST /logout", handleLogout)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFiles())))
 	return mux
 }
@@ -194,6 +197,16 @@ func handleLoginCodeSubmit(st *store.Store, secret string) http.HandlerFunc {
 		http.SetCookie(w, auth.IssueSessionCookie(playerID, secret))
 		http.Redirect(w, r, "/", http.StatusFound)
 	}
+}
+
+// handleLogout clears the session cookie and redirects to /login. It's
+// intentionally not wrapped by requireSession: a player with an already-
+// expired or tampered cookie still needs logout to work, so clearing is
+// unconditional and idempotent regardless of what cookie (if any) was
+// presented.
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, auth.ClearSessionCookie())
+	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
 // renderTemplate writes name to w with data available to it, logging

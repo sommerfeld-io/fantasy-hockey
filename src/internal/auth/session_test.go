@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +44,55 @@ func TestIssueSessionCookieShouldSetTheExpectedAttributes(t *testing.T) {
 	}
 	if c.MaxAge != 0 {
 		t.Errorf("expected no Max-Age attribute, got %d", c.MaxAge)
+	}
+}
+
+func TestClearSessionCookieShouldSetTheExpectedAttributes(t *testing.T) {
+	c := auth.ClearSessionCookie()
+
+	if c.Name != auth.SessionCookieName {
+		t.Errorf("expected cookie name %q, got %q", auth.SessionCookieName, c.Name)
+	}
+	if c.Value != "" {
+		t.Errorf("expected an empty value, got %q", c.Value)
+	}
+	if c.Path != "/" {
+		t.Errorf("expected Path=/, got %q", c.Path)
+	}
+	if !c.HttpOnly {
+		t.Error("expected HttpOnly to be true")
+	}
+	if c.SameSite != http.SameSiteLaxMode {
+		t.Errorf("expected SameSite=Lax, got %v", c.SameSite)
+	}
+	if c.MaxAge >= 0 {
+		t.Errorf("expected a negative Max-Age so the browser deletes the cookie immediately, got %d", c.MaxAge)
+	}
+
+	// Assert the literal wire text too: Go's net/http renders any MaxAge<0
+	// as "Max-Age=0" (RFC 6265's immediate-deletion form) - the exact
+	// instruction a browser or cookiejar actually receives, not just the
+	// parsed struct field this test already checked above.
+	if raw := c.String(); !strings.Contains(raw, "Max-Age=0") {
+		t.Errorf("expected the cookie's wire text to contain %q, got %q", "Max-Age=0", raw)
+	}
+}
+
+func TestClearSessionCookieShouldMatchIssueSessionCookiesShapeExceptForValueAndMaxAge(t *testing.T) {
+	issued := auth.IssueSessionCookie("basti", "test-secret")
+	cleared := auth.ClearSessionCookie()
+
+	if cleared.Name != issued.Name {
+		t.Errorf("expected the same cookie name, got %q vs %q", cleared.Name, issued.Name)
+	}
+	if cleared.Path != issued.Path {
+		t.Errorf("expected the same path, got %q vs %q", cleared.Path, issued.Path)
+	}
+	if cleared.HttpOnly != issued.HttpOnly {
+		t.Errorf("expected the same HttpOnly, got %v vs %v", cleared.HttpOnly, issued.HttpOnly)
+	}
+	if cleared.SameSite != issued.SameSite {
+		t.Errorf("expected the same SameSite, got %v vs %v", cleared.SameSite, issued.SameSite)
 	}
 }
 

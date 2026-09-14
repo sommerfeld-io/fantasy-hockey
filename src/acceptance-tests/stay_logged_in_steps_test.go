@@ -2,10 +2,6 @@ package acceptance_test
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -16,20 +12,6 @@ import (
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
-
-// signedStayLoggedInSessionCookie builds a validly-signed session cookie
-// value for playerID issued at issuedAt, mirroring internal/auth's cookie
-// format (base64url(player_id) + "|" + issued_at RFC3339, HMAC-SHA256-signed
-// with the shared testSessionSecret) - unlike auth.IssueSessionCookie, which
-// always stamps the current time, this lets a scenario pin issuedAt
-// precisely to exercise the idle timeout deterministically.
-func signedStayLoggedInSessionCookie(playerID string, issuedAt time.Time) *http.Cookie {
-	payload := base64.RawURLEncoding.EncodeToString([]byte(playerID)) + "|" + issuedAt.UTC().Format(time.RFC3339)
-	mac := hmac.New(sha256.New, []byte(testSessionSecret))
-	mac.Write([]byte(payload))
-	sig := hex.EncodeToString(mac.Sum(nil))
-	return &http.Cookie{Name: auth.SessionCookieName, Value: payload + "." + sig}
-}
 
 // stayLoggedInResponse is one recorded protected-route request result.
 type stayLoggedInResponse struct {
@@ -59,7 +41,7 @@ func (s *stayLoggedInScenarioState) close() {
 
 func (s *stayLoggedInScenarioState) aPlayerIsLoggedInWithASessionIssuedMinutesAgo(minutes int) error {
 	issuedAt := time.Now().UTC().Add(-time.Duration(minutes) * time.Minute)
-	s.sessionCookie = signedStayLoggedInSessionCookie("basti", issuedAt)
+	s.sessionCookie = signedSessionCookieForTest("basti", issuedAt)
 	return nil
 }
 
@@ -69,19 +51,12 @@ func (s *stayLoggedInScenarioState) noSessionCookieIsPresent() error {
 }
 
 func (s *stayLoggedInScenarioState) aPlayerIsLoggedInWithATamperedSessionCookie() error {
-	c := signedStayLoggedInSessionCookie("basti", time.Now().UTC())
-	last := c.Value[len(c.Value)-1]
-	replacement := byte('0')
-	if last == replacement {
-		replacement = '1'
-	}
-	c.Value = c.Value[:len(c.Value)-1] + string(replacement)
-	s.sessionCookie = c
+	s.sessionCookie = tamperSessionCookie(signedSessionCookieForTest("basti", time.Now().UTC()))
 	return nil
 }
 
 func (s *stayLoggedInScenarioState) aPlayerIsLoggedInWithASessionCookieCarryingAnEmptyPlayerID() error {
-	s.sessionCookie = signedStayLoggedInSessionCookie("", time.Now().UTC())
+	s.sessionCookie = signedSessionCookieForTest("", time.Now().UTC())
 	return nil
 }
 

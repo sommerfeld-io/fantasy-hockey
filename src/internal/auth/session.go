@@ -37,9 +37,31 @@ func IssueSessionCookie(playerID, secret string) *http.Cookie {
 	issuedAt := clock.NowTime().UTC().Format(time.RFC3339)
 	payload := sessionPayload(playerID, issuedAt)
 
+	c := baseSessionCookie()
+	c.Value = encodeSessionValue(payload, secret)
+	return c
+}
+
+// ClearSessionCookie builds a cookie that instructs the browser to delete
+// the session cookie immediately. It carries the same Name/Path/HttpOnly/
+// SameSite as IssueSessionCookie (so the browser recognizes it as the same
+// cookie to overwrite) but an empty Value and a negative Max-Age - Go's
+// net/http convention for "delete this cookie now". Per AD-11's stateless
+// design, this is purely a client-side instruction; there's no server-side
+// invalidation list to update.
+func ClearSessionCookie() *http.Cookie {
+	c := baseSessionCookie()
+	c.MaxAge = -1
+	return c
+}
+
+// baseSessionCookie returns the Name/Path/HttpOnly/SameSite shape shared by
+// every session cookie this package produces, so IssueSessionCookie and
+// ClearSessionCookie can't drift apart on those attributes - each caller
+// only sets what actually differs (Value, MaxAge).
+func baseSessionCookie() *http.Cookie {
 	return &http.Cookie{
 		Name:     SessionCookieName,
-		Value:    encodeSessionValue(payload, secret),
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
