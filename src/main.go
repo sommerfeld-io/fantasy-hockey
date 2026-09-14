@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
@@ -25,6 +26,7 @@ const defaultDataFile = "fantasy-hockey.yml"
 type config struct {
 	port     int
 	dataFile string
+	secret   string
 }
 
 // resolveConfig parses --port/-p and --data-file from args in a single pass
@@ -33,7 +35,9 @@ type config struct {
 // than split across independent flag.FlagSets. --data-file wins over
 // DATA_FILE when both are set (AD-25); the port default and flag names
 // match internal/server.ResolvePort exactly, so a caller sees identical
-// port behavior either way.
+// port behavior either way. SESSION_SECRET has no flag or default: it signs
+// session cookies (internal/auth.IssueSessionCookie), so an unset value
+// fails startup rather than silently generating one in-process.
 func resolveConfig(args []string) (config, error) {
 	fs := flag.NewFlagSet("fantasy-hockey", flag.ContinueOnError)
 	port := fs.Int("port", server.DefaultPort, "port to listen on")
@@ -51,7 +55,12 @@ func resolveConfig(args []string) (config, error) {
 		resolvedDataFile = defaultDataFile
 	}
 
-	return config{port: *port, dataFile: resolvedDataFile}, nil
+	secret := strings.TrimSpace(os.Getenv("SESSION_SECRET"))
+	if secret == "" {
+		return config{}, fmt.Errorf("SESSION_SECRET environment variable is required")
+	}
+
+	return config{port: *port, dataFile: resolvedDataFile, secret: secret}, nil
 }
 
 func run() error {
@@ -75,7 +84,7 @@ func run() error {
 		os.Getenv("SMTP_APP_PASSWORD"),
 	)
 
-	return server.Run(ctx, cfg.port, web.NewServer(st, send))
+	return server.Run(ctx, cfg.port, web.NewServer(st, send, cfg.secret))
 }
 
 func main() {

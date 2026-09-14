@@ -159,7 +159,7 @@ func (s *loginScenarioState) startServer() error {
 
 	s.prevDefault = slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&syncWriter{mu: &s.mu, w: s.logs}, nil)))
-	s.server = httptest.NewServer(web.NewServer(st, send))
+	s.server = httptest.NewServer(web.NewServer(st, send, testSessionSecret))
 	return nil
 }
 

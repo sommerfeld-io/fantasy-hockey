@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	yaml "go.yaml.in/yaml/v3"
 )
@@ -245,6 +246,129 @@ func TestCreateLoginCodeShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	defer st.mu.RUnlock()
 	if len(st.doc.LoginCodes) != 0 {
 		t.Errorf("expected the failed append to be rolled back, got %d login code(s) still in memory", len(st.doc.LoginCodes))
+	}
+}
+
+// seedLoginCode appends a login code row directly into st's in-memory
+// document (bypassing CreateLoginCode) so tests can construct rows with an
+// arbitrary issuedAt/usedAt without waiting on the clock.
+func seedLoginCode(t *testing.T, st *Store, row LoginCode) {
+	t.Helper()
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.doc.LoginCodes = append(st.doc.LoginCodes, row)
+}
+
+func TestConsumeLoginCodeShouldMatchAnUnusedUnexpiredCode(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)})
+
+	playerID, ok, err := st.ConsumeLoginCode("hash-1", now)
+	if err != nil {
+		t.Fatalf("ConsumeLoginCode returned error: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected a match, got none")
+	}
+	if playerID != "basti" {
+		t.Errorf("expected player id %q, got %q", "basti", playerID)
+	}
+
+	st.mu.RLock()
+	defer st.mu.RUnlock()
+	if st.doc.LoginCodes[0].UsedAt == nil {
+		t.Fatal("expected used_at to be set")
+	}
+}
+
+func TestConsumeLoginCodeShouldNotMatchAWrongHash(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)})
+
+	_, ok, err := st.ConsumeLoginCode("wrong-hash", now)
+	if err != nil {
+		t.Fatalf("ConsumeLoginCode returned error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected no match for a wrong hash")
+	}
+}
+
+func TestConsumeLoginCodeShouldNotMatchAnExpiredCode(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-11 * time.Minute).Format(time.RFC3339)})
+
+	_, ok, err := st.ConsumeLoginCode("hash-1", now)
+	if err != nil {
+		t.Fatalf("ConsumeLoginCode returned error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected no match for an expired code")
+	}
+}
+
+func TestConsumeLoginCodeShouldNotMatchAnAlreadyUsedCode(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	usedAt := now.Add(-1 * time.Minute).Format(time.RFC3339)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339), UsedAt: &usedAt})
+
+	_, ok, err := st.ConsumeLoginCode("hash-1", now)
+	if err != nil {
+		t.Fatalf("ConsumeLoginCode returned error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected no match for an already-used code")
+	}
+}
+
+func TestConsumeLoginCodeShouldNotTouchAnyOtherRow(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)})
+	seedLoginCode(t, st, LoginCode{ID: "lc2", PlayerID: "other", CodeHash: "hash-2", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)})
+
+	if _, ok, err := st.ConsumeLoginCode("hash-1", now); err != nil || !ok {
+		t.Fatalf("ConsumeLoginCode(hash-1) = ok=%v, err=%v", ok, err)
+	}
+
+	st.mu.RLock()
+	defer st.mu.RUnlock()
+	if st.doc.LoginCodes[1].UsedAt != nil {
+		t.Errorf("expected the second row to stay untouched, got used_at=%v", *st.doc.LoginCodes[1].UsedAt)
+	}
+}
+
+func TestConsumeLoginCodeShouldRollBackTheMarkWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fantasy-hockey.yml")
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)})
+
+	// Remove the directory out from under the store so writeLocked's
+	// create-temp-file step fails, simulating a disk write failure that
+	// happens even when the test process runs as root (unlike a read-only
+	// permission bit, which root bypasses).
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if _, ok, err := st.ConsumeLoginCode("hash-1", now); err == nil || ok {
+		t.Fatalf("expected ConsumeLoginCode to fail when the write fails, got ok=%v, err=%v", ok, err)
+	}
+
+	st.mu.RLock()
+	defer st.mu.RUnlock()
+	if st.doc.LoginCodes[0].UsedAt != nil {
+		t.Errorf("expected the failed mark to be rolled back, got used_at=%v", *st.doc.LoginCodes[0].UsedAt)
 	}
 }
 

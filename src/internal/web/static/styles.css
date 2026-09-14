@@ -99,6 +99,14 @@ input.error {
   border-color: var(--goal);
 }
 
+.code-input {
+  font-size: 18px;
+  letter-spacing: 4px;
+  text-align: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
 button {
   width: 100%;
   background: var(--green-btn);

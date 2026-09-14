@@ -10,10 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	yaml "go.yaml.in/yaml/v3"
 )
+
+// loginCodeValidity is how long a LoginCode row stays eligible for
+// ConsumeLoginCode after it was issued (PRD FR-2).
+const loginCodeValidity = 10 * time.Minute
 
 // defaultSeason seeds a brand-new data file. It names the current season
 // only; no player data is ever invented here (AD-23) - a human hand-edits
@@ -125,6 +130,44 @@ func (s *Store) CreateLoginCode(playerID, codeHash, issuedAt string) error {
 		return fmt.Errorf("store: persist login code: %w", err)
 	}
 	return nil
+}
+
+// ConsumeLoginCode looks for an unused LoginCode row matching codeHash that
+// was issued no more than 10 minutes before now. On a match, it marks that
+// row's used_at (using now, RFC3339) and persists the change, returning the
+// row's player ID. A wrong, expired, or already-used code all produce the
+// identical ok=false, err=nil outcome (never distinguishing which) so a
+// caller can't tell them apart. Only a row exactly matching hash+unused+
+// within-window is ever touched; every other row is left exactly as is. If
+// the write fails, the mark is rolled back from memory so a caller told the
+// write failed can't later have it silently persisted by an unrelated
+// successful write.
+func (s *Store) ConsumeLoginCode(codeHash string, now time.Time) (playerID string, ok bool, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i := range s.doc.LoginCodes {
+		row := &s.doc.LoginCodes[i]
+		if row.CodeHash != codeHash || row.UsedAt != nil {
+			continue
+		}
+
+		issuedAt, parseErr := time.Parse(time.RFC3339, row.IssuedAt)
+		if parseErr != nil || now.Sub(issuedAt) > loginCodeValidity {
+			continue
+		}
+
+		usedAt := now.UTC().Format(time.RFC3339)
+		row.UsedAt = &usedAt
+
+		if err := s.writeLocked(); err != nil {
+			row.UsedAt = nil
+			return "", false, fmt.Errorf("store: persist consumed login code: %w", err)
+		}
+		return row.PlayerID, true, nil
+	}
+
+	return "", false, nil
 }
 
 // writeLocked serializes the in-memory document and atomically replaces the

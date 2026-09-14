@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
@@ -33,19 +34,42 @@ var templates = template.Must(template.ParseFS(templatesFS, "templates/*.html"))
 // internals into the response.
 const genericErrorBody = "Something went wrong. Please try again."
 
+// genericCodeErrorText is shown on the code-entry screen for a wrong,
+// expired, or already-used code alike - the three cases are never
+// distinguished, so a submitted code can't be used to probe which one
+// happened.
+const genericCodeErrorText = "That code didn't work — check it and try again."
+
 // maxLoginFormBytes bounds the POST /login body: an email address needs a
 // few hundred bytes at most, so this leaves generous headroom while still
 // capping how much an unbounded request body can make the server read.
 const maxLoginFormBytes = 4096
 
+// maxCodeFormBytes bounds the POST /login/code body the same way
+// maxLoginFormBytes bounds POST /login: a 6-digit code needs only a handful
+// of bytes, so this leaves generous headroom while still capping how much an
+// unbounded request body can make the server read.
+const maxCodeFormBytes = 4096
+
+// loginCodeData feeds templates/login-code.html: Code is the submitted
+// value (retained on error so the Player doesn't have to retype it), and
+// Error is the generic message shown for any wrong/expired/used code, empty
+// when there's nothing to report.
+type loginCodeData struct {
+	Code  string
+	Error string
+}
+
 // NewServer wires the application's routes and returns an http.Handler
 // ready to be served. st and send back the login-code request flow
-// (GET/POST /login); the existing home route is untouched.
-func NewServer(st *store.Store, send mailer.Sender) http.Handler {
+// (GET/POST /login, POST /login/code); secret signs the session cookie a
+// successful POST /login/code sets. The existing home route is untouched.
+func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", handleHome)
 	mux.HandleFunc("GET /login", handleLoginForm)
 	mux.HandleFunc("POST /login", handleLoginSubmit(st, send))
+	mux.HandleFunc("POST /login/code", handleLoginCodeSubmit(st, secret))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFiles())))
 	return mux
 }
@@ -74,7 +98,7 @@ func handleHome(w http.ResponseWriter, _ *http.Request) {
 
 // handleLoginForm renders the email-entry step of the login flow.
 func handleLoginForm(w http.ResponseWriter, _ *http.Request) {
-	renderTemplate(w, "login-email.html")
+	renderTemplate(w, "login-email.html", nil)
 }
 
 // handleLoginSubmit matches the submitted email against st and always
@@ -98,16 +122,53 @@ func handleLoginSubmit(st *store.Store, send mailer.Sender) http.HandlerFunc {
 			return
 		}
 
-		renderTemplate(w, "login-code.html")
+		renderTemplate(w, "login-code.html", loginCodeData{})
 	}
 }
 
-// renderTemplate writes name to w, logging (rather than surfacing) a
-// rendering failure, since the response has typically already started
-// streaming by the time html/template can fail.
-func renderTemplate(w http.ResponseWriter, name string) {
+// handleLoginCodeSubmit validates the submitted code against st. A valid,
+// unused, unexpired code sets a signed session cookie (secret-keyed), marks
+// that LoginCode row used, and redirects to the home placeholder (Story
+// 1.5 builds the real destination). A wrong, expired, or already-used code
+// all re-render the same code-entry screen with an identical generic error
+// and the submitted value retained (FR-2) - ValidateLoginCode never tells
+// the three cases apart, so this handler can't leak which one happened
+// either. Only a failure to persist the consumed row surfaces as a 500.
+func handleLoginCodeSubmit(st *store.Store, secret string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxCodeFormBytes)
+		if err := r.ParseForm(); err != nil {
+			slog.Error("parse login-code form", "error", err)
+			http.Error(w, genericErrorBody, http.StatusInternalServerError)
+			return
+		}
+
+		code := strings.TrimSpace(r.FormValue("code"))
+		playerID, ok, err := auth.ValidateLoginCode(st, code)
+		if err != nil {
+			slog.Error("validate login code", "error", err)
+			http.Error(w, genericErrorBody, http.StatusInternalServerError)
+			return
+		}
+		if !ok || playerID == "" {
+			if ok {
+				slog.Error("validate login code", "error", "matched a login code row with an empty player id")
+			}
+			renderTemplate(w, "login-code.html", loginCodeData{Code: code, Error: genericCodeErrorText})
+			return
+		}
+
+		http.SetCookie(w, auth.IssueSessionCookie(playerID, secret))
+		http.Redirect(w, r, "/", http.StatusFound)
+	}
+}
+
+// renderTemplate writes name to w with data available to it, logging
+// (rather than surfacing) a rendering failure, since the response has
+// typically already started streaming by the time html/template can fail.
+func renderTemplate(w http.ResponseWriter, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(w, name, nil); err != nil {
+	if err := templates.ExecuteTemplate(w, name, data); err != nil {
 		slog.Error("render template", "template", name, "error", err)
 	}
 }

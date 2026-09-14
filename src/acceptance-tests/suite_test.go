@@ -35,6 +35,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeHomePageScenario(ctx)
 			InitializePortScenario(ctx)
 			InitializeLoginScenario(ctx)
+			InitializeEnterLoginCodeScenario(ctx)
 		},
 		Options: &opts,
 	}
@@ -44,11 +45,15 @@ func TestAcceptanceSuite(t *testing.T) {
 	}
 }
 
+// testSessionSecret signs session cookies for every test server built by
+// newTestServer or a scenario's own web.NewServer call.
+const testSessionSecret = "test-session-secret"
+
 // newTestServer wires web.NewServer with a throwaway store (bootstrapped
 // fresh in a temp directory) and a no-op mailer.Sender, for scenarios that
 // only need *a* server and don't care about login-code delivery.
 func newTestServer() http.Handler {
-	return web.NewServer(newTempStore(), noopSender)
+	return web.NewServer(newTempStore(), noopSender, testSessionSecret)
 }
 
 // newTempStore bootstraps a fresh store.Store backed by a data file in a new
