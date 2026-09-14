@@ -12,8 +12,6 @@
     "_bmad/**",
     "_bmad-output/**",
 
-    "assets/clickdummy/**",
-
     "src/**",
 
     "node_modules/**",

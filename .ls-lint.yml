@@ -49,7 +49,6 @@ ignore:
   - .task
   - _bmad
   - _bmad-output
-  - assets/clickdummy
   - .claude/skills
   - node_modules
   - target/docs/site
