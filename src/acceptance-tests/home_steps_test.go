@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
-
-	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
 // rfc1123Pattern matches the timestamp format the home page renders.
@@ -27,7 +25,7 @@ type homePageScenarioState struct {
 }
 
 func newHomePageScenarioState() *homePageScenarioState {
-	return &homePageScenarioState{server: httptest.NewServer(web.NewServer())}
+	return &homePageScenarioState{server: httptest.NewServer(newTestServer())}
 }
 
 func (s *homePageScenarioState) close() {

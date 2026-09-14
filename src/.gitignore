@@ -30,3 +30,9 @@ coverage.out
 coverage.html
 acceptance-coverage.out
 acceptance-coverage.html
+
+# Local data file created by store.New when DATA_FILE/--data-file is unset
+# (default name and AD-30's season-suffixed variants), which can hold real
+# player emails and login-code hashes and must never be committed.
+fantasy-hockey.yml
+fantasy-hockey-*.yml

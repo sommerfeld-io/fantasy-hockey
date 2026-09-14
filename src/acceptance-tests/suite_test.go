@@ -8,9 +8,17 @@
 package acceptance_test
 
 import (
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/cucumber/godog"
+
+	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
 // TestAcceptanceSuite runs all GoDog Gherkin scenarios as a regular Go test so that coverage
@@ -26,6 +34,7 @@ func TestAcceptanceSuite(t *testing.T) {
 		ScenarioInitializer: func(ctx *godog.ScenarioContext) {
 			InitializeHomePageScenario(ctx)
 			InitializePortScenario(ctx)
+			InitializeLoginScenario(ctx)
 		},
 		Options: &opts,
 	}
@@ -34,3 +43,29 @@ func TestAcceptanceSuite(t *testing.T) {
 		t.Fatal("acceptance test suite returned non-zero exit code")
 	}
 }
+
+// newTestServer wires web.NewServer with a throwaway store (bootstrapped
+// fresh in a temp directory) and a no-op mailer.Sender, for scenarios that
+// only need *a* server and don't care about login-code delivery.
+func newTestServer() http.Handler {
+	return web.NewServer(newTempStore(), noopSender)
+}
+
+// newTempStore bootstraps a fresh store.Store backed by a data file in a new
+// temp directory, for scenarios that don't manage their own store.
+func newTempStore() *store.Store {
+	dir, err := os.MkdirTemp("", "fantasy-hockey-acceptance-*")
+	if err != nil {
+		panic(fmt.Sprintf("create temp dir: %v", err))
+	}
+	st, err := store.New(filepath.Join(dir, "fantasy-hockey.yml"))
+	if err != nil {
+		panic(fmt.Sprintf("store.New: %v", err))
+	}
+	return st
+}
+
+// noopSender never sends anything and never fails.
+func noopSender(_, _, _ string) error { return nil }
+
+var _ mailer.Sender = noopSender

@@ -13,7 +13,6 @@ import (
 	"github.com/cucumber/godog"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/server"
-	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
 // portScenarioState holds the fixtures and results for one port-configuration
@@ -60,7 +59,7 @@ func (s *portScenarioState) theApplicationStartsWithArguments(argLine string) er
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	s.done = make(chan error, 1)
-	go func() { s.done <- server.Run(ctx, port, web.NewServer()) }()
+	go func() { s.done <- server.Run(ctx, port, newTestServer()) }()
 
 	return s.waitUntilListening()
 }
