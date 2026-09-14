@@ -61,6 +61,12 @@ func TestResolveConfigShouldFallBackToDataFileEnvWhenNoFlagIsGiven(t *testing.T)
 	}
 }
 
+func TestResolveConfigShouldReturnAnErrorForAnUnrecognizedFlag(t *testing.T) {
+	if _, err := resolveConfig([]string{"--not-a-real-flag"}); err == nil {
+		t.Fatal("expected an error for an unrecognized flag, got nil")
+	}
+}
+
 func TestResolveConfigShouldPreferDataFileFlagOverEnvWhenBothAreSet(t *testing.T) {
 	t.Setenv("DATA_FILE", "/tmp/env.yml")
 

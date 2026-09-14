@@ -33,6 +33,11 @@ var templates = template.Must(template.ParseFS(templatesFS, "templates/*.html"))
 // internals into the response.
 const genericErrorBody = "Something went wrong. Please try again."
 
+// maxLoginFormBytes bounds the POST /login body: an email address needs a
+// few hundred bytes at most, so this leaves generous headroom while still
+// capping how much an unbounded request body can make the server read.
+const maxLoginFormBytes = 4096
+
 // NewServer wires the application's routes and returns an http.Handler
 // ready to be served. st and send back the login-code request flow
 // (GET/POST /login); the existing home route is untouched.
@@ -79,6 +84,7 @@ func handleLoginForm(w http.ResponseWriter, _ *http.Request) {
 // inside internal/auth and never reaches here.
 func handleLoginSubmit(st *store.Store, send mailer.Sender) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxLoginFormBytes)
 		if err := r.ParseForm(); err != nil {
 			slog.Error("parse login form", "error", err)
 			http.Error(w, genericErrorBody, http.StatusInternalServerError)

@@ -85,12 +85,17 @@ func New(path string) (*Store, error) {
 // FindPlayerByEmail returns the player whose email matches, if any. The
 // comparison trims surrounding whitespace and ignores case on both sides, so
 // a hand-maintained YAML entry or a submitted email that differs only in
-// case or stray whitespace still matches.
+// case or stray whitespace still matches. An empty (or whitespace-only)
+// email never matches, even against a hand-maintained row that itself has a
+// blank Email field.
 func (s *Store) FindPlayerByEmail(email string) (Player, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	email = strings.TrimSpace(email)
+	if email == "" {
+		return Player{}, false
+	}
 	for _, p := range s.doc.Players {
 		if strings.EqualFold(strings.TrimSpace(p.Email), email) {
 			return p, true

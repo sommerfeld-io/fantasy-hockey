@@ -209,8 +209,32 @@ func TestRequestLoginCodeShouldLeaveAnEarlierRowUntouchedOnARepeatRequest(t *tes
 	if len(doc.LoginCodes) != 2 {
 		t.Fatalf("expected 2 persisted login codes, got %d", len(doc.LoginCodes))
 	}
-	if doc.LoginCodes[0] != first {
+	if !loginCodeRowsEqual(doc.LoginCodes[0], first) {
 		t.Errorf("expected the first row to stay untouched, got %+v, was %+v", doc.LoginCodes[0], first)
+	}
+}
+
+// loginCodeRowsEqual compares two persisted login-code rows field by field.
+// A plain struct == would compare UsedAt (a *string) by pointer identity,
+// not value, which two independent yaml.Unmarshal calls would never share
+// even for equal content.
+func loginCodeRowsEqual(a, b struct {
+	ID       string  `yaml:"id"`
+	PlayerID string  `yaml:"player_id"`
+	CodeHash string  `yaml:"code_hash"`
+	IssuedAt string  `yaml:"issued_at"`
+	UsedAt   *string `yaml:"used_at"`
+}) bool {
+	if a.ID != b.ID || a.PlayerID != b.PlayerID || a.CodeHash != b.CodeHash || a.IssuedAt != b.IssuedAt {
+		return false
+	}
+	switch {
+	case a.UsedAt == nil && b.UsedAt == nil:
+		return true
+	case a.UsedAt == nil || b.UsedAt == nil:
+		return false
+	default:
+		return *a.UsedAt == *b.UsedAt
 	}
 }
 

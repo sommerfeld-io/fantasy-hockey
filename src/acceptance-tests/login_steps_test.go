@@ -49,6 +49,23 @@ type loginCodeRow struct {
 	UsedAt   *string `yaml:"used_at"`
 }
 
+// equal compares two rows field by field. A plain == would compare UsedAt (a
+// *string) by pointer identity, not value, which two independent
+// yaml.Unmarshal calls would never share even for equal content.
+func (r loginCodeRow) equal(other loginCodeRow) bool {
+	if r.ID != other.ID || r.PlayerID != other.PlayerID || r.CodeHash != other.CodeHash || r.IssuedAt != other.IssuedAt {
+		return false
+	}
+	switch {
+	case r.UsedAt == nil && other.UsedAt == nil:
+		return true
+	case r.UsedAt == nil || other.UsedAt == nil:
+		return false
+	default:
+		return *r.UsedAt == *other.UsedAt
+	}
+}
+
 // loginResponse is one recorded POST /login result.
 type loginResponse struct {
 	status int
@@ -67,11 +84,12 @@ type loginResponse struct {
 type loginScenarioState struct {
 	dataFile     string
 	server       *httptest.Server
-	sendFails    bool
 	mu           sync.Mutex
+	sendFails    bool
 	sentTo       []string
 	sentCodes    []string
 	logs         *bytes.Buffer
+	prevDefault  *slog.Logger // slog.Default() before startServer overrode it, restored in close
 	responses    []loginResponse
 	firstCodeRow *loginCodeRow // snapshot of doc.LoginCodes[0] right after the first request
 }
@@ -91,6 +109,9 @@ func (s *loginScenarioState) close() {
 	if s.server != nil {
 		s.server.Close()
 	}
+	if s.prevDefault != nil {
+		slog.SetDefault(s.prevDefault)
+	}
 }
 
 // aPlayerWithEmailIsRegistered seeds the data file with one hand-maintained
@@ -106,6 +127,8 @@ func (s *loginScenarioState) aPlayerWithEmailIsRegistered(name, email string) er
 }
 
 func (s *loginScenarioState) sendingEmailIsConfiguredToFail() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.sendFails = true
 	return nil
 }
@@ -124,16 +147,17 @@ func (s *loginScenarioState) startServer() error {
 	}
 
 	send := func(to, _, body string) error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 		if s.sendFails {
 			return fmt.Errorf("smtp: connection refused")
 		}
-		s.mu.Lock()
-		defer s.mu.Unlock()
 		s.sentTo = append(s.sentTo, to)
 		s.sentCodes = append(s.sentCodes, extractSixDigitCode(body))
 		return nil
 	}
 
+	s.prevDefault = slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&syncWriter{mu: &s.mu, w: s.logs}, nil)))
 	s.server = httptest.NewServer(web.NewServer(st, send))
 	return nil
@@ -348,7 +372,7 @@ func (s *loginScenarioState) theFirstLoginCodeIsUnchanged() error {
 	if s.firstCodeRow == nil {
 		return fmt.Errorf("no snapshot of the first login code was captured")
 	}
-	if doc.LoginCodes[0] != *s.firstCodeRow {
+	if !doc.LoginCodes[0].equal(*s.firstCodeRow) {
 		return fmt.Errorf("expected the first login code to stay untouched, got %+v, was %+v", doc.LoginCodes[0], *s.firstCodeRow)
 	}
 	return nil

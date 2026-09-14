@@ -33,6 +33,9 @@ acceptance-coverage.html
 
 # Local data file created by store.New when DATA_FILE/--data-file is unset
 # (default name and AD-30's season-suffixed variants), which can hold real
-# player emails and login-code hashes and must never be committed.
+# player emails and login-code hashes and must never be committed. Also
+# covers the temp files store.writeLocked creates for its atomic
+# write-and-rename, which briefly hold the same data.
 fantasy-hockey.yml
 fantasy-hockey-*.yml
+.fantasy-hockey-*.tmp

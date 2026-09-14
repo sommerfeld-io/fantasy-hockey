@@ -118,6 +118,39 @@ func TestFindPlayerByEmailShouldNotReturnAPlayerOnNoMatch(t *testing.T) {
 	}
 }
 
+func TestFindPlayerByEmailShouldMatchIgnoringCaseAndSurroundingWhitespace(t *testing.T) {
+	st := newTestStore(t)
+
+	player, ok := st.FindPlayerByEmail("  Basti@Example.COM  ")
+	if !ok {
+		t.Fatal("expected a case/whitespace-insensitive match, got none")
+	}
+	if player.ID != "basti" {
+		t.Errorf("expected player id %q, got %q", "basti", player.ID)
+	}
+}
+
+func TestFindPlayerByEmailShouldNotMatchAnEmptyEmailAgainstABlankPlayerRow(t *testing.T) {
+	dir := t.TempDir()
+	st, err := New(filepath.Join(dir, "fantasy-hockey.yml"))
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	st.mu.Lock()
+	st.doc.Players = append(st.doc.Players, Player{ID: "broken-row", Name: "Broken Row", Email: ""})
+	st.mu.Unlock()
+
+	_, ok := st.FindPlayerByEmail("")
+	if ok {
+		t.Fatal("expected an empty submitted email never to match, even against a blank Email row")
+	}
+	_, ok = st.FindPlayerByEmail("   ")
+	if ok {
+		t.Fatal("expected a whitespace-only submitted email never to match")
+	}
+}
+
 func TestCreateLoginCodeShouldAppendANewRow(t *testing.T) {
 	st := newTestStore(t)
 
@@ -185,6 +218,33 @@ func TestCreateLoginCodeShouldPersistToDisk(t *testing.T) {
 	}
 	if len(doc.LoginCodes) != 1 || doc.LoginCodes[0].CodeHash != "hash-1" {
 		t.Errorf("expected the persisted file to contain the new login code, got %+v", doc.LoginCodes)
+	}
+}
+
+func TestCreateLoginCodeShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fantasy-hockey.yml")
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	// Remove the directory out from under the store so writeLocked's
+	// create-temp-file step fails, simulating a disk write failure that
+	// happens even when the test process runs as root (unlike a read-only
+	// permission bit, which root bypasses).
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if err := st.CreateLoginCode("basti", "hash-1", "2026-09-14T10:00:00Z"); err == nil {
+		t.Fatal("expected CreateLoginCode to return an error when the write fails")
+	}
+
+	st.mu.RLock()
+	defer st.mu.RUnlock()
+	if len(st.doc.LoginCodes) != 0 {
+		t.Errorf("expected the failed append to be rolled back, got %d login code(s) still in memory", len(st.doc.LoginCodes))
 	}
 }
 

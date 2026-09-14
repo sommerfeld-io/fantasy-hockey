@@ -36,13 +36,13 @@ baseline_commit: 'c5eacd0c218c33485c903f399e65e3605d6b869f'
 
 ## I/O & Edge-Case Matrix
 
-| Scenario | Input / State | Expected Output / Behavior | Error Handling |
-|----------|--------------|---------------------------|----------------|
-| Matching email | `POST /login` with a known Player's email | 200, code-entry screen rendered; new `LoginCode` row persisted (`code_hash`, `issued_at`, `used_at=null`); `Sender` invoked with the plaintext code | N/A |
-| Non-matching email | `POST /login` with an unknown address | 200, byte-identical code-entry body to the matching case; no row written; `Sender` never invoked | N/A |
-| Repeat request | Player already has an unexpired, unused `LoginCode`; requests again | A second row is appended; the first row's fields are untouched | N/A |
-| Mailer send fails | Matching email, `Sender` errors (e.g. `SMTP_HOST` unset) | Same 200 response as the happy path | Error logged via `slog.Error`, not surfaced |
-| Store write fails | Matching email, disk write fails | 500, generic error page | Wrapped with `fmt.Errorf`, logged at the web boundary |
+| Scenario           | Input / State                                                       | Expected Output / Behavior                                                                                                                          | Error Handling                                        |
+|--------------------|---------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
+| Matching email     | `POST /login` with a known Player's email                           | 200, code-entry screen rendered; new `LoginCode` row persisted (`code_hash`, `issued_at`, `used_at=null`); `Sender` invoked with the plaintext code | N/A                                                   |
+| Non-matching email | `POST /login` with an unknown address                               | 200, byte-identical code-entry body to the matching case; no row written; `Sender` never invoked                                                    | N/A                                                   |
+| Repeat request     | Player already has an unexpired, unused `LoginCode`; requests again | A second row is appended; the first row's fields are untouched                                                                                      | N/A                                                   |
+| Mailer send fails  | Matching email, `Sender` errors (e.g. `SMTP_HOST` unset)            | Same 200 response as the happy path                                                                                                                 | Error logged via `slog.Error`, not surfaced           |
+| Store write fails  | Matching email, disk write fails                                    | 500, generic error page                                                                                                                             | Wrapped with `fmt.Errorf`, logged at the web boundary |
 
 </frozen-after-approval>
 
@@ -81,6 +81,29 @@ baseline_commit: 'c5eacd0c218c33485c903f399e65e3605d6b869f'
 - Given a submitted email matches no Player, when `POST /login` is handled, then no row is written, `Sender` is never invoked, and the response body is identical to the matching case
 - Given a Player already has an earlier valid `LoginCode`, when they request a new code, then both rows exist afterward and the earlier row is unchanged
 - Given `SMTP_HOST` is unset, when a matching request triggers a send, then the response is unaffected and an error is logged
+
+### Review Findings
+
+- [x] [Review][Defer] Residual timing side-channel from the synchronous store write — `auth.RequestLoginCode` (`src/internal/auth/auth.go`) only made the SMTP `send` async; on a match it still runs `generateCode`, `hashCode`, and `st.CreateLoginCode` (a full YAML marshal + temp-file write + rename) synchronously before returning, while a no-match returns almost instantly [src/internal/auth/auth.go] — deferred: hobby-scale threat model (3-person pool, not internet-facing yet); the disk-write timing gap is small and not worth the complexity of masking it.
+- [x] [Review][Defer] Async `send` goroutine has no shutdown/lifecycle coordination — a SIGINT/SIGTERM shortly after the HTTP response is written can kill the process while the detached goroutine is still trying to dial SMTP, silently dropping the email with no log line at all [src/internal/auth/auth.go] — deferred: self-healing via retry — restarts are rare and operator-timed; a dropped code just means the player requests a new one.
+- [x] [Review][Patch] `FindPlayerByEmail`'s trim/case-fold matching has no test covering differing case or whitespace [src/internal/store/store_test.go]
+- [x] [Review][Patch] `CreateLoginCode`'s rollback-on-write-failure has no test asserting the in-memory row is actually reverted [src/internal/store/store_test.go]
+- [x] [Review][Patch] `resolveConfig`'s `fs.Parse` error path is untested (no case passes an unrecognized flag) [src/main_test.go]
+- [x] [Review][Patch] Struct `!=`/`==` on `LoginCode`/`loginCodeRow` compares the `UsedAt *string` field by pointer identity, not value — harmless today (always nil), but would falsely flag an unchanged row as changed once Story 1.2 populates it via a fresh unmarshal [src/internal/auth/auth_test.go:212, src/acceptance-tests/login_steps_test.go:351]
+- [x] [Review][Patch] `.gitignore`'s new data-file entries miss the `.fantasy-hockey-*.tmp` temp files `writeLocked` creates for its atomic write-and-rename — same plaintext-data-leak risk the `fantasy-hockey.yml` entry was meant to close [src/.gitignore]
+- [x] [Review][Patch] `sendFails` in `loginScenarioState` is read/written without the `s.mu` guard used for every sibling field the async goroutine touches [src/acceptance-tests/login_steps_test.go]
+- [x] [Review][Patch] The spec's own `I/O & Edge-Case Matrix` table isn't column-padded, violating the user's global Markdown style rule [_bmad-output/implementation-artifacts/spec-1-1-request-a-login-code.md]
+- [x] [Review][Patch] `POST /login` has no explicit body-size limit before `r.ParseForm()` reads it [src/internal/web/web.go]
+- [x] [Review][Patch] An empty/whitespace-only submitted email could spuriously match a hand-maintained Player row that also has a blank `Email` field [src/internal/store/store.go]
+- [x] [Review][Patch] `slog.SetDefault` in `login_steps_test.go`'s `startServer()` is never restored — a straggler goroutine from one scenario's request could log into whatever scenario's buffer is currently the global default [src/acceptance-tests/login_steps_test.go]
+- [x] [Review][Defer] No test proves `RequestLoginCode` returns before `send` completes (i.e. that the async dispatch stays async) [src/internal/auth/auth.go] — deferred: reliably asserting response latency in a fast unit test needs an artificially slow fake sender plus a wall-clock assertion, which is easy to make flaky; the intent is already documented in this file's own history.
+
+**Rejected:**
+- `false` — a store-write failure surfacing as 500 only on the match branch "reveals a match." Refuted: this is exactly what this spec's own frozen "Store write fails → 500, generic error page" row requires; it's spec-mandated behavior for a genuine system failure, not an on-demand match/no-match oracle.
+- `false` — spec `status: done` vs. `sprint-status.yaml`'s `1-1-request-a-login-code: review` "contradicts" each other. Refuted: `sprint-status.yaml`'s own embedded WORKFLOW NOTES document this exact two-stage model — a story sits at `review` until a code review runs, which is precisely what this review is.
+- `low` — no test exercises `main.go`'s actual `run()` wiring end-to-end. Real gap, but a true integration test (drive the real server, cancel context) is a non-trivial addition, and this project's own mandatory manual `task go:run` verification step is a standing compensating control likely to catch a wiring bug immediately.
+- `low` — the 6-digit-code-extraction helper is duplicated between `auth_test.go` and `login_steps_test.go` (different packages). Sharing it would require a new cross-package test-support package — disproportionate for ~15 duplicated lines.
+- rejected (fix would edit the spec under review) — the `## Spec Change Log` section is empty despite substantive Review Triage Log entries.
 
 ## Implementation Notes
 
