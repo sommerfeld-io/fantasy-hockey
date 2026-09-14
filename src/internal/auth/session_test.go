@@ -190,6 +190,15 @@ func TestValidateSessionShouldRejectASessionIssuedOverThirtyMinutesAgo(t *testin
 	}
 }
 
+func TestValidateSessionShouldRejectAFutureDatedIssuedAt(t *testing.T) {
+	c := buildSessionCookie("basti", time.Now().UTC().Add(5*time.Minute), "test-secret")
+
+	_, ok := auth.ValidateSession(c, "test-secret")
+	if ok {
+		t.Fatal("expected a future-dated issued_at (clock skew) to be rejected")
+	}
+}
+
 func TestValidateSessionShouldRejectAnEmptyPlayerID(t *testing.T) {
 	c := buildSessionCookie("", time.Now().UTC(), "test-secret")
 

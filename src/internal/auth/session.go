@@ -84,16 +84,19 @@ func ParseSessionCookie(c *http.Cookie, secret string) (playerID string, issuedA
 
 // ValidateSession parses and verifies c against secret via
 // ParseSessionCookie, then confirms it carries a non-empty player id issued
-// within SessionIdleTimeout. A missing/invalid/tampered cookie, an empty
-// decoded player id, and an idle-expired issued_at all yield the identical
-// ok=false - deliberately collapsed into one outcome so a caller (e.g. a
-// redirect-to-/login middleware) can't distinguish which case occurred.
+// within SessionIdleTimeout and not in the future (guarding against clock
+// skew). A missing/invalid/tampered cookie, an empty decoded player id, a
+// future-dated issued_at, and an idle-expired issued_at all yield the
+// identical ok=false - deliberately collapsed into one outcome so a caller
+// (e.g. a redirect-to-/login middleware) can't distinguish which case
+// occurred.
 func ValidateSession(c *http.Cookie, secret string) (playerID string, ok bool) {
 	id, issuedAt, ok := ParseSessionCookie(c, secret)
 	if !ok || id == "" {
 		return "", false
 	}
-	if clock.NowTime().Sub(issuedAt) > SessionIdleTimeout {
+	age := clock.NowTime().Sub(issuedAt)
+	if age < 0 || age > SessionIdleTimeout {
 		return "", false
 	}
 	return id, true

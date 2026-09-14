@@ -6,4 +6,4 @@
 
 ## Deferred from: code review of story-1-2-enter-login-code-and-establish-session (2026-09-14)
 
-- Empty player-id validation is only guarded at the `internal/web` handler level (`handleLoginCodeSubmit`); `auth.ParseSessionCookie` and `store.ConsumeLoginCode` don't validate it in their own contracts. Deferred: nothing yet calls `ParseSessionCookie` for real route-guarding — Story 1.3 is the one that wires it into middleware, and should decide there whether to harden it at that layer too.
+- ~~Empty player-id validation is only guarded at the `internal/web` handler level (`handleLoginCodeSubmit`); `auth.ParseSessionCookie` and `store.ConsumeLoginCode` don't validate it in their own contracts. Deferred: nothing yet calls `ParseSessionCookie` for real route-guarding — Story 1.3 is the one that wires it into middleware, and should decide there whether to harden it at that layer too.~~ **Resolved in Story 1.3**: `auth.ValidateSession` (the middleware's actual entry point) now rejects an empty decoded player id directly, alongside a tampered signature or an idle-expired `issued_at` — see `spec-1-3-stay-logged-in-with-sliding-session-timeout.md`.

@@ -17,19 +17,15 @@ import (
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
-// stayLoggedInSecret signs session cookies for this scenario's server - it
-// only needs to be non-empty and stable within one scenario run.
-const stayLoggedInSecret = "stay-logged-in-test-secret"
-
 // signedStayLoggedInSessionCookie builds a validly-signed session cookie
 // value for playerID issued at issuedAt, mirroring internal/auth's cookie
-// format (base64url(player_id) + "|" + issued_at RFC3339, HMAC-SHA256-signed)
-// - unlike auth.IssueSessionCookie, which always stamps the current time,
-// this lets a scenario pin issuedAt precisely to exercise the idle timeout
-// deterministically.
+// format (base64url(player_id) + "|" + issued_at RFC3339, HMAC-SHA256-signed
+// with the shared testSessionSecret) - unlike auth.IssueSessionCookie, which
+// always stamps the current time, this lets a scenario pin issuedAt
+// precisely to exercise the idle timeout deterministically.
 func signedStayLoggedInSessionCookie(playerID string, issuedAt time.Time) *http.Cookie {
 	payload := base64.RawURLEncoding.EncodeToString([]byte(playerID)) + "|" + issuedAt.UTC().Format(time.RFC3339)
-	mac := hmac.New(sha256.New, []byte(stayLoggedInSecret))
+	mac := hmac.New(sha256.New, []byte(testSessionSecret))
 	mac.Write([]byte(payload))
 	sig := hex.EncodeToString(mac.Sum(nil))
 	return &http.Cookie{Name: auth.SessionCookieName, Value: payload + "." + sig}
@@ -53,7 +49,7 @@ type stayLoggedInScenarioState struct {
 
 func newStayLoggedInScenarioState() *stayLoggedInScenarioState {
 	return &stayLoggedInScenarioState{
-		server: httptest.NewServer(web.NewServer(newTempStore(), noopSender, stayLoggedInSecret)),
+		server: httptest.NewServer(web.NewServer(newTempStore(), noopSender, testSessionSecret)),
 	}
 }
 
@@ -137,6 +133,9 @@ func (s *stayLoggedInScenarioState) protectedRouteResponseRedirectsTo(target str
 	if got.location != target {
 		return fmt.Errorf("expected a redirect to %q, got %q", target, got.location)
 	}
+	if len(got.cookies) != 0 {
+		return fmt.Errorf("expected no cookie to be set on a redirect, got %v", got.cookies)
+	}
 	return nil
 }
 
@@ -157,7 +156,7 @@ func (s *stayLoggedInScenarioState) protectedRouteResponseCarriesAReIssuedSessio
 		return fmt.Errorf("expected cookie name %q, got %q", auth.SessionCookieName, c.Name)
 	}
 
-	playerID, issuedAt, ok := auth.ParseSessionCookie(c, stayLoggedInSecret)
+	playerID, issuedAt, ok := auth.ParseSessionCookie(c, testSessionSecret)
 	if !ok {
 		return fmt.Errorf("expected the re-issued cookie to parse successfully")
 	}

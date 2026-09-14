@@ -1,5 +1,5 @@
 Feature: View Home Page
-  As a visitor,
+  As a logged-in player,
   I want to open the home page,
   so that I can see the application is running and the current date and time.
 

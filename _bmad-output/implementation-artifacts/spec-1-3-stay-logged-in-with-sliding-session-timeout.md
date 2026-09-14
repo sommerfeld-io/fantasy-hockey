@@ -68,6 +68,20 @@ baseline_commit: '043377b89ec060d7692626367c9967a7428b794a'
 - Given a player's session was issued more than 30 minutes ago, when they make a request to a protected route, then they are redirected to `/login` exactly as an unauthenticated visitor would be, with no special messaging
 - Given no session cookie is present at all, when a protected route is requested, then the same `/login` redirect occurs
 
+### Review Findings
+
+- [x] [Review][Patch] The `Cache-Control: no-store` header this story's built-in review added has no test asserting it's present on an authenticated response [src/internal/web/web_test.go]
+- [x] [Review][Patch] The acceptance-level redirect check never asserts zero cookies, unlike its unit-level counterpart, despite already capturing the response's cookies [src/acceptance-tests/stay_logged_in_steps_test.go]
+- [x] [Review][Patch] `stayLoggedInSecret` duplicates the already-shared `testSessionSecret` constant — both in the same `acceptance_test` package [src/acceptance-tests/stay_logged_in_steps_test.go, src/acceptance-tests/suite_test.go]
+- [x] [Review][Patch] `deferred-work.md` still lists the "empty player-id validation" item as open, even though this story's own Code Map claims to close it [_bmad-output/implementation-artifacts/deferred-work.md]
+- [x] [Review][Patch] The frozen Intent text was reworded ("30+ minutes old" → "more than 30 minutes old") during this story's built-in review with no Spec Change Log entry recording it [_bmad-output/implementation-artifacts/spec-1-3-stay-logged-in-with-sliding-session-timeout.md]
+- [x] [Review][Patch] `view-home-page.feature`'s Feature narrative still says "As a visitor," no longer accurate now that its Background requires logging in [src/acceptance-tests/features/view-home-page.feature]
+- [x] [Review][Patch] `ValidateSession` doesn't guard against a future-dated `issued_at` (clock skew), the same class of gap `ConsumeLoginCode` was hardened against in Story 1.2's review [src/internal/auth/session.go]
+
+**Rejected:**
+- `low` — `requireSession` discards the `playerID` `ValidateSession` returns instead of threading it through request context for downstream handlers. Real forward-looking observation, but building unused context-propagation ahead of any real consumer is premature; Story 1.5 (which actually needs player identity on this route) is the natural place to add it, matching this epic's established "build the primitive when something consumes it" pattern (e.g. `ParseSessionCookie` itself in Story 1.2).
+- `false` — the nested-mux restructuring (`authMux` wrapped by `requireSession`, mounted on the outer `mux`) wasn't re-verified to still 404 an unrelated unknown path. Refuted: `TestNewServerShouldReturn404ForAnUnknownPath` is unmodified, unconditionally exercises the current `NewServer` build on every run, and was confirmed passing across 25 `-race` iterations during this story's own verification — it already proves this end-to-end.
+
 ## Implementation Notes
 
 - `ValidateSession` collapses `ParseSessionCookie`'s `ok=false`, an empty decoded player id, and `clock.NowTime().Sub(issuedAt) > SessionIdleTimeout` into one `ok=false`, matching the Design Notes' single-outcome intent.
@@ -77,6 +91,11 @@ baseline_commit: '043377b89ec060d7692626367c9967a7428b794a'
 - Updated the three pre-existing home-page unit tests in `internal/web/web_test.go` and the "Opening the home page" acceptance scenario to attach a valid session cookie first, since `GET /` is no longer public.
 
 ## Spec Change Log
+
+- **Triggering finding (built-in Build review):** the frozen "Always" bullets said a cookie "30+ minutes old" must redirect, but `ValidateSession` uses strict greater-than (`Sub(issuedAt) > SessionIdleTimeout`, matching `store.ConsumeLoginCode`'s identical pattern from Story 1.2), so a cookie aged exactly 30m0s is still accepted.
+  **Amended:** both frozen "Always" bullets now read "more than 30 minutes old" / "not yet more than 30 minutes old", matching the code exactly.
+  **Known-bad state avoided:** a future reader trusting the frozen prose as ground truth for the exact boundary, and disagreeing with what the shipped code actually does.
+  **KEEP:** the strict-greater-than semantics themselves (an exact 30:00 match still counts as valid) must survive any future re-derivation — this is deliberate, matching the codebase's established idle/expiry pattern, not an oversight.
 
 ## Review Triage Log
 

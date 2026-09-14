@@ -201,6 +201,9 @@ func TestGetHomeShouldReIssueTheSessionCookieOnAValidRequest(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Errorf("expected Cache-Control %q on an authenticated response, got %q", "no-store", got)
+	}
 
 	cookies := rec.Result().Cookies()
 	if len(cookies) != 1 {
