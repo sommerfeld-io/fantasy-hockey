@@ -24,6 +24,7 @@ Feature: Enter Login Code and Establish Session
     When the player submits their login code
     Then the login-code response status is 200
     And the login-code response shows the generic code error
+    And the submitted code "123456" is retained on the screen
     And no session cookie is set
 
   Scenario: An already-used code shows the identical generic error
@@ -31,4 +32,5 @@ Feature: Enter Login Code and Establish Session
     When the player submits their login code
     Then the login-code response status is 200
     And the login-code response shows the generic code error
+    And the submitted code "123456" is retained on the screen
     And no session cookie is set

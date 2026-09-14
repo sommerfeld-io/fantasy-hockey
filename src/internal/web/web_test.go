@@ -265,6 +265,25 @@ func TestPostLoginCodeShouldRedirectAndSetASessionCookieOnAValidCode(t *testing.
 	if c.Secure {
 		t.Error("expected the session cookie not to be Secure (AD-14 - plain HTTP today)")
 	}
+	if strings.Contains(rec.Body.String(), renderedGenericCodeErrorText) {
+		t.Error("expected no error text in the response on a successful login")
+	}
+	if strings.Contains(rec.Body.String(), `class="code-input error"`) {
+		t.Error("expected no error class in the response on a successful login")
+	}
+}
+
+func TestPostLoginCodeShouldMatchAWhitespacePaddedSubmittedCode(t *testing.T) {
+	st := newTestStoreWithLoginCode(t, "123456", time.Now().UTC())
+
+	rec := postCode(t, NewServer(st, noopSender, testSecret), " 123456\n")
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status %d for a whitespace-padded code, got %d", http.StatusFound, rec.Code)
+	}
+	if len(rec.Result().Cookies()) != 1 {
+		t.Error("expected a session cookie to be set for a whitespace-padded code")
+	}
 }
 
 func TestPostLoginCodeShouldMarkTheCodeUsed(t *testing.T) {
@@ -304,7 +323,7 @@ func TestPostLoginCodeShouldShowTheGenericErrorAndRetainTheCodeOnAWrongCode(t *t
 	}
 }
 
-func TestPostLoginCodeShouldReturn500WhenTheCodeFieldIsMissing(t *testing.T) {
+func TestPostLoginCodeShouldShowTheGenericErrorWhenTheCodeFieldIsMissing(t *testing.T) {
 	st := newTestStoreWithLoginCode(t, "123456", time.Now().UTC())
 
 	req := httptest.NewRequest("POST", "/login/code", strings.NewReader(""))
@@ -339,6 +358,15 @@ func TestPostLoginCodeShouldShowTheIdenticalErrorForWrongExpiredAndUsedCodes(t *
 		if !strings.Contains(body, renderedGenericCodeErrorText) {
 			t.Errorf("expected the %s case to show the generic error, got %q", name, body)
 		}
+		if !strings.Contains(body, `class="code-input error"`) {
+			t.Errorf("expected the %s case to carry the error class, got %q", name, body)
+		}
+	}
+	if !strings.Contains(expiredRec.Body.String(), `value="123456"`) {
+		t.Errorf("expected the expired case to retain the submitted code, got %q", expiredRec.Body.String())
+	}
+	if !strings.Contains(usedRec.Body.String(), `value="123456"`) {
+		t.Errorf("expected the used case to retain the submitted code, got %q", usedRec.Body.String())
 	}
 }
 

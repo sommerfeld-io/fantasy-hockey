@@ -69,6 +69,7 @@ func (s *enterLoginCodeScenarioState) close() {
 	if s.server != nil {
 		s.server.Close()
 	}
+	_ = os.RemoveAll(filepath.Dir(s.dataFile)) // best-effort cleanup of the scenario's temp dir
 }
 
 // aPlayerHasRequestedALoginCode seeds the data file with one hand-maintained

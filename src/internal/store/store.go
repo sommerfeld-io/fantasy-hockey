@@ -132,16 +132,17 @@ func (s *Store) CreateLoginCode(playerID, codeHash, issuedAt string) error {
 	return nil
 }
 
-// ConsumeLoginCode looks for an unused LoginCode row matching codeHash that
-// was issued no more than 10 minutes before now. On a match, it marks that
-// row's used_at (using now, RFC3339) and persists the change, returning the
-// row's player ID. A wrong, expired, or already-used code all produce the
-// identical ok=false, err=nil outcome (never distinguishing which) so a
-// caller can't tell them apart. Only a row exactly matching hash+unused+
-// within-window is ever touched; every other row is left exactly as is. If
-// the write fails, the mark is rolled back from memory so a caller told the
-// write failed can't later have it silently persisted by an unrelated
-// successful write.
+// ConsumeLoginCode looks for an unused LoginCode row matching codeHash whose
+// issued_at is neither more than 10 minutes in the past nor in the future
+// (guarding against clock skew or a hand-edited row). On a match, it marks
+// that row's used_at (using now, RFC3339) and persists the change,
+// returning the row's player ID. A wrong, expired, future-dated, or
+// already-used code all produce the identical ok=false, err=nil outcome
+// (never distinguishing which) so a caller can't tell them apart. Only a
+// row exactly matching hash+unused+within-window is ever touched; every
+// other row is left exactly as is. If the write fails, the mark is rolled
+// back from memory so a caller told the write failed can't later have it
+// silently persisted by an unrelated successful write.
 func (s *Store) ConsumeLoginCode(codeHash string, now time.Time) (playerID string, ok bool, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -153,7 +154,7 @@ func (s *Store) ConsumeLoginCode(codeHash string, now time.Time) (playerID strin
 		}
 
 		issuedAt, parseErr := time.Parse(time.RFC3339, row.IssuedAt)
-		if parseErr != nil || now.Sub(issuedAt) > loginCodeValidity {
+		if parseErr != nil || issuedAt.After(now) || now.Sub(issuedAt) > loginCodeValidity {
 			continue
 		}
 

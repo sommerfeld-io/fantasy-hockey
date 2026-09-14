@@ -310,6 +310,20 @@ func TestConsumeLoginCodeShouldNotMatchAnExpiredCode(t *testing.T) {
 	}
 }
 
+func TestConsumeLoginCodeShouldNotMatchAFutureDatedCode(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(5 * time.Minute).Format(time.RFC3339)})
+
+	_, ok, err := st.ConsumeLoginCode("hash-1", now)
+	if err != nil {
+		t.Fatalf("ConsumeLoginCode returned error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected no match for a future-dated code")
+	}
+}
+
 func TestConsumeLoginCodeShouldNotMatchAnAlreadyUsedCode(t *testing.T) {
 	st := newTestStore(t)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
