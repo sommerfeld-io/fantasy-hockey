@@ -108,6 +108,31 @@ func TestPredictShouldRenderBothSectionsWithEverySetsFields(t *testing.T) {
 			t.Errorf("expected the Predict page to contain %q, got %q", want, body)
 		}
 	}
+
+	// strings.Contains alone wouldn't catch a set rendering under the wrong
+	// phase section, so also check each set's title falls between its own
+	// section's header and the next one - a structural proof, not just a
+	// presence check.
+	assertMarkersInOrder(t, body,
+		"<span>Before the season</span>", "Cup champion",
+		"<span>Playoffs</span>", "Stanley Cup final")
+}
+
+// assertMarkersInOrder fails t unless every marker appears in body, each one
+// strictly after the previous, in the given order.
+func assertMarkersInOrder(t *testing.T, body string, markers ...string) {
+	t.Helper()
+	last := -1
+	for _, marker := range markers {
+		idx := strings.Index(body, marker)
+		if idx == -1 {
+			t.Fatalf("expected to find %q in %q", marker, body)
+		}
+		if idx <= last {
+			t.Fatalf("expected %q to appear after the preceding marker, got %q", marker, body)
+		}
+		last = idx
+	}
 }
 
 func TestPredictShouldShowAnOpenPillChevronAndLinkForASetWithinItsWindow(t *testing.T) {
@@ -384,6 +409,54 @@ func TestGetPredictSheetShouldRenderTheStubPageForAKnownSet(t *testing.T) {
 	}
 	if strings.Contains(body, `<button`) || strings.Contains(body, `<form`) {
 		t.Errorf("expected no pick-entry form or action bar on the stub page, got %q", body)
+	}
+}
+
+func TestGetPredictSheetShouldRenderTheStubPageForAClosedSet(t *testing.T) {
+	deadline := time.Now().UTC().Add(-24 * time.Hour)
+	seed := fmt.Sprintf(`    - id: cup
+      title: Cup champion
+      subtitle: Your Stanley Cup winner
+      deadline_utc: %q
+      phase: before_season
+      upcoming: false
+`, deadline.Format(time.RFC3339))
+
+	req := httptest.NewRequest("GET", "/predict/cup", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Cup champion") {
+		t.Errorf("expected the sheet title, got %q", body)
+	}
+	if !strings.Contains(body, "closed") {
+		t.Errorf("expected the countdown to read \"closed\", got %q", body)
+	}
+}
+
+func TestGetPredictSheetShouldReturn404ForASetWithAnUnparseableDeadline(t *testing.T) {
+	seed := `    - id: cup
+      title: Cup champion
+      subtitle: Your Stanley Cup winner
+      deadline_utc: "not-a-timestamp"
+      phase: before_season
+      upcoming: false
+`
+
+	req := httptest.NewRequest("GET", "/predict/cup", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected status %d for a set with an unparseable deadline_utc, got %d", http.StatusNotFound, rec.Code)
 	}
 }
 

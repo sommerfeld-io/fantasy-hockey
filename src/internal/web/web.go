@@ -380,7 +380,9 @@ type sheetData struct {
 // no Prediction Set gets a generic http.StatusNotFound response, the same
 // as any other unknown path, so it can't be used to probe which ids exist.
 // A row whose deadline_utc fails to parse is treated the same way, since
-// there's nothing sensible to render for it either.
+// there's nothing sensible to render for it either. It reuses
+// newPredictSetView (rather than re-parsing deadline_utc itself) so the
+// deadline-formatting and countdown logic stays in one place.
 func handleSheet(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
@@ -389,7 +391,7 @@ func handleSheet(st *store.Store) http.HandlerFunc {
 				continue
 			}
 
-			deadline, err := time.Parse(time.RFC3339, set.DeadlineUTC)
+			view, err := newPredictSetView(set, clock.NowTime())
 			if err != nil {
 				slog.Error("parse deadline_utc for prediction set", "prediction_set_id", set.ID, "error", err)
 				http.NotFound(w, r)
@@ -397,9 +399,9 @@ func handleSheet(st *store.Store) http.HandlerFunc {
 			}
 
 			renderTemplate(w, "sheet.html", sheetData{
-				Title:        set.Title,
-				DeadlineText: clock.FormatDeadline(deadline),
-				Countdown:    clock.Countdown(deadline, clock.NowTime()),
+				Title:        view.Title,
+				DeadlineText: view.DeadlineText,
+				Countdown:    view.Countdown,
 			})
 			return
 		}

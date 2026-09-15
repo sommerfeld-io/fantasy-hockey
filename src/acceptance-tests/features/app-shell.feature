@@ -25,6 +25,7 @@ Feature: Persistent App Shell With Player Identity and Navigation
   Scenario: The root path aliases to Predict
     When the player visits the root path
     Then the shell shows "Predict" as the active tab
+    And the shell shows the Predict content
 
   Scenario: Navigating between destinations keeps showing the player's identity
     When the player visits the Predict destination

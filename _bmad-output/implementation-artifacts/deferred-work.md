@@ -13,3 +13,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-5-persistent-app-shell-with-player-identity-and-navigation.md`
   summary: Every authenticated shell route (`GET /{$}`, `/predict`, `/leaderboard`, `/compare`) must be registered on both the outer `mux` and the inner `authMux`, so the two lists can silently drift out of sync as future stories add routes.
   evidence: Verified real in this story's review (blind-hunter): `NewServer` in `src/internal/web/web.go` repeats each path once per mux. Pre-existing pattern (AD-2/AD-11) already in place for `GET /{$}` before this story — this story only extended it to 3 more routes exactly as the spec's Code Map instructed, so it's not this story's defect to fix, but the drift risk grows with every route added on top of it.
+
+## Deferred from: code review of story-2-1-browse-prediction-sets-by-phase-and-status (2026-09-15)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-1-browse-prediction-sets-by-phase-and-status.md`
+  summary: `epic-2-context.md` (a new file this story added) states the set-row accent stripe follows "blue/green/red/faint by state," but neither the code nor DESIGN.md's own token map gives Closed a distinct red stripe.
+  evidence: Verified real (acceptance-auditor): DESIGN.md's `set-row` component only lists `open`/`submitted`/`upcoming` accent colors (no `closed`), and `newPredictSetView` in `src/internal/web/web.go` only special-cases `Upcoming`, leaving Closed to reuse Open's blue class — matching the UX click-dummy's actual behavior. The prose in `epic-2-context.md` is factually imprecise, not the application behavior; best fixed by regenerating or hand-editing that compiled planning doc outside an ad hoc code review.

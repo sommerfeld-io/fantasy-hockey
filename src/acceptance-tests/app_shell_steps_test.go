@@ -178,6 +178,17 @@ func (s *appShellScenarioState) theShellShowsThePlaceholderContent(tab string) e
 	return nil
 }
 
+// theShellShowsThePredictContent is a smoke check that "/" and "/predict"
+// serve the same real content (Story 2.1's phase-grouped Prediction Set
+// lists), mirroring what shellRouteTests already checks at the unit level -
+// not a full re-test of Story 2.1's own feature file.
+func (s *appShellScenarioState) theShellShowsThePredictContent() error {
+	if !strings.Contains(s.lastBody, "Before the season") {
+		return fmt.Errorf("expected the shell to show the Predict content, got %q", s.lastBody)
+	}
+	return nil
+}
+
 func (s *appShellScenarioState) everyVisitedDestinationShowedThePlayersName(name string) error {
 	if len(s.visitedBodies) == 0 {
 		return fmt.Errorf("no destination has been visited yet")
@@ -240,6 +251,7 @@ func InitializeAppShellScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the shell shows the season "([^"]*)"$`, s.theShellShowsTheSeason)
 	ctx.Step(`^the shell shows "([^"]*)" as the active tab$`, s.theShellShowsAsTheActiveTab)
 	ctx.Step(`^the shell shows the (Leaderboard|Compare) placeholder content$`, s.theShellShowsThePlaceholderContent)
+	ctx.Step(`^the shell shows the Predict content$`, s.theShellShowsThePredictContent)
 	ctx.Step(`^every visited destination showed the player's name "([^"]*)"$`, s.everyVisitedDestinationShowedThePlayersName)
 	ctx.Step(`^the player uses the shell's logout control$`, s.thePlayerUsesTheShellsLogoutControl)
 	ctx.Step(`^the player is redirected to "([^"]*)"$`, s.thePlayerIsRedirectedTo)
