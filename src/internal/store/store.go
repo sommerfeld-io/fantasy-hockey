@@ -109,6 +109,31 @@ func (s *Store) FindPlayerByEmail(email string) (Player, bool) {
 	return Player{}, false
 }
 
+// FindPlayerByID returns the player whose ID matches id, if any - the app
+// shell's header uses this to resolve the session's player id (AD-17 - the
+// id is an opaque slug, so this is an exact match, unlike FindPlayerByEmail's
+// case/whitespace-insensitive comparison) into a display name.
+func (s *Store) FindPlayerByID(id string) (Player, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.doc.Players {
+		if p.ID == id {
+			return p, true
+		}
+	}
+	return Player{}, false
+}
+
+// Season returns the store's current season label (e.g. "2026-27"), as
+// hand-maintained in fantasy-hockey.yml.
+func (s *Store) Season() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.doc.Season
+}
+
 // CreateLoginCode appends a new LoginCode row for playerID and persists it.
 // It never mutates or removes any existing row. If the write fails, the
 // appended row is rolled back from memory so a caller told the write failed

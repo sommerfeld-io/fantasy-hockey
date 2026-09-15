@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -122,6 +123,29 @@ func ValidateSession(c *http.Cookie, secret string) (playerID string, ok bool) {
 		return "", false
 	}
 	return id, true
+}
+
+// playerIDContextKey is the unexported type ContextWithPlayerID and
+// PlayerIDFromContext key their value under, per Go's context convention -
+// an unexported type guarantees no other package can collide on the key by
+// stashing its own value under a plain string.
+type playerIDContextKey struct{}
+
+// ContextWithPlayerID returns a copy of ctx carrying playerID, so a handler
+// downstream of a session-validating middleware (e.g. internal/web's
+// requireSession) can read the logged-in player's id straight from the
+// request context instead of re-parsing and re-validating the session
+// cookie itself.
+func ContextWithPlayerID(ctx context.Context, playerID string) context.Context {
+	return context.WithValue(ctx, playerIDContextKey{}, playerID)
+}
+
+// PlayerIDFromContext returns the player id ContextWithPlayerID stored on
+// ctx, if any. ok is false when ctx carries no player id - e.g. a handler
+// invoked outside requireSession's middleware.
+func PlayerIDFromContext(ctx context.Context) (playerID string, ok bool) {
+	playerID, ok = ctx.Value(playerIDContextKey{}).(string)
+	return playerID, ok
 }
 
 // sessionPayload builds the pre-signing "base64url(player_id)|issued_at"

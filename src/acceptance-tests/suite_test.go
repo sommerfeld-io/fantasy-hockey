@@ -38,12 +38,12 @@ func TestAcceptanceSuite(t *testing.T) {
 	suite := godog.TestSuite{
 		Name: "acceptance",
 		ScenarioInitializer: func(ctx *godog.ScenarioContext) {
-			InitializeHomePageScenario(ctx)
 			InitializePortScenario(ctx)
 			InitializeLoginScenario(ctx)
 			InitializeEnterLoginCodeScenario(ctx)
 			InitializeStayLoggedInScenario(ctx)
 			InitializeLogOutScenario(ctx)
+			InitializeAppShellScenario(ctx)
 		},
 		Options: &opts,
 	}

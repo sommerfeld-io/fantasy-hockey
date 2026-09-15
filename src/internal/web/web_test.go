@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -23,9 +22,6 @@ import (
 // renders it into the response body (its apostrophe comes out
 // HTML-escaped).
 var renderedGenericCodeErrorText = html.EscapeString(genericCodeErrorText)
-
-// rfc1123Pattern matches the timestamp format handleHome renders.
-var rfc1123Pattern = regexp.MustCompile(`[A-Za-z]{3}, \d{2} [A-Za-z]{3} \d{4} \d{2}:\d{2}:\d{2} [A-Za-z]{3,4}`)
 
 // testSecret signs session cookies for every test server built in this file.
 const testSecret = "test-session-secret"
@@ -80,38 +76,123 @@ func TestNewServerShouldReturnOKForTheHomePage(t *testing.T) {
 	}
 }
 
-func TestNewServerShouldShowTheApplicationNameOnTheHomePage(t *testing.T) {
-	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
-	rec := httptest.NewRecorder()
+// shellRouteTests is every shell route this server registers, alongside the
+// bottom-nav tab that should render active and the unique "Coming soon"
+// fragment that route's content should show. "/" aliases to Predict.
+var shellRouteTests = []struct {
+	path       string
+	activeTab  string
+	navLabel   string
+	messageFor string
+}{
+	{"/", "predict", "Predict", "Predictions are coming soon."},
+	{"/predict", "predict", "Predict", "Predictions are coming soon."},
+	{"/leaderboard", "leaderboard", "Leaderboard", "The leaderboard is coming soon."},
+	{"/compare", "compare", "Compare", "Player comparison is coming soon."},
+}
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+func TestNewServerShouldRenderTheShellForEveryDestination(t *testing.T) {
+	for _, tt := range shellRouteTests {
+		t.Run(tt.path, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.path, nil)
+			req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+			rec := httptest.NewRecorder()
 
-	if !strings.Contains(rec.Body.String(), "Fantasy Hockey") {
-		t.Errorf("expected body to contain %q, got %q", "Fantasy Hockey", rec.Body.String())
+			NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+			if rec.Code != 200 {
+				t.Fatalf("expected status 200, got %d", rec.Code)
+			}
+			body := rec.Body.String()
+			assertShellHeader(t, body)
+			if !strings.Contains(body, tt.messageFor) {
+				t.Errorf("expected the %q content, got %q", tt.messageFor, body)
+			}
+			assertActiveTab(t, body, tt.navLabel)
+			assertInactiveTabs(t, body, tt.activeTab)
+			assertLogoutControl(t, body)
+		})
 	}
 }
 
-func TestNewServerShouldShowTheCurrentDateAndTimeOnTheHomePage(t *testing.T) {
-	before := time.Now().UTC()
-	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+// assertShellHeader checks the header shows the logged-in player's name and
+// the formatted season label.
+func assertShellHeader(t *testing.T, body string) {
+	t.Helper()
+	if !strings.Contains(body, "Basti") {
+		t.Errorf("expected the header to show the player's name, got %q", body)
+	}
+	if !strings.Contains(body, "NHL 2026–27") {
+		t.Errorf("expected the header to show the formatted season, got %q", body)
+	}
+}
+
+// assertActiveTab checks navLabel renders as the active tab, in `ice` with
+// aria-current="page" for assistive technology.
+func assertActiveTab(t *testing.T, body, navLabel string) {
+	t.Helper()
+	activeMarkup := `class="nav-item active" aria-current="page">` + navLabel + `</a>`
+	if !strings.Contains(body, activeMarkup) {
+		t.Errorf("expected %q to be the active tab with aria-current=\"page\", got %q", navLabel, body)
+	}
+}
+
+// assertInactiveTabs checks every tab other than activeTab renders as
+// inactive (muted, no aria-current).
+func assertInactiveTabs(t *testing.T, body, activeTab string) {
+	t.Helper()
+	for _, other := range shellRouteTests {
+		if other.activeTab == activeTab {
+			continue
+		}
+		inactiveMarkup := `class="nav-item">` + other.navLabel + `</a>`
+		if !strings.Contains(body, inactiveMarkup) {
+			t.Errorf("expected %q to render as inactive (muted), got %q", other.navLabel, body)
+		}
+	}
+}
+
+// assertLogoutControl checks the shell renders a visible logout button wired
+// to POST /logout, so a regression that broke or removed it would be caught.
+func assertLogoutControl(t *testing.T, body string) {
+	t.Helper()
+	if !strings.Contains(body, `<form class="logout-form" method="post" action="/logout">`) {
+		t.Errorf("expected the rendered shell to contain the logout form wired to POST /logout, got %q", body)
+	}
+	if !strings.Contains(body, `<button type="submit" class="logout-btn">Log out</button>`) {
+		t.Errorf("expected the rendered shell to contain the visible logout button, got %q", body)
+	}
+}
+
+func TestNewServerShouldRedirectToLoginForEveryShellDestinationWithNoSessionCookie(t *testing.T) {
+	for _, tt := range shellRouteTests {
+		t.Run(tt.path, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.path, nil)
+			rec := httptest.NewRecorder()
+
+			NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+			assertRedirectsToLoginWithNoCookie(t, rec)
+		})
+	}
+}
+
+func TestNewServerShouldDegradeTheHeaderWithoutPanickingForAStalePlayerID(t *testing.T) {
+	req := httptest.NewRequest("GET", "/predict", nil)
+	req.AddCookie(auth.IssueSessionCookie("a-deleted-player-id", testSecret))
 	rec := httptest.NewRecorder()
 
 	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
 
-	after := time.Now().UTC()
-	match := rfc1123Pattern.FindString(rec.Body.String())
-	if match == "" {
-		t.Fatalf("expected body to contain an RFC1123 timestamp, got %q", rec.Body.String())
+	if rec.Code != 200 {
+		t.Fatalf("expected status 200 (no crash) for a stale player id, got %d", rec.Code)
 	}
-
-	got, err := time.Parse(time.RFC1123, match)
-	if err != nil {
-		t.Fatalf("failed to parse timestamp %q: %v", match, err)
+	body := rec.Body.String()
+	if strings.Contains(body, "Basti") {
+		t.Errorf("expected no real player name to leak into the degraded header, got %q", body)
 	}
-	if got.Before(before.Add(-time.Second)) || got.After(after.Add(time.Second)) {
-		t.Errorf("expected the shown timestamp to be close to the current time, got %v", got)
+	if !strings.Contains(body, `<span class="header-name">&mdash;</span>`) {
+		t.Errorf("expected the header to degrade to a neutral placeholder, got %q", body)
 	}
 }
 

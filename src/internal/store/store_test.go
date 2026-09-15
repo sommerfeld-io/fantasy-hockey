@@ -152,6 +152,46 @@ func TestFindPlayerByEmailShouldNotMatchAnEmptyEmailAgainstABlankPlayerRow(t *te
 	}
 }
 
+func TestFindPlayerByIDShouldReturnThePlayerOnAMatch(t *testing.T) {
+	st := newTestStore(t)
+
+	player, ok := st.FindPlayerByID("basti")
+	if !ok {
+		t.Fatal("expected a match, got none")
+	}
+	if player.Name != "Basti" {
+		t.Errorf("expected name %q, got %q", "Basti", player.Name)
+	}
+}
+
+func TestFindPlayerByIDShouldNotReturnAPlayerOnNoMatch(t *testing.T) {
+	st := newTestStore(t)
+
+	_, ok := st.FindPlayerByID("unknown-id")
+	if ok {
+		t.Fatal("expected no match for an unknown player id, got one")
+	}
+}
+
+func TestFindPlayerByIDShouldNotMatchOnCaseAlone(t *testing.T) {
+	st := newTestStore(t)
+
+	// Unlike FindPlayerByEmail, ids are opaque slugs (AD-17), not
+	// case-insensitive addresses, so a differently-cased id must not match.
+	_, ok := st.FindPlayerByID("BASTI")
+	if ok {
+		t.Fatal("expected an id differing only in case not to match")
+	}
+}
+
+func TestSeasonShouldReturnTheSeededSeason(t *testing.T) {
+	st := newTestStore(t)
+
+	if got := st.Season(); got != "2026-27" {
+		t.Errorf("expected season %q, got %q", "2026-27", got)
+	}
+}
+
 func TestCreateLoginCodeShouldAppendANewRow(t *testing.T) {
 	st := newTestStore(t)
 

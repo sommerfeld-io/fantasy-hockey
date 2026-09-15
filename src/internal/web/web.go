@@ -1,6 +1,6 @@
-// Package web is the presentation layer: it serves the home page and the
-// login-code request flow over the standard library's net/http, rendering
-// server-side html/template views.
+// Package web is the presentation layer: it serves the app shell
+// (Predict/Leaderboard/Compare) and the login-code request flow over the
+// standard library's net/http, rendering server-side html/template views.
 package web
 
 import (
@@ -11,10 +11,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
-	"github.com/sommerfeld-io/fantasy-hockey/internal/clock"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
@@ -51,6 +49,51 @@ const maxLoginFormBytes = 4096
 // unbounded request body can make the server read.
 const maxCodeFormBytes = 4096
 
+// Bottom-nav tab identifiers, matching shell.html's ActiveTab comparisons
+// and this file's tabTitles/tabMessages lookups below.
+const (
+	tabPredict     = "predict"
+	tabLeaderboard = "leaderboard"
+	tabCompare     = "compare"
+)
+
+// tabTitles names each tab for the shell's <title> and nav label alike.
+var tabTitles = map[string]string{
+	tabPredict:     "Predict",
+	tabLeaderboard: "Leaderboard",
+	tabCompare:     "Compare",
+}
+
+// tabMessages is each tab's short, unique "Coming soon" placeholder - Epics
+// 2/4/5 replace these with real functionality; this shell only needs
+// somewhere real for them to mount.
+var tabMessages = map[string]string{
+	tabPredict:     "Predictions are coming soon.",
+	tabLeaderboard: "The leaderboard is coming soon.",
+	tabCompare:     "Player comparison is coming soon.",
+}
+
+// shellData feeds templates/shell.html. PlayerName is empty when the
+// session's player id has no matching player left in the store (a
+// stale/deleted id) - the header then degrades to a neutral state instead
+// of a 500 or panic. Season is already presentation-formatted (e.g. "NHL
+// 2026–27"); ActiveTab selects which bottom-nav tab renders active; Title
+// and Message are that tab's page title and static placeholder content.
+type shellData struct {
+	PlayerName string
+	Season     string
+	ActiveTab  string
+	Title      string
+	Message    string
+}
+
+// formatSeason turns the store's raw season value (e.g. "2026-27") into the
+// header's display form ("NHL 2026–27") - presentation-only, matching how
+// the login mockups already hardcode this same display string.
+func formatSeason(season string) string {
+	return "NHL " + strings.Replace(season, "-", "–", 1)
+}
+
 // loginCodeData feeds templates/login-code.html: Code is the submitted
 // value (retained on error so the Player doesn't have to retype it), and
 // Error is the generic message shown for any wrong/expired/used code, empty
@@ -64,19 +107,28 @@ type loginCodeData struct {
 // ready to be served. st and send back the login-code request flow
 // (GET/POST /login, POST /login/code); secret signs the session cookie a
 // successful POST /login/code sets and verifies the ones requireSession
-// reads back. GET /{$} is the first authenticated route: it's registered on
-// its own authMux, which requireSession wraps before it's mounted on the
-// outer mux alongside the public routes (AD-2/AD-11) - a future protected
-// route joins authMux the same way, without touching how public routes are
-// wired. POST /logout is registered directly on the outer mux rather than
-// authMux, since clearing the session cookie must work even when the
-// presented cookie is missing, expired, or tampered.
+// reads back. GET /{$}, /predict, /leaderboard, and /compare are the
+// authenticated app-shell routes: they're registered on their own authMux,
+// which requireSession wraps before it's mounted on the outer mux alongside
+// the public routes (AD-2/AD-11) - a future protected route joins authMux
+// the same way, without touching how public routes are wired. GET /{$}
+// aliases to the same Predict shell as GET /predict. POST /logout is
+// registered directly on the outer mux rather than authMux, since clearing
+// the session cookie must work even when the presented cookie is missing,
+// expired, or tampered.
 func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler {
 	authMux := http.NewServeMux()
-	authMux.HandleFunc("GET /{$}", handleHome)
+	authMux.Handle("GET /{$}", handleShell(st, tabPredict))
+	authMux.Handle("GET /predict", handleShell(st, tabPredict))
+	authMux.Handle("GET /leaderboard", handleShell(st, tabLeaderboard))
+	authMux.Handle("GET /compare", handleShell(st, tabCompare))
+	protected := requireSession(secret, authMux)
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /{$}", requireSession(secret, authMux))
+	mux.Handle("GET /{$}", protected)
+	mux.Handle("GET /predict", protected)
+	mux.Handle("GET /leaderboard", protected)
+	mux.Handle("GET /compare", protected)
 	mux.HandleFunc("GET /login", handleLoginForm)
 	mux.HandleFunc("POST /login", handleLoginSubmit(st, send))
 	mux.HandleFunc("POST /login/code", handleLoginCodeSubmit(st, secret))
@@ -94,7 +146,10 @@ func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler 
 // message, since auth.ValidateSession never says which case occurred. Every
 // authenticated response also gets Cache-Control: no-store, since a shared
 // cache in front of the app could otherwise serve one player's page to
-// another once this route's content stops being identical for everyone.
+// another once this route's content stops being identical for everyone. The
+// validated player id is threaded onto the request context (via
+// auth.ContextWithPlayerID) so next and anything it calls can read identity
+// without re-parsing the cookie.
 func requireSession(secret string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, _ := r.Cookie(auth.SessionCookieName)
@@ -106,7 +161,7 @@ func requireSession(secret string, next http.Handler) http.Handler {
 
 		http.SetCookie(w, auth.IssueSessionCookie(playerID, secret))
 		w.Header().Set("Cache-Control", "no-store")
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(auth.ContextWithPlayerID(r.Context(), playerID)))
 	})
 }
 
@@ -122,13 +177,31 @@ func staticFiles() fs.FS {
 	return sub
 }
 
-// handleHome renders the application name and the current date and time.
-func handleHome(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+// handleShell renders the persistent app shell for tab: a pinned header
+// (player name + season + logout control), a pinned bottom nav with tab
+// active, and that tab's short static "Coming soon" content. The player id
+// comes from the request context requireSession populates; a stale/deleted
+// id with no matching player left in st degrades to an empty PlayerName
+// (a neutral, non-crashing header) rather than a 500 or panic, logging the
+// lookup miss server-side.
+func handleShell(st *store.Store, tab string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var name string
+		if playerID, ok := auth.PlayerIDFromContext(r.Context()); ok {
+			if player, found := st.FindPlayerByID(playerID); found {
+				name = player.Name
+			} else {
+				slog.Error("resolve player for shell header", "player_id", playerID)
+			}
+		}
 
-	body := fmt.Sprintf("<h1>Fantasy Hockey</h1>\n<p>%s</p>\n", clock.NowTime().Format(time.RFC1123))
-	if _, err := w.Write([]byte(body)); err != nil {
-		slog.Error("write home page response", "error", err)
+		renderTemplate(w, "shell.html", shellData{
+			PlayerName: name,
+			Season:     formatSeason(st.Season()),
+			ActiveTab:  tab,
+			Title:      tabTitles[tab],
+			Message:    tabMessages[tab],
+		})
 	}
 }
 

@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -277,5 +278,24 @@ func TestValidateSessionShouldRejectATamperedSignature(t *testing.T) {
 func TestValidateSessionShouldRejectANilCookie(t *testing.T) {
 	if _, ok := auth.ValidateSession(nil, "test-secret"); ok {
 		t.Fatal("expected a nil cookie to be rejected")
+	}
+}
+
+func TestPlayerIDFromContextShouldReturnTheIDContextWithPlayerIDStored(t *testing.T) {
+	ctx := auth.ContextWithPlayerID(context.Background(), "basti")
+
+	playerID, ok := auth.PlayerIDFromContext(ctx)
+	if !ok {
+		t.Fatal("expected a player id to be found")
+	}
+	if playerID != "basti" {
+		t.Errorf("expected player id %q, got %q", "basti", playerID)
+	}
+}
+
+func TestPlayerIDFromContextShouldNotFindAPlayerIDOnAPlainContext(t *testing.T) {
+	_, ok := auth.PlayerIDFromContext(context.Background())
+	if ok {
+		t.Fatal("expected no player id to be found on a context nothing was stored on")
 	}
 }

@@ -1,0 +1,38 @@
+{{/*
+  Persistent app shell - per DESIGN.md's Header/Bottom navigation
+  components and EXPERIENCE.md's "fixed-height, three-region app shell":
+  a pinned header, a single scrolling content region, and pinned bottom
+  nav. Mounted on GET /{$} (aliased to Predict), /predict, /leaderboard,
+  and /compare. Predict/Leaderboard/Compare only render a short static
+  "Coming soon" .Message here - Epics 2/4/5 build the real content.
+*/}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Face-Off Pool - {{.Title}}</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="shell">
+  <header class="shell-header">
+    <span class="header-name">{{if .PlayerName}}{{.PlayerName}}{{else}}&mdash;{{end}}</span>
+    <span class="header-right">
+      <span class="header-season">{{.Season}}</span>
+      <form class="logout-form" method="post" action="/logout">
+        <button type="submit" class="logout-btn">Log out</button>
+      </form>
+    </span>
+  </header>
+  <main class="shell-content">
+    <p class="coming-soon">{{.Message}}</p>
+  </main>
+  <nav class="shell-nav">
+    <a href="/predict" class="nav-item{{if eq .ActiveTab "predict"}} active{{end}}"{{if eq .ActiveTab "predict"}} aria-current="page"{{end}}>Predict</a>
+    <a href="/leaderboard" class="nav-item{{if eq .ActiveTab "leaderboard"}} active{{end}}"{{if eq .ActiveTab "leaderboard"}} aria-current="page"{{end}}>Leaderboard</a>
+    <a href="/compare" class="nav-item{{if eq .ActiveTab "compare"}} active{{end}}"{{if eq .ActiveTab "compare"}} aria-current="page"{{end}}>Compare</a>
+  </nav>
+</div>
+</body>
+</html>
