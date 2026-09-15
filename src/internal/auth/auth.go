@@ -23,7 +23,7 @@ import (
 const codeUpperBound = 1_000_000
 
 const (
-	loginCodeSubject      = "Your Face-Off Pool login code"
+	loginCodeSubject      = "Your Fantasy Hockey login code"
 	loginCodeBodyTemplate = "Your login code is %s. It expires in 10 minutes."
 )
 
