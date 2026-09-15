@@ -159,9 +159,12 @@ func (s *appShellScenarioState) theShellShowsAsTheActiveTab(tab string) error {
 	return nil
 }
 
+// theShellShowsThePlaceholderContent asserts Leaderboard/Compare's static
+// "Coming soon" content - Predict has no placeholder left to assert here
+// since Story 2.1 replaced it with real content, covered by
+// browse-prediction-sets.feature instead.
 func (s *appShellScenarioState) theShellShowsThePlaceholderContent(tab string) error {
 	fragments := map[string]string{
-		"Predict":     "Predictions are coming soon.",
 		"Leaderboard": "The leaderboard is coming soon.",
 		"Compare":     "Player comparison is coming soon.",
 	}
@@ -236,7 +239,7 @@ func InitializeAppShellScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the shell shows the player's name "([^"]*)"$`, s.theShellShowsThePlayersName)
 	ctx.Step(`^the shell shows the season "([^"]*)"$`, s.theShellShowsTheSeason)
 	ctx.Step(`^the shell shows "([^"]*)" as the active tab$`, s.theShellShowsAsTheActiveTab)
-	ctx.Step(`^the shell shows the (Predict|Leaderboard|Compare) placeholder content$`, s.theShellShowsThePlaceholderContent)
+	ctx.Step(`^the shell shows the (Leaderboard|Compare) placeholder content$`, s.theShellShowsThePlaceholderContent)
 	ctx.Step(`^every visited destination showed the player's name "([^"]*)"$`, s.everyVisitedDestinationShowedThePlayersName)
 	ctx.Step(`^the player uses the shell's logout control$`, s.thePlayerUsesTheShellsLogoutControl)
 	ctx.Step(`^the player is redirected to "([^"]*)"$`, s.thePlayerIsRedirectedTo)

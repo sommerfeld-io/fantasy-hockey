@@ -46,11 +46,30 @@ type LoginCode struct {
 	UsedAt   *string `yaml:"used_at"`
 }
 
+// PredictionSet is one Prediction Set a player can eventually submit picks
+// for (e.g. "Cup champion", "Playoff round 1"). Like Player, the list is
+// hand-maintained directly in fantasy-hockey.yml; internal/store never
+// writes it. DeadlineUTC is RFC3339 in UTC (Boundaries & Constraints of
+// Story 2.1) - converting it for display is internal/clock's job, not
+// store's. Phase groups sets into the Predict screen's sections ("before
+// the season" or "playoffs"); Upcoming is a human-maintained flag, not
+// computed - a later story may replace it with round-unlocking logic, but
+// this one only reads it.
+type PredictionSet struct {
+	ID          string `yaml:"id"`
+	Title       string `yaml:"title"`
+	Subtitle    string `yaml:"subtitle"`
+	DeadlineUTC string `yaml:"deadline_utc"`
+	Phase       string `yaml:"phase"`
+	Upcoming    bool   `yaml:"upcoming"`
+}
+
 // document mirrors fantasy-hockey.yml's on-disk shape.
 type document struct {
-	Season     string      `yaml:"season"`
-	Players    []Player    `yaml:"players"`
-	LoginCodes []LoginCode `yaml:"login_codes"`
+	Season         string          `yaml:"season"`
+	Players        []Player        `yaml:"players"`
+	LoginCodes     []LoginCode     `yaml:"login_codes"`
+	PredictionSets []PredictionSet `yaml:"prediction_sets"`
 }
 
 // Store is the in-memory representation of fantasy-hockey.yml, guarded by a
@@ -132,6 +151,19 @@ func (s *Store) Season() string {
 	defer s.mu.RUnlock()
 
 	return s.doc.Season
+}
+
+// PredictionSets returns every Prediction Set, as hand-maintained in
+// fantasy-hockey.yml (Season's read-only pattern: no write method exists,
+// since this story only ever reads the list). The returned slice is a copy,
+// so a caller mutating it can't reach back into the store's own state.
+func (s *Store) PredictionSets() []PredictionSet {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	sets := make([]PredictionSet, len(s.doc.PredictionSets))
+	copy(sets, s.doc.PredictionSets)
+	return sets
 }
 
 // CreateLoginCode appends a new LoginCode row for playerID and persists it.

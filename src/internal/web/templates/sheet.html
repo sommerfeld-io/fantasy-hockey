@@ -1,0 +1,29 @@
+{{/*
+  Per-Prediction-Set stub page (Story 2.1's minimal GET /predict/{id}
+  destination): a back arrow to /predict, the set's title, its formatted
+  deadline+countdown, and a static "not available yet" body - no
+  pick-entry form, no action bar (Boundaries & Constraints: "a static stub,
+  not a real Prediction sheet"). A later story replaces this body with the
+  real form; the route and this page's shape stay.
+*/}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fantasy Hockey - {{.Title}}</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="sheet">
+  <header class="sheet-header">
+    <a href="/predict" class="back-link" aria-label="Back to Predict"><svg class="back-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6"/></svg></a>
+    <span class="sheet-title">{{.Title}}</span>
+  </header>
+  <main class="sheet-content">
+    <div class="sheet-deadline"><svg class="row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg><span>{{.DeadlineText}}</span><span>&nbsp;&middot; {{.Countdown}}</span></div>
+    <p class="sheet-placeholder">Not available yet.</p>
+  </main>
+</div>
+</body>
+</html>

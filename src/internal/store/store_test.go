@@ -192,6 +192,86 @@ func TestSeasonShouldReturnTheSeededSeason(t *testing.T) {
 	}
 }
 
+func TestPredictionSetsShouldReturnTheSeededList(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fantasy-hockey.yml")
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+prediction_sets:
+    - id: cup
+      title: Cup champion
+      subtitle: Your Stanley Cup winner
+      deadline_utc: "2026-10-06T17:00:00Z"
+      phase: before_season
+      upcoming: false
+    - id: cf
+      title: Conference finals
+      subtitle: Set once round 2 ends
+      deadline_utc: "2027-05-14T16:00:00Z"
+      phase: playoffs
+      upcoming: true
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	sets := st.PredictionSets()
+	if len(sets) != 2 {
+		t.Fatalf("expected 2 prediction sets, got %d", len(sets))
+	}
+	if sets[0].ID != "cup" || sets[0].Phase != "before_season" || sets[0].Upcoming {
+		t.Errorf("unexpected first prediction set: %+v", sets[0])
+	}
+	if sets[1].ID != "cf" || sets[1].Phase != "playoffs" || !sets[1].Upcoming {
+		t.Errorf("unexpected second prediction set: %+v", sets[1])
+	}
+}
+
+func TestPredictionSetsShouldReturnAnEmptyListWhenNoneAreSeeded(t *testing.T) {
+	st := newTestStore(t)
+
+	sets := st.PredictionSets()
+	if len(sets) != 0 {
+		t.Errorf("expected an empty list, got %v", sets)
+	}
+}
+
+func TestPredictionSetsShouldReturnACopyThatCannotMutateTheStore(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fantasy-hockey.yml")
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+prediction_sets:
+    - id: cup
+      title: Cup champion
+      subtitle: Your Stanley Cup winner
+      deadline_utc: "2026-10-06T17:00:00Z"
+      phase: before_season
+      upcoming: false
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	sets := st.PredictionSets()
+	sets[0].Title = "Tampered"
+
+	again := st.PredictionSets()
+	if again[0].Title != "Cup champion" {
+		t.Errorf("expected the store's own copy to stay untouched, got title %q", again[0].Title)
+	}
+}
+
 func TestCreateLoginCodeShouldAppendANewRow(t *testing.T) {
 	st := newTestStore(t)
 

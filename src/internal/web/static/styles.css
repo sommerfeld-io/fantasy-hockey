@@ -246,3 +246,225 @@ button {
 .nav-item.active {
   color: var(--ice);
 }
+
+/*
+  Predict screen (Story 2.1): two phase-grouped sections of Prediction Set
+  rows, per DESIGN.md's Section header icon, Status pill, and Set row
+  components.
+*/
+
+.predict-section {
+  margin-bottom: 8px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 16px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.predict-section:first-child .section-header {
+  margin-top: 0;
+}
+
+.section-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-pill--open {
+  background: rgba(88, 166, 255, 0.14);
+  color: var(--ice);
+}
+
+.status-pill--submitted {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--green);
+}
+
+.status-pill--closed {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--goal);
+}
+
+.status-pill--upcoming {
+  background: var(--raised);
+  color: var(--faint);
+}
+
+.set-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 12px;
+  text-align: left;
+  text-decoration: none;
+  color: var(--text);
+  font-family: inherit;
+}
+
+a.set-row {
+  cursor: pointer;
+}
+
+.set-row--open {
+  border-left-color: var(--ice);
+}
+
+.set-row--submitted {
+  border-left-color: var(--green);
+}
+
+.set-row--upcoming {
+  border-left-color: var(--faint);
+  opacity: 0.55;
+}
+
+.set-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.set-row-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-row-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-row-subtitle {
+  font-size: 12px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-row-deadline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.row-icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.set-row-countdown {
+  color: var(--ice);
+}
+
+.set-row-countdown-faint {
+  color: var(--faint);
+}
+
+.row-affordance {
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.set-row--upcoming .row-affordance {
+  color: var(--faint);
+}
+
+/*
+  Per-Prediction-Set stub page (sheet.html): a minimal header (back arrow +
+  title) and a static "not available yet" body - no action bar.
+*/
+
+.sheet {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.back-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  margin: -6px;
+  color: var(--muted);
+}
+
+.back-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.sheet-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sheet-content {
+  flex: 1 1 auto;
+  padding: 16px;
+}
+
+.sheet-deadline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sheet-placeholder {
+  margin-top: 40px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}

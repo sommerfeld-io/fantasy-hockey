@@ -40,6 +40,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeStayLoggedInScenario(ctx)
 			InitializeLogOutScenario(ctx)
 			InitializeAppShellScenario(ctx)
+			InitializeBrowsePredictionSetsScenario(ctx)
 		},
 		Options: &opts,
 	}

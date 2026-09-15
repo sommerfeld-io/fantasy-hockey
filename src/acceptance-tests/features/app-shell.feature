@@ -11,7 +11,6 @@ Feature: Persistent App Shell With Player Identity and Navigation
     Then the shell shows the player's name "Basti"
     And the shell shows the season "NHL 2026–27"
     And the shell shows "Predict" as the active tab
-    And the shell shows the Predict placeholder content
 
   Scenario: The Leaderboard destination shows the shell with Leaderboard active
     When the player visits the Leaderboard destination
@@ -26,7 +25,6 @@ Feature: Persistent App Shell With Player Identity and Navigation
   Scenario: The root path aliases to Predict
     When the player visits the root path
     Then the shell shows "Predict" as the active tab
-    And the shell shows the Predict placeholder content
 
   Scenario: Navigating between destinations keeps showing the player's identity
     When the player visits the Predict destination

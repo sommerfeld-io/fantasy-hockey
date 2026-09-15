@@ -11,8 +11,10 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/clock"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
@@ -64,27 +66,161 @@ var tabTitles = map[string]string{
 	tabCompare:     "Compare",
 }
 
-// tabMessages is each tab's short, unique "Coming soon" placeholder - Epics
-// 2/4/5 replace these with real functionality; this shell only needs
-// somewhere real for them to mount.
+// tabMessages is each remaining placeholder tab's short, unique "Coming
+// soon" message - Epics 4/5 replace these with real functionality. Predict
+// no longer has an entry: Story 2.1 replaced its placeholder with the real
+// phase-grouped Prediction Set lists (shellData.Predict), so handleShell
+// never looks this map up for tabPredict.
 var tabMessages = map[string]string{
-	tabPredict:     "Predictions are coming soon.",
 	tabLeaderboard: "The leaderboard is coming soon.",
 	tabCompare:     "Player comparison is coming soon.",
+}
+
+// predictSheetPattern is the single source of truth for the per-Prediction-
+// Set stub page's route, registered on both authMux and the outer mux so the
+// two can't drift out of sync, the same way shellRoutes is for the bottom-nav
+// routes.
+const predictSheetPattern = "GET /predict/{id}"
+
+// Prediction Set phases, matching fantasy-hockey.yml's prediction_sets[].phase
+// values and the Predict screen's two section labels (DESIGN.md's Section
+// header icon component: a target icon for "Before the season," a trophy
+// icon for "Playoffs").
+const (
+	phaseBeforeSeason = "before_season"
+	phasePlayoffs     = "playoffs"
+)
+
+// Prediction Set status labels and their status-pill CSS classes
+// (styles.css). "Submitted" is unreachable until a later story can record a
+// pick (this story never writes one), but the constant and its pill class
+// exist now so that story only has to start returning it, not build the
+// pill for it.
+const (
+	statusOpen      = "Open"
+	statusSubmitted = "Submitted"
+	statusClosed    = "Closed"
+	statusUpcoming  = "Upcoming"
+
+	statusPillOpen      = "status-pill--open"
+	statusPillSubmitted = "status-pill--submitted"
+	statusPillClosed    = "status-pill--closed"
+	statusPillUpcoming  = "status-pill--upcoming"
+)
+
+// predictSetView is one Predict-screen row: every field is already
+// presentation-ready (formatted deadline, computed status/pill/accent), so
+// shell.html only renders - it never computes status or formats a
+// timestamp itself (Boundaries & Constraints: "one reusable helper, not
+// duplicated per template").
+type predictSetView struct {
+	ID             string
+	Title          string
+	Subtitle       string
+	DeadlineText   string
+	Countdown      string
+	CountdownFaint bool // true for Upcoming rows (DESIGN.md: faint countdown when Upcoming, ice otherwise)
+	Status         string
+	StatusPillCSS  string
+	AccentCSS      string
+	Actionable     bool // Open/Submitted/Closed rows link to /predict/{id}; Upcoming rows don't
+}
+
+// predictPhases is Predict's two phase-grouped sections.
+type predictPhases struct {
+	BeforeSeason []predictSetView
+	Playoffs     []predictSetView
+}
+
+// newPredictSetView derives set's presentation-ready row from its
+// hand-maintained YAML fields, evaluating status/countdown against now. An
+// error means set.DeadlineUTC isn't valid RFC3339 - a hand-edit mistake in
+// fantasy-hockey.yml, not something a caller can recover from per-row, so
+// the caller drops the row rather than rendering a broken one.
+func newPredictSetView(set store.PredictionSet, now time.Time) (predictSetView, error) {
+	deadline, err := time.Parse(time.RFC3339, set.DeadlineUTC)
+	if err != nil {
+		return predictSetView{}, fmt.Errorf("parse deadline_utc %q: %w", set.DeadlineUTC, err)
+	}
+
+	status, pillCSS := predictStatus(set.Upcoming, deadline, now)
+	accentCSS := "set-row--open"
+	if set.Upcoming {
+		accentCSS = "set-row--upcoming"
+	}
+
+	return predictSetView{
+		ID:             set.ID,
+		Title:          set.Title,
+		Subtitle:       set.Subtitle,
+		DeadlineText:   clock.FormatDeadline(deadline),
+		Countdown:      clock.Countdown(deadline, now),
+		CountdownFaint: set.Upcoming,
+		Status:         status,
+		StatusPillCSS:  pillCSS,
+		AccentCSS:      accentCSS,
+		Actionable:     !set.Upcoming,
+	}, nil
+}
+
+// predictStatus computes a Prediction Set's status label and status-pill CSS
+// class from its Upcoming flag and deadline. It never returns "Submitted" -
+// this story never records a pick, so that status stays unreachable until a
+// later story can produce it. A deadline exactly at now counts as closed
+// (now is never "still open" once it reaches the deadline).
+func predictStatus(upcoming bool, deadline, now time.Time) (label, pillCSS string) {
+	switch {
+	case upcoming:
+		return statusUpcoming, statusPillUpcoming
+	case !deadline.After(now):
+		return statusClosed, statusPillClosed
+	default:
+		return statusOpen, statusPillOpen
+	}
+}
+
+// buildPredictPhases groups st's Prediction Sets into their two Predict
+// sections, in the order fantasy-hockey.yml lists them. A row whose
+// deadline_utc fails to parse is logged and skipped rather than failing the
+// whole page - one hand-edit mistake shouldn't take down every other
+// Prediction Set. A row with a phase other than "before_season" or
+// "playoffs" is likewise logged and skipped.
+func buildPredictPhases(st *store.Store, now time.Time) predictPhases {
+	var phases predictPhases
+	for _, set := range st.PredictionSets() {
+		view, err := newPredictSetView(set, now)
+		if err != nil {
+			slog.Error("build predict set view", "prediction_set_id", set.ID, "error", err)
+			continue
+		}
+
+		switch set.Phase {
+		case phaseBeforeSeason:
+			phases.BeforeSeason = append(phases.BeforeSeason, view)
+		case phasePlayoffs:
+			phases.Playoffs = append(phases.Playoffs, view)
+		default:
+			slog.Error("unknown prediction set phase", "prediction_set_id", set.ID, "phase", set.Phase)
+		}
+	}
+	return phases
 }
 
 // shellData feeds templates/shell.html. PlayerName is empty when the
 // session's player id has no matching player left in the store (a
 // stale/deleted id) - the header then degrades to a neutral state instead
 // of a 500 or panic. Season is already presentation-formatted (e.g. "NHL
-// 2026–27"); ActiveTab selects which bottom-nav tab renders active; Title
-// and Message are that tab's page title and static placeholder content.
+// 2026–27"); ActiveTab selects which bottom-nav tab renders active; Title is
+// every tab's page title. Message is Leaderboard/Compare's static
+// placeholder content and stays empty for Predict; Predict is nil for every
+// other tab and holds Predict's real, phase-grouped content instead.
 type shellData struct {
 	PlayerName string
 	Season     string
 	ActiveTab  string
 	Title      string
 	Message    string
+	Predict    *predictPhases
 }
 
 // formatSeason turns the store's raw season value (e.g. "2026-27") into the
@@ -127,6 +263,9 @@ var shellRoutes = []struct {
 // their own authMux, which requireSession wraps before it's mounted on the
 // outer mux alongside the public routes - a future protected route joins
 // shellRoutes the same way, without touching how public routes are wired.
+// GET /predict/{id} (the per-Prediction-Set stub page) is registered the
+// same way but outside shellRoutes, since it isn't a bottom-nav destination
+// and needs its own handler (handleSheet) rather than handleShell.
 // POST /logout is registered directly on the outer mux rather than authMux,
 // since clearing the session cookie must work even when the presented
 // cookie is missing, expired, or tampered.
@@ -135,12 +274,14 @@ func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler 
 	for _, r := range shellRoutes {
 		authMux.Handle(r.pattern, handleShell(st, r.tab))
 	}
+	authMux.Handle(predictSheetPattern, handleSheet(st))
 	protected := requireSession(secret, authMux)
 
 	mux := http.NewServeMux()
 	for _, r := range shellRoutes {
 		mux.Handle(r.pattern, protected)
 	}
+	mux.Handle(predictSheetPattern, protected)
 	mux.HandleFunc("GET /login", handleLoginForm(secret))
 	mux.HandleFunc("POST /login", handleLoginSubmit(st, send))
 	mux.HandleFunc("POST /login/code", handleLoginCodeSubmit(st, secret))
@@ -191,11 +332,12 @@ func staticFiles() fs.FS {
 
 // handleShell renders the persistent app shell for tab: a pinned header
 // (player name + season + logout control), a pinned bottom nav with tab
-// active, and that tab's short static "Coming soon" content. The player id
-// comes from the request context requireSession populates; a stale/deleted
-// id with no matching player left in st degrades to an empty PlayerName
-// (a neutral, non-crashing header) rather than a 500 or panic, logging the
-// lookup miss server-side.
+// active, and that tab's content - Predict's real, phase-grouped Prediction
+// Set lists, or Leaderboard/Compare's short static "Coming soon" message.
+// The player id comes from the request context requireSession populates; a
+// stale/deleted id with no matching player left in st degrades to an empty
+// PlayerName (a neutral, non-crashing header) rather than a 500 or panic,
+// logging the lookup miss server-side.
 func handleShell(st *store.Store, tab string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var name string
@@ -207,13 +349,61 @@ func handleShell(st *store.Store, tab string) http.HandlerFunc {
 			}
 		}
 
-		renderTemplate(w, "shell.html", shellData{
+		data := shellData{
 			PlayerName: name,
 			Season:     formatSeason(st.Season()),
 			ActiveTab:  tab,
 			Title:      tabTitles[tab],
 			Message:    tabMessages[tab],
-		})
+		}
+		if tab == tabPredict {
+			phases := buildPredictPhases(st, clock.NowTime())
+			data.Predict = &phases
+		}
+
+		renderTemplate(w, "shell.html", data)
+	}
+}
+
+// sheetData feeds templates/sheet.html: the minimal per-Prediction-Set stub
+// page this story adds - a real pick-entry sheet is a later story's work
+// (Boundaries & Constraints: "not a real Prediction sheet").
+type sheetData struct {
+	Title        string
+	DeadlineText string
+	Countdown    string
+}
+
+// handleSheet renders the GET /predict/{id} stub page for the Prediction Set
+// matching {id}: title, formatted deadline+countdown, and a static "not
+// available yet" body - no pick-entry form, no action bar. An {id} matching
+// no Prediction Set gets a generic http.StatusNotFound response, the same
+// as any other unknown path, so it can't be used to probe which ids exist.
+// A row whose deadline_utc fails to parse is treated the same way, since
+// there's nothing sensible to render for it either.
+func handleSheet(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		for _, set := range st.PredictionSets() {
+			if set.ID != id {
+				continue
+			}
+
+			deadline, err := time.Parse(time.RFC3339, set.DeadlineUTC)
+			if err != nil {
+				slog.Error("parse deadline_utc for prediction set", "prediction_set_id", set.ID, "error", err)
+				http.NotFound(w, r)
+				return
+			}
+
+			renderTemplate(w, "sheet.html", sheetData{
+				Title:        set.Title,
+				DeadlineText: clock.FormatDeadline(deadline),
+				Countdown:    clock.Countdown(deadline, clock.NowTime()),
+			})
+			return
+		}
+		http.NotFound(w, r)
 	}
 }
 

@@ -5,3 +5,61 @@ players:
       name: Sebastian
       email: sebastian@sommerfeld.io
 login_codes: []
+# deadline_utc values below are the UX click-dummy's illustrative placeholder
+# dates (Europe/Berlin, converted to UTC), not the real 2026-27 season
+# schedule - hand-edit them to the real deadlines before players rely on them.
+prediction_sets:
+    - id: cup
+      title: Cup champion
+      subtitle: Your Stanley Cup winner
+      deadline_utc: "2026-10-06T17:00:00Z"
+      phase: before_season
+      upcoming: false
+    - id: presidents
+      title: Presidents' Trophy
+      subtitle: Best regular-season record
+      deadline_utc: "2026-10-06T17:00:00Z"
+      phase: before_season
+      upcoming: false
+    - id: divisions
+      title: Division picks
+      subtitle: Playoff teams & division winners
+      deadline_utc: "2026-10-06T17:00:00Z"
+      phase: before_season
+      upcoming: false
+    - id: awards
+      title: Player awards
+      subtitle: Hart, Norris, Vezina, Art Ross, Rocket
+      deadline_utc: "2026-10-06T17:00:00Z"
+      phase: before_season
+      upcoming: false
+    - id: playoffcup
+      title: Playoffs Cup pick
+      subtitle: Re-pick the Stanley Cup winner
+      deadline_utc: "2027-04-15T16:00:00Z"
+      phase: playoffs
+      upcoming: false
+    - id: r1
+      title: Playoff round 1
+      subtitle: 8 series — winner & length
+      deadline_utc: "2027-04-18T16:00:00Z"
+      phase: playoffs
+      upcoming: false
+    - id: r2
+      title: Playoff round 2
+      subtitle: Set once round 1 ends
+      deadline_utc: "2027-04-30T16:00:00Z"
+      phase: playoffs
+      upcoming: true
+    - id: cf
+      title: Conference finals
+      subtitle: Set once round 2 ends
+      deadline_utc: "2027-05-14T16:00:00Z"
+      phase: playoffs
+      upcoming: true
+    - id: scf
+      title: Stanley Cup final
+      subtitle: Set once the finalists are known
+      deadline_utc: "2027-05-28T16:00:00Z"
+      phase: playoffs
+      upcoming: true
