@@ -112,10 +112,19 @@ func (s *logOutScenarioState) thePlayerLogsOut() error {
 	return nil
 }
 
+// thePlayerMakesTheirNextRequestToAProtectedRoute requests the home page,
+// the shell's default destination.
 func (s *logOutScenarioState) thePlayerMakesTheirNextRequestToAProtectedRoute() error {
-	resp, err := s.client.Get(s.server.URL + "/")
+	return s.thePlayerMakesTheirNextRequestTo("/")
+}
+
+// thePlayerMakesTheirNextRequestTo requests route. Parameterized so
+// logout's invalidation can be proven at the acceptance layer for every
+// shell destination, not just "/".
+func (s *logOutScenarioState) thePlayerMakesTheirNextRequestTo(route string) error {
+	resp, err := s.client.Get(s.server.URL + route)
 	if err != nil {
-		return fmt.Errorf("get /: %w", err)
+		return fmt.Errorf("get %s: %w", route, err)
 	}
 	defer resp.Body.Close()
 
@@ -192,6 +201,7 @@ func InitializeLogOutScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the player's session cookie has been tampered with$`, s.thePlayersSessionCookieHasBeenTamperedWith)
 	ctx.Step(`^the player logs out$`, s.thePlayerLogsOut)
 	ctx.Step(`^the player makes their next request to a protected route$`, s.thePlayerMakesTheirNextRequestToAProtectedRoute)
+	ctx.Step(`^the player makes their next request to "([^"]*)"$`, s.thePlayerMakesTheirNextRequestTo)
 	ctx.Step(`^the logout response redirects to "([^"]*)"$`, s.theLogoutResponseRedirectsTo)
 	ctx.Step(`^the logout response clears the session cookie$`, s.theLogoutResponseClearsTheSessionCookie)
 	ctx.Step(`^the browser's cookie jar no longer holds a session cookie$`, s.theBrowsersCookieJarNoLongerHoldsASessionCookie)

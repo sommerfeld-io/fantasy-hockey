@@ -10,6 +10,7 @@ Feature: Enter Login Code and Establish Session
     When the player submits their login code
     Then the login-code response redirects to "/"
     And a session cookie is set
+    And the session cookie identifies "Basti" as the logged-in player
     And the login code is marked used
 
   Scenario: A wrong code shows a generic error

@@ -8,10 +8,6 @@
 package acceptance_test
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"os"
@@ -83,19 +79,14 @@ func noopSender(_, _, _ string) error { return nil }
 
 var _ mailer.Sender = noopSender
 
-// signedSessionCookieForTest builds a validly-signed session cookie value
-// for playerID issued at issuedAt, mirroring internal/auth's cookie format
-// (base64url(player_id) + "|" + issued_at RFC3339, HMAC-SHA256-signed with
-// the shared testSessionSecret) - unlike auth.IssueSessionCookie, which
-// always stamps the current time, this lets a scenario pin issuedAt
+// signedSessionCookieForTest builds a validly-signed session cookie for
+// playerID issued at issuedAt, signed with the shared testSessionSecret via
+// internal/auth's own IssueSessionCookieAt - unlike auth.IssueSessionCookie,
+// which always stamps the current time, this lets a scenario pin issuedAt
 // precisely to exercise the idle timeout deterministically. Shared by
 // scenarios across multiple files so the signing logic can't drift.
 func signedSessionCookieForTest(playerID string, issuedAt time.Time) *http.Cookie {
-	payload := base64.RawURLEncoding.EncodeToString([]byte(playerID)) + "|" + issuedAt.UTC().Format(time.RFC3339)
-	mac := hmac.New(sha256.New, []byte(testSessionSecret))
-	mac.Write([]byte(payload))
-	sig := hex.EncodeToString(mac.Sum(nil))
-	return &http.Cookie{Name: auth.SessionCookieName, Value: payload + "." + sig}
+	return auth.IssueSessionCookieAt(playerID, issuedAt, testSessionSecret)
 }
 
 // tamperSessionCookie flips c's last signature byte to a value guaranteed

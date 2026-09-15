@@ -25,18 +25,26 @@ const SessionCookieName = "session"
 // cookie for (PRD FR-3).
 const SessionIdleTimeout = 30 * time.Minute
 
-// IssueSessionCookie builds a signed session cookie for playerID. The
-// cookie's value is base64url(player_id) + "|" + issued_at_RFC3339 + "." +
-// hex(HMAC-SHA256(secret, payload)) - player_id is base64url-encoded on its
-// own (rather than joined with issued_at before encoding) so a hand-typed
-// player_id containing a literal "|" can never be misread as the segment
-// separator. It carries no Max-Age/Expires (AD-11 - validity is enforced
-// server-side, not by the browser) and no Secure flag (AD-14 - plain HTTP
-// today). Nothing yet reads this cookie back on a route - that's Story
-// 1.3's job.
+// IssueSessionCookie builds a signed session cookie for playerID, issued at
+// the current time. See IssueSessionCookieAt for the cookie's exact shape
+// and wire format.
 func IssueSessionCookie(playerID, secret string) *http.Cookie {
-	issuedAt := clock.NowTime().UTC().Format(time.RFC3339)
-	payload := sessionPayload(playerID, issuedAt)
+	return IssueSessionCookieAt(playerID, clock.NowTime(), secret)
+}
+
+// IssueSessionCookieAt builds a signed session cookie for playerID as if
+// issued at issuedAt. The cookie's value is base64url(player_id) + "|" +
+// issued_at_RFC3339 + "." + hex(HMAC-SHA256(secret, payload)) - player_id is
+// base64url-encoded on its own (rather than joined with issued_at before
+// encoding) so a hand-typed player_id containing a literal "|" can never be
+// misread as the segment separator. It carries no Max-Age/Expires (AD-11 -
+// validity is enforced server-side, not by the browser) and no Secure flag
+// (AD-14 - plain HTTP today). Exported (rather than kept as an IssueSessionCookie
+// internal) so callers that need to pin an arbitrary issued_at - tests
+// exercising the idle timeout deterministically - build a cookie through
+// this one shared, real signing path instead of each reimplementing it.
+func IssueSessionCookieAt(playerID string, issuedAt time.Time, secret string) *http.Cookie {
+	payload := sessionPayload(playerID, issuedAt.UTC().Format(time.RFC3339))
 
 	c := baseSessionCookie()
 	c.Value = encodeSessionValue(payload, secret)

@@ -20,6 +20,7 @@ import (
 	"github.com/cucumber/godog"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
@@ -66,10 +67,11 @@ func (r loginCodeRow) equal(other loginCodeRow) bool {
 	}
 }
 
-// loginResponse is one recorded POST /login result.
+// loginResponse is one recorded POST /login or GET /login result.
 type loginResponse struct {
-	status int
-	body   string
+	status   int
+	body     string
+	location string
 }
 
 // loginScenarioState holds the fixtures and results for one request-a-
@@ -82,16 +84,17 @@ type loginResponse struct {
 // that goroutine and a step definition's assertion can touch sentTo,
 // sentCodes, and logs concurrently.
 type loginScenarioState struct {
-	dataFile     string
-	server       *httptest.Server
-	mu           sync.Mutex
-	sendFails    bool
-	sentTo       []string
-	sentCodes    []string
-	logs         *bytes.Buffer
-	prevDefault  *slog.Logger // slog.Default() before startServer overrode it, restored in close
-	responses    []loginResponse
-	firstCodeRow *loginCodeRow // snapshot of doc.LoginCodes[0] right after the first request
+	dataFile      string
+	server        *httptest.Server
+	mu            sync.Mutex
+	sendFails     bool
+	sentTo        []string
+	sentCodes     []string
+	logs          *bytes.Buffer
+	prevDefault   *slog.Logger // slog.Default() before startServer overrode it, restored in close
+	responses     []loginResponse
+	firstCodeRow  *loginCodeRow // snapshot of doc.LoginCodes[0] right after the first request
+	activeSession *http.Cookie  // set by "the player has an active session", sent by "the player visits the login page"
 }
 
 func newLoginScenarioState() *loginScenarioState {
@@ -378,6 +381,64 @@ func (s *loginScenarioState) theFirstLoginCodeIsUnchanged() error {
 	return nil
 }
 
+// thePlayerHasAnActiveSession seeds a validly-signed session cookie for
+// "basti" - the player id the Background's registration step derives from
+// "Basti" - for a later "the player visits the login page" step to send.
+func (s *loginScenarioState) thePlayerHasAnActiveSession() error {
+	if err := s.startServer(); err != nil {
+		return err
+	}
+	s.activeSession = auth.IssueSessionCookie("basti", testSessionSecret)
+	return nil
+}
+
+// thePlayerVisitsTheLoginPage GETs /login, carrying s.activeSession if one
+// was seeded, without following any redirect so a step can inspect a 302
+// and its Location header directly.
+func (s *loginScenarioState) thePlayerVisitsTheLoginPage() error {
+	if err := s.startServer(); err != nil {
+		return err
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	req, err := http.NewRequest(http.MethodGet, s.server.URL+"/login", nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	if s.activeSession != nil {
+		req.AddCookie(s.activeSession)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("get /login: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response body: %w", err)
+	}
+	s.responses = append(s.responses, loginResponse{status: resp.StatusCode, body: string(body), location: resp.Header.Get("Location")})
+	return nil
+}
+
+func (s *loginScenarioState) theLoginPageResponseRedirectsTo(target string) error {
+	got, err := s.lastResponse()
+	if err != nil {
+		return err
+	}
+	if got.status != http.StatusFound {
+		return fmt.Errorf("expected status %d, got %d", http.StatusFound, got.status)
+	}
+	if got.location != target {
+		return fmt.Errorf("expected a redirect to %q, got %q", target, got.location)
+	}
+	return nil
+}
+
 func (s *loginScenarioState) anErrorWasLogged() error {
 	err := s.waitUntil("an error to be logged", func() bool { return strings.Contains(s.logs.String(), "ERROR") })
 	if err != nil {
@@ -408,4 +469,7 @@ func InitializeLoginScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^(\d+) login codes are persisted$`, s.nLoginCodesArePersisted)
 	ctx.Step(`^the first login code is unchanged$`, s.theFirstLoginCodeIsUnchanged)
 	ctx.Step(`^an error was logged$`, s.anErrorWasLogged)
+	ctx.Step(`^the player has an active session$`, s.thePlayerHasAnActiveSession)
+	ctx.Step(`^the player visits the login page$`, s.thePlayerVisitsTheLoginPage)
+	ctx.Step(`^the login-page response redirects to "([^"]*)"$`, s.theLoginPageResponseRedirectsTo)
 }

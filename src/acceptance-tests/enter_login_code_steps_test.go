@@ -232,6 +232,45 @@ func (s *enterLoginCodeScenarioState) aSessionCookieIsSet() error {
 	return nil
 }
 
+// theSessionCookieIdentifiesAsTheLoggedInPlayer chains the session cookie
+// the last response set into a real follow-up request against a protected
+// shell route, and asserts the rendered header shows name - proving the
+// login-code (Story 1.2) -> session-consumption (Story 1.5) handoff itself,
+// not just that some cookie was set. A regression that issued the cookie
+// for the wrong or an empty player id would render the wrong name (or the
+// stale-player-id placeholder) here, even though every other assertion on
+// this response already passes.
+func (s *enterLoginCodeScenarioState) theSessionCookieIdentifiesAsTheLoggedInPlayer(name string) error {
+	got, err := s.lastResponse()
+	if err != nil {
+		return err
+	}
+	if len(got.cookies) != 1 {
+		return fmt.Errorf("expected exactly 1 session cookie, got %d", len(got.cookies))
+	}
+
+	req, err := http.NewRequest(http.MethodGet, s.server.URL+"/predict", nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.AddCookie(got.cookies[0])
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("get /predict: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response body: %w", err)
+	}
+	if !strings.Contains(string(body), name) {
+		return fmt.Errorf("expected the shell to identify %q as the logged-in player, got %q", name, string(body))
+	}
+	return nil
+}
+
 func (s *enterLoginCodeScenarioState) noSessionCookieIsSet() error {
 	got, err := s.lastResponse()
 	if err != nil {
@@ -294,6 +333,7 @@ func InitializeEnterLoginCodeScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the login-code response shows the generic code error$`, s.loginCodeResponseShowsTheGenericCodeError)
 	ctx.Step(`^the submitted code "([^"]*)" is retained on the screen$`, s.submittedCodeIsRetainedOnScreen)
 	ctx.Step(`^a session cookie is set$`, s.aSessionCookieIsSet)
+	ctx.Step(`^the session cookie identifies "([^"]*)" as the logged-in player$`, s.theSessionCookieIdentifiesAsTheLoggedInPlayer)
 	ctx.Step(`^no session cookie is set$`, s.noSessionCookieIsSet)
 	ctx.Step(`^the login code is marked used$`, s.theLoginCodeIsMarkedUsed)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"net/http"
 	"strings"
@@ -45,6 +44,36 @@ func TestIssueSessionCookieShouldSetTheExpectedAttributes(t *testing.T) {
 	}
 	if c.MaxAge != 0 {
 		t.Errorf("expected no Max-Age attribute, got %d", c.MaxAge)
+	}
+}
+
+func TestIssueSessionCookieAtShouldMatchAFreshlyIssuedCookieForTheSameInstant(t *testing.T) {
+	now := time.Now().UTC()
+	viaNow := auth.IssueSessionCookie("basti", "test-secret")
+	viaAt := auth.IssueSessionCookieAt("basti", now, "test-secret")
+
+	playerID, issuedAt, ok := auth.ParseSessionCookie(viaAt, "test-secret")
+	if !ok {
+		t.Fatal("expected the cookie to parse successfully")
+	}
+	if playerID != "basti" {
+		t.Errorf("expected player id %q, got %q", "basti", playerID)
+	}
+	if !issuedAt.Equal(now.Truncate(time.Second)) {
+		t.Errorf("expected issued_at %v, got %v", now.Truncate(time.Second), issuedAt)
+	}
+	if viaAt.Name != viaNow.Name || viaAt.Path != viaNow.Path || viaAt.HttpOnly != viaNow.HttpOnly || viaAt.SameSite != viaNow.SameSite {
+		t.Errorf("expected the same cookie shape as IssueSessionCookie, got %+v vs %+v", viaAt, viaNow)
+	}
+}
+
+func TestIssueSessionCookieAtShouldLetATestPinAnArbitraryIssuedAt(t *testing.T) {
+	issuedAt := time.Now().UTC().Add(-31 * time.Minute)
+	c := auth.IssueSessionCookieAt("basti", issuedAt, "test-secret")
+
+	_, ok := auth.ValidateSession(c, "test-secret")
+	if ok {
+		t.Fatal("expected a session issued 31 minutes ago to be rejected as idle-expired")
 	}
 }
 
@@ -190,19 +219,6 @@ func TestParseSessionCookieShouldRejectANilCookie(t *testing.T) {
 	}
 }
 
-// buildSessionCookie signs a session cookie value directly, mirroring
-// IssueSessionCookie's payload format ("base64url(player_id)|issued_at"
-// signed with HMAC-SHA256) - unlike IssueSessionCookie, which always stamps
-// the current time, this lets a test pin issuedAt to an arbitrary point so
-// idle-timeout behavior can be tested deterministically.
-func buildSessionCookie(playerID string, issuedAt time.Time, secret string) *http.Cookie {
-	payload := base64.RawURLEncoding.EncodeToString([]byte(playerID)) + "|" + issuedAt.UTC().Format(time.RFC3339)
-	return &http.Cookie{
-		Name:  auth.SessionCookieName,
-		Value: payload + "." + signPayload(payload, secret),
-	}
-}
-
 func TestValidateSessionShouldAcceptAFreshSession(t *testing.T) {
 	c := auth.IssueSessionCookie("basti", "test-secret")
 
@@ -216,7 +232,7 @@ func TestValidateSessionShouldAcceptAFreshSession(t *testing.T) {
 }
 
 func TestValidateSessionShouldAcceptASessionJustUnderTheIdleTimeout(t *testing.T) {
-	c := buildSessionCookie("basti", time.Now().UTC().Add(-29*time.Minute), "test-secret")
+	c := auth.IssueSessionCookieAt("basti", time.Now().UTC().Add(-29*time.Minute), "test-secret")
 
 	_, ok := auth.ValidateSession(c, "test-secret")
 	if !ok {
@@ -233,7 +249,7 @@ func TestValidateSessionShouldAcceptASessionJustUnderTheIdleTimeout(t *testing.T
 // code inspection - it matches store.ConsumeLoginCode's identical pattern.
 
 func TestValidateSessionShouldRejectASessionIssuedOverThirtyMinutesAgo(t *testing.T) {
-	c := buildSessionCookie("basti", time.Now().UTC().Add(-31*time.Minute), "test-secret")
+	c := auth.IssueSessionCookieAt("basti", time.Now().UTC().Add(-31*time.Minute), "test-secret")
 
 	_, ok := auth.ValidateSession(c, "test-secret")
 	if ok {
@@ -242,7 +258,7 @@ func TestValidateSessionShouldRejectASessionIssuedOverThirtyMinutesAgo(t *testin
 }
 
 func TestValidateSessionShouldRejectAFutureDatedIssuedAt(t *testing.T) {
-	c := buildSessionCookie("basti", time.Now().UTC().Add(5*time.Minute), "test-secret")
+	c := auth.IssueSessionCookieAt("basti", time.Now().UTC().Add(5*time.Minute), "test-secret")
 
 	_, ok := auth.ValidateSession(c, "test-secret")
 	if ok {
@@ -251,7 +267,7 @@ func TestValidateSessionShouldRejectAFutureDatedIssuedAt(t *testing.T) {
 }
 
 func TestValidateSessionShouldRejectAnEmptyPlayerID(t *testing.T) {
-	c := buildSessionCookie("", time.Now().UTC(), "test-secret")
+	c := auth.IssueSessionCookieAt("", time.Now().UTC(), "test-secret")
 
 	_, ok := auth.ValidateSession(c, "test-secret")
 	if ok {

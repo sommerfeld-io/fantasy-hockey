@@ -8,6 +8,21 @@ Feature: Stay Logged In With Sliding Session Timeout
     When the player requests a protected route
     Then the protected-route response carries a re-issued session cookie for the same player
 
+  Scenario: A session issued less than 30 minutes ago slides forward on the Predict destination
+    Given a player is logged in with a session issued 5 minutes ago
+    When the player requests the "/predict" protected route
+    Then the protected-route response carries a re-issued session cookie for the same player
+
+  Scenario: A session issued less than 30 minutes ago slides forward on the Leaderboard destination
+    Given a player is logged in with a session issued 5 minutes ago
+    When the player requests the "/leaderboard" protected route
+    Then the protected-route response carries a re-issued session cookie for the same player
+
+  Scenario: A session issued less than 30 minutes ago slides forward on the Compare destination
+    Given a player is logged in with a session issued 5 minutes ago
+    When the player requests the "/compare" protected route
+    Then the protected-route response carries a re-issued session cookie for the same player
+
   Scenario: A session issued more than 30 minutes ago is redirected to login
     Given a player is logged in with a session issued 31 minutes ago
     When the player requests a protected route

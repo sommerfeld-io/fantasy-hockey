@@ -37,3 +37,21 @@ Feature: Log Out
     When the player logs out
     And the player makes their next request to a protected route
     Then that request is redirected to "/login"
+
+  Scenario: The very next request to Predict after logging out is treated as unauthenticated
+    Given a player has an active session
+    When the player logs out
+    And the player makes their next request to "/predict"
+    Then that request is redirected to "/login"
+
+  Scenario: The very next request to Leaderboard after logging out is treated as unauthenticated
+    Given a player has an active session
+    When the player logs out
+    And the player makes their next request to "/leaderboard"
+    Then that request is redirected to "/login"
+
+  Scenario: The very next request to Compare after logging out is treated as unauthenticated
+    Given a player has an active session
+    When the player logs out
+    And the player makes their next request to "/compare"
+    Then that request is redirected to "/login"

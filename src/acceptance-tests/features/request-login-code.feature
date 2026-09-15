@@ -29,3 +29,8 @@ Feature: Request a Login Code
     When a visitor requests a login code for "basti@example.com"
     Then the response status is 200
     And an error was logged
+
+  Scenario: An already-logged-in player visiting the login page is sent straight to the shell
+    Given the player has an active session
+    When the player visits the login page
+    Then the login-page response redirects to "/"

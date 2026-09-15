@@ -103,33 +103,45 @@ type loginCodeData struct {
 	Error string
 }
 
+// shellRoutes is the single source of truth for every authenticated
+// app-shell route this server registers, pairing each route pattern with
+// the bottom-nav tab it renders active. NewServer registers each pattern on
+// both authMux and the outer mux from this one list, so the two can no
+// longer drift out of sync as future stories add routes (AD-2/AD-11). GET
+// /{$} aliases to the same Predict shell as GET /predict.
+var shellRoutes = []struct {
+	pattern string
+	tab     string
+}{
+	{"GET /{$}", tabPredict},
+	{"GET /predict", tabPredict},
+	{"GET /leaderboard", tabLeaderboard},
+	{"GET /compare", tabCompare},
+}
+
 // NewServer wires the application's routes and returns an http.Handler
 // ready to be served. st and send back the login-code request flow
 // (GET/POST /login, POST /login/code); secret signs the session cookie a
 // successful POST /login/code sets and verifies the ones requireSession
-// reads back. GET /{$}, /predict, /leaderboard, and /compare are the
-// authenticated app-shell routes: they're registered on their own authMux,
-// which requireSession wraps before it's mounted on the outer mux alongside
-// the public routes (AD-2/AD-11) - a future protected route joins authMux
-// the same way, without touching how public routes are wired. GET /{$}
-// aliases to the same Predict shell as GET /predict. POST /logout is
-// registered directly on the outer mux rather than authMux, since clearing
-// the session cookie must work even when the presented cookie is missing,
-// expired, or tampered.
+// reads back. shellRoutes' authenticated app-shell routes are registered on
+// their own authMux, which requireSession wraps before it's mounted on the
+// outer mux alongside the public routes - a future protected route joins
+// shellRoutes the same way, without touching how public routes are wired.
+// POST /logout is registered directly on the outer mux rather than authMux,
+// since clearing the session cookie must work even when the presented
+// cookie is missing, expired, or tampered.
 func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler {
 	authMux := http.NewServeMux()
-	authMux.Handle("GET /{$}", handleShell(st, tabPredict))
-	authMux.Handle("GET /predict", handleShell(st, tabPredict))
-	authMux.Handle("GET /leaderboard", handleShell(st, tabLeaderboard))
-	authMux.Handle("GET /compare", handleShell(st, tabCompare))
+	for _, r := range shellRoutes {
+		authMux.Handle(r.pattern, handleShell(st, r.tab))
+	}
 	protected := requireSession(secret, authMux)
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /{$}", protected)
-	mux.Handle("GET /predict", protected)
-	mux.Handle("GET /leaderboard", protected)
-	mux.Handle("GET /compare", protected)
-	mux.HandleFunc("GET /login", handleLoginForm)
+	for _, r := range shellRoutes {
+		mux.Handle(r.pattern, protected)
+	}
+	mux.HandleFunc("GET /login", handleLoginForm(secret))
 	mux.HandleFunc("POST /login", handleLoginSubmit(st, send))
 	mux.HandleFunc("POST /login/code", handleLoginCodeSubmit(st, secret))
 	mux.HandleFunc("POST /logout", handleLogout)
@@ -205,9 +217,19 @@ func handleShell(st *store.Store, tab string) http.HandlerFunc {
 	}
 }
 
-// handleLoginForm renders the email-entry step of the login flow.
-func handleLoginForm(w http.ResponseWriter, _ *http.Request) {
-	renderTemplate(w, "login-email.html", nil)
+// handleLoginForm renders the email-entry step of the login flow, unless
+// the request already carries a valid session - a still-logged-in player
+// following a bookmark or the back button straight back to /login is sent
+// into the shell instead of being shown the anonymous form again.
+func handleLoginForm(secret string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		c, _ := r.Cookie(auth.SessionCookieName)
+		if _, ok := auth.ValidateSession(c, secret); ok {
+			http.Redirect(w, r, "/", http.StatusFound)
+			return
+		}
+		renderTemplate(w, "login-email.html", nil)
+	}
 }
 
 // handleLoginSubmit matches the submitted email against st and always

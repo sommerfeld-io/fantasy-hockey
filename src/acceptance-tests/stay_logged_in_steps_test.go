@@ -60,15 +60,22 @@ func (s *stayLoggedInScenarioState) aPlayerIsLoggedInWithASessionCookieCarryingA
 	return nil
 }
 
-// thePlayerRequestsAProtectedRoute requests the home page - today's only
-// protected route - without following any redirect, so a step can inspect
-// the 302 and its Set-Cookie header directly.
+// thePlayerRequestsAProtectedRoute requests the home page, the shell's
+// default destination.
 func (s *stayLoggedInScenarioState) thePlayerRequestsAProtectedRoute() error {
+	return s.thePlayerRequestsTheProtectedRoute("/")
+}
+
+// thePlayerRequestsTheProtectedRoute requests route without following any
+// redirect, so a step can inspect the 302 and its Set-Cookie header
+// directly. Parameterized so the sliding-session behavior can be proven at
+// the acceptance layer for every shell destination, not just "/".
+func (s *stayLoggedInScenarioState) thePlayerRequestsTheProtectedRoute(route string) error {
 	client := &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 	}
 
-	req, err := http.NewRequest(http.MethodGet, s.server.URL+"/", nil)
+	req, err := http.NewRequest(http.MethodGet, s.server.URL+route, nil)
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}
@@ -78,7 +85,7 @@ func (s *stayLoggedInScenarioState) thePlayerRequestsAProtectedRoute() error {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("get /: %w", err)
+		return fmt.Errorf("get %s: %w", route, err)
 	}
 	defer resp.Body.Close()
 
@@ -158,6 +165,7 @@ func InitializeStayLoggedInScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^a player is logged in with a tampered session cookie$`, s.aPlayerIsLoggedInWithATamperedSessionCookie)
 	ctx.Step(`^a player is logged in with a session cookie carrying an empty player id$`, s.aPlayerIsLoggedInWithASessionCookieCarryingAnEmptyPlayerID)
 	ctx.Step(`^the player requests a protected route$`, s.thePlayerRequestsAProtectedRoute)
+	ctx.Step(`^the player requests the "([^"]*)" protected route$`, s.thePlayerRequestsTheProtectedRoute)
 	ctx.Step(`^the protected-route response redirects to "([^"]*)"$`, s.protectedRouteResponseRedirectsTo)
 	ctx.Step(`^the protected-route response carries a re-issued session cookie for the same player$`,
 		s.protectedRouteResponseCarriesAReIssuedSessionCookieForTheSamePlayer)
