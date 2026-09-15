@@ -78,18 +78,35 @@ services:
     working_dir: *default-workdir
     entrypoint: hadolint Dockerfile
 
+  # Local-dev-only SMTP sink: catches every mail the app sends (e.g. login
+  # codes) instead of delivering it, so nothing ever reaches a real inbox.
+  # Web UI at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - 8025:8025
+      - 1025:1025
+
   fantasy-hockey:
     image: ${COMPOSE_PROJECT_NAME}-app:${DEV_TAG}
     restart: unless-stopped
+    depends_on:
+      - mailpit
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - 8080:8080
+    volumes:
+      # Bind-mounts the same data file `task go:run` uses locally, so the
+      # player list and issued login codes are hand-editable on the host
+      # and survive a container rebuild instead of living only inside it.
+      - ./src/fantasy-hockey.yml:/opt/fantasy-hockey/fantasy-hockey.yml
     environment:
       - SESSION_SECRET=${SESSION_SECRET}
-      - DATA_FILE=${DATA_FILE:-}
-      - SMTP_HOST=${SMTP_HOST:-}
-      - SMTP_PORT=${SMTP_PORT:-}
+      - DATA_FILE=${DATA_FILE:-/opt/fantasy-hockey/fantasy-hockey.yml}
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
       - SMTP_USERNAME=${SMTP_USERNAME:-}
       - SMTP_APP_PASSWORD=${SMTP_APP_PASSWORD:-}
