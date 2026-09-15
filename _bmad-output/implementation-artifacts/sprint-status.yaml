@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-15-2026 07:10
+last_updated: 09-15-2026 08:13
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -41,7 +41,7 @@ development_status:
   1-3-stay-logged-in-with-sliding-session-timeout: done
   1-4-log-out: done
   1-5-persistent-app-shell-with-player-identity-and-navigation: done
-  epic-1-retrospective: optional
+  epic-1-retrospective: done
 
   epic-2: backlog
   2-1-browse-prediction-sets-by-phase-and-status: backlog
@@ -71,3 +71,54 @@ development_status:
   epic-6: backlog
   6-1-season-rollover-with-retained-history: backlog
   epic-6-retrospective: optional
+action_items:
+  - id: "epic-1-retro-item-1-add-a-regression-test-asserting-the-sess"
+    epic: 1
+    action: "Add a regression test asserting the session cookie issued by POST /login/code
+      decodes to the correct player id (chain into a protected-route request)"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-2-extend-stay-logged-in-feature-and-log-ou"
+    epic: 1
+    action: "Extend stay-logged-in.feature and log-out.feature scenarios to cover
+      /predict, /leaderboard, /compare, not just /"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-3-get-login-should-redirect-an-already-aut"
+    epic: 1
+    action: "GET /login should redirect an already-authenticated session to the shell
+      instead of re-showing the login form"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-4-resolve-the-dual-mux-route-registration"
+    epic: 1
+    action: "Resolve the dual-mux route registration pattern (single source of truth
+      for the route list) before Epic 2 adds more authenticated routes"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-5-consolidate-the-3-independently-reimplem"
+    epic: 1
+    action: "Consolidate the 3 independently-reimplemented HMAC test-signing/tampering
+      helpers into one shared test-support helper, or explicitly accept the status
+      quo"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-6-decide-whether-the-post-login-redirect-s"
+    epic: 1
+    action: "Decide whether the post-login redirect should preserve the originally-requested
+      destination"
+    owner: "John (PM) / Sally (UX)"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-7-decide-whether-sessions-need-an-absolute"
+    epic: 1
+    action: "Decide whether sessions need an absolute maximum lifetime in addition
+      to the sliding idle timeout"
+    owner: "Winston (Architect)"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
