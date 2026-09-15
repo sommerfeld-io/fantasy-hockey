@@ -96,6 +96,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Overrides the Dockerfile's non-root USER for local dev only: the
+    # bind-mounted data file below is owned by whatever UID runs on the
+    # host, which won't generally match the image's baked-in fantasy-hockey
+    # UID, so reading it as that user can fail even when its permission
+    # bits look fine. Root sidesteps the mismatch; the Dockerfile's
+    # production image still drops to the unprivileged user by default.
+    user: root
     ports:
       - 8080:8080
     volumes:
