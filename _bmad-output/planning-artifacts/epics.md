@@ -8,6 +8,7 @@ inputDocuments:
   - _bmad-output/planning-artifacts/ux-designs/ux-fantasy-hockey-2026-09-14/EXPERIENCE.md
   - _bmad-output/specs/spec-fantasy-hockey/SPEC.md
   - _bmad-output/specs/spec-fantasy-hockey/scoring-rules.md
+  - _bmad-output/brainstorming/brainstorm-data-file-hygiene-2026-09-15/brainstorm-intent.md
 ---
 
 # Fantasy Hockey - Epic Breakdown
@@ -174,6 +175,10 @@ A player can select any prediction set and see every player's picks for it side 
 ### Epic 6: Season Rollover & Multi-Season History
 The pool can restart cleanly for a new NHL season without losing prior seasons' data.
 **FRs covered:** FR-34
+
+### Epic 7: Data File Hygiene
+The app's single hand-maintained data file stays observable, lean, and lint-clean: every write that changes it is logged, login codes that can no longer be used are cleaned up, and the file's own format always satisfies the repo's yamllint rules.
+**FRs covered:** None — infra/observability work surfaced by a dedicated brainstorming session (see brainstorm-intent.md), not a PRD requirement.
 
 *(FR-22, deadline reminder emails, is explicitly deferred out of MVP per the PRD/UX/SPEC and has no epic.)*
 
@@ -593,3 +598,77 @@ So that the app fully replaces "one Excel file per season."
 **Then** it shows only that one season's data throughout
 
 *References: PRD FR-34, §6.2; Architecture AD-26, AD-30; SPEC.md Open Questions (confirm the manual archive/repoint process is acceptable long-term).*
+
+## Epic 7: Data File Hygiene
+
+The app's single hand-maintained data file stays observable, lean, and lint-clean: every write that changes it is logged, login codes that can no longer be used are cleaned up, and the file's own format always satisfies the repo's yamllint rules. Sourced from a dedicated brainstorming session (brainstorm-intent.md), not a PRD requirement — no FR is covered by this epic.
+
+### Story 7.1: Log Data-Changing Writes
+
+As the person running the pool,
+I want every write that changes fantasy-hockey.yml to produce a log line on the app's normal output,
+So that I can see what changed without opening the file or grepping raw code hashes.
+
+**Acceptance Criteria:**
+
+**Given** a call to `internal/store` mutates the data file
+**When** the write succeeds
+**Then** one generic, structured log line is emitted (via the existing `slog.Info` convention) identifying the write, and it never includes a raw login code or a player's email address — only ids/hashes, matching the existing hash-code-never-logged rule
+
+**Given** the write is the very first one that bootstraps a brand-new data file (`store.New` creating it because none existed yet)
+**When** that bootstrap write completes
+**Then** the log line's wording distinguishes it from a normal in-life write
+
+**Given** a request results in no write at all (e.g. `RequestLoginCode` with an email that matches no Player)
+**When** that no-op completes
+**Then** no log line is emitted — only writes that actually touch disk are logged
+
+*References: Architecture AD-27 (atomic write-and-rename), AD-29 (single mutex, store is sole writer); brainstorm-intent.md Story A. No PRD FR — ask the human whether a Gherkin acceptance test applies before implementation, since this may be infra/observability work rather than user-facing behavior (per CLAUDE.md's BDD convention).*
+
+### Story 7.2: Clean Up Unusable Login Codes
+
+As the person running the pool,
+I want login-code rows that can no longer be used to log in removed from fantasy-hockey.yml,
+So that the hand-maintained file stays small and only ever shows codes that are still genuinely redeemable.
+
+**Acceptance Criteria:**
+
+**Given** a LoginCode row whose `issued_at` is older than the existing `loginCodeValidity` window (10 minutes, measured against `clock.NowTime()`)
+**When** the store next writes the data file
+**Then** that row is removed from `login_codes`
+
+**Given** a LoginCode row that has already been used (`used_at` set)
+**When** the store next writes the data file
+**Then** that row is removed from `login_codes`
+
+**Given** a LoginCode row that is unexpired and unused
+**When** the store next writes the data file
+**Then** that row remains untouched — cleanup never removes a still-redeemable code
+
+**Given** a resubmission of a code whose row was just removed by cleanup
+**When** it is validated
+**Then** it is rejected with the exact same generic outcome as any other wrong/expired/used code — FR-2's identical-outcome guarantee holds even after the row no longer exists
+
+*References: PRD FR-2 (identical outcome for wrong/expired/used); Architecture AD-27, AD-29; store.go's existing `loginCodeValidity` constant and `clock.NowTime()`; brainstorm-intent.md Story B. Cleanup triggers opportunistically (on the next write / on `store.New`), reusing the existing `writeLocked` path — no new write mechanism, lock, background goroutine, or cron. An on-demand CLI flag is explicitly out of scope for this story, parked as a fallback if opportunistic cleanup proves insufficient. Implementer should check any existing test asserting `doc.LoginCodes[i]` by index, since removal shifts indices. Ask the human whether a Gherkin acceptance test applies before implementation.*
+
+### Story 7.3: Keep Written YAML yamllint-Compliant
+
+As the person maintaining fantasy-hockey.yml by hand,
+I want the app's own writes to already satisfy the repo's yamllint rules,
+So that opening the file after the app has written to it never shows me lint-dirty formatting.
+
+**Acceptance Criteria:**
+
+**Given** the app writes the data file (any store write)
+**When** the resulting YAML is checked against the repo's existing `.yamllint` config the same way `task lint`'s `lint-yaml` service checks it (plain `yamllint`, no `--strict`)
+**Then** it produces no error-level violations — a pre-existing, non-blocking warning (e.g. the default ruleset's `document-start` warning, confirmed present in today's output) is acceptable and out of scope for this story
+
+**Given** the app is running normally (serving requests, or freshly started)
+**When** it operates
+**Then** it never invokes the `yamllint` binary itself — compliance is guaranteed by how the app constructs its output, not checked at runtime; CI/pipelines already own that check for committed content, so no new runtime dependency is added to the shipped image
+
+**Given** a build/test run (CI, or `task go:test` / the acceptance suite)
+**When** it runs
+**Then** an automated test writes a file through the real `store` code path and verifies the result against the repository's actual `yamllint` binary/config (matching `task lint`'s invocation, not `--strict`), not a hand-rolled reimplementation of its rules
+
+*References: repo `.yamllint` config; Architecture AD-27; brainstorm-intent.md Story C. Readiness-gate finding (confirmed empirically, 2026-09-15): `go.yaml.in/yaml/v3`'s marshal defaults do NOT emit a document-start `---` marker, which the repo's default-extended `.yamllint.yml` flags as a warning at `1:1` — human-confirmed as acceptable (matches the repo's actual, non-strict lint gate), so no marshal/output change is required to close that specific gap. Ask the human whether a Gherkin acceptance test applies before implementation.*
