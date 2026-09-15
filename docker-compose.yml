@@ -102,17 +102,23 @@ services:
     # UID, so reading it as that user can fail even when its permission
     # bits look fine. Root sidesteps the mismatch; the Dockerfile's
     # production image still drops to the unprivileged user by default.
+    # Side effect: every write goes through root, so src/fantasy-hockey.yml
+    # ends up root-owned on the host afterward - chown it back (e.g. `sudo
+    # chown $USER:$USER src/fantasy-hockey.yml`) before editing it locally
+    # or running `task go:run` again.
     user: root
     ports:
       - 8080:8080
     volumes:
-      # Bind-mounts the same data file `task go:run` uses locally, so the
-      # player list and issued login codes are hand-editable on the host
-      # and survive a container rebuild instead of living only inside it.
-      - ./src/fantasy-hockey.yml:/opt/fantasy-hockey/fantasy-hockey.yml
+      # Bind-mounts src/ (the same directory `task go:run` reads
+      # fantasy-hockey.yml from locally) rather than the single file: the
+      # store persists via an atomic write-and-rename, and rename(2) can't
+      # replace a path that is itself a bind-mount point, only a plain file
+      # inside one.
+      - ./src:/data
     environment:
       - SESSION_SECRET=${SESSION_SECRET}
-      - DATA_FILE=${DATA_FILE:-/opt/fantasy-hockey/fantasy-hockey.yml}
+      - DATA_FILE=${DATA_FILE:-/data/fantasy-hockey.yml}
       - SMTP_HOST=${SMTP_HOST:-mailpit}
       - SMTP_PORT=${SMTP_PORT:-1025}
       - SMTP_USERNAME=${SMTP_USERNAME:-}
