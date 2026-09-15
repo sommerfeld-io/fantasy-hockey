@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,6 +59,35 @@ func TestValidateLoginCodeShouldRejectAWrongCode(t *testing.T) {
 	}
 	if ok {
 		t.Fatal("expected a wrong code to be rejected")
+	}
+}
+
+func TestValidateLoginCodeShouldLogAMatch(t *testing.T) {
+	st := seedStoreWithCode(t, "basti", "123456", time.Now().UTC())
+	logs := captureLogs(t)
+
+	if _, ok, err := auth.ValidateLoginCode(st, "123456"); err != nil || !ok {
+		t.Fatalf("expected a match, got ok=%v, err=%v", ok, err)
+	}
+
+	if !strings.Contains(logs.String(), "validate login code") {
+		t.Errorf("expected a log line for the match, got %q", logs.String())
+	}
+	if !strings.Contains(logs.String(), "player_id=basti") {
+		t.Errorf("expected the log line to include player_id=basti, got %q", logs.String())
+	}
+}
+
+func TestValidateLoginCodeShouldNotLogAWrongCode(t *testing.T) {
+	st := seedStoreWithCode(t, "basti", "123456", time.Now().UTC())
+	logs := captureLogs(t)
+
+	if _, ok, err := auth.ValidateLoginCode(st, "000000"); err != nil || ok {
+		t.Fatalf("expected a rejection, got ok=%v, err=%v", ok, err)
+	}
+
+	if logs.Len() != 0 {
+		t.Errorf("expected no log output for a wrong code, got %q", logs.String())
 	}
 }
 

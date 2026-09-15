@@ -56,7 +56,9 @@ func RequestLoginCode(st *store.Store, send mailer.Sender, email string) error {
 	go func() {
 		if err := send(player.Email, loginCodeSubject, body); err != nil {
 			slog.Error("send login code", "error", err)
+			return
 		}
+		slog.Info("send login code", "player_id", player.ID)
 	}()
 
 	return nil

@@ -1,11 +1,14 @@
 package auth_test
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +18,17 @@ import (
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
+
+// captureLogs swaps slog's default logger for one writing to a buffer this
+// test can inspect, restoring the original default when the test ends.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return &buf
+}
 
 // persistedDocument mirrors internal/store's on-disk shape closely enough
 // for tests to assert on what actually landed on disk, without store
@@ -190,6 +204,50 @@ func TestRequestLoginCodeShouldDoNothingOnNoMatch(t *testing.T) {
 	if len(doc.LoginCodes) != 0 {
 		t.Fatalf("expected no persisted login code, got %d", len(doc.LoginCodes))
 	}
+}
+
+func TestRequestLoginCodeShouldLogWhenACodeIsSent(t *testing.T) {
+	st, _ := newSeededStore(t)
+	fake := &fakeSender{}
+	logs := captureLogs(t)
+
+	if err := auth.RequestLoginCode(st, fake.send, "basti@example.com"); err != nil {
+		t.Fatalf("RequestLoginCode returned error: %v", err)
+	}
+
+	waitForSendCalls(t, fake, 1)
+	waitForLogContaining(t, logs, "send login code")
+	if !strings.Contains(logs.String(), "player_id=basti") {
+		t.Errorf("expected the log line to include player_id=basti, got %q", logs.String())
+	}
+}
+
+func TestRequestLoginCodeShouldNotLogOnNoMatch(t *testing.T) {
+	st, _ := newSeededStore(t)
+	fake := &fakeSender{}
+	logs := captureLogs(t)
+
+	if err := auth.RequestLoginCode(st, fake.send, "unknown@example.com"); err != nil {
+		t.Fatalf("RequestLoginCode returned error: %v", err)
+	}
+
+	if logs.Len() != 0 {
+		t.Errorf("expected no log output on a no-match request, got %q", logs.String())
+	}
+}
+
+// waitForLogContaining polls buf until it contains substr, since
+// RequestLoginCode logs from its own goroutine after sending.
+func waitForLogContaining(t *testing.T, buf *bytes.Buffer, substr string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(buf.String(), substr) {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for log output containing %q, got %q", substr, buf.String())
 }
 
 func TestRequestLoginCodeShouldLeaveAnEarlierRowUntouchedOnARepeatRequest(t *testing.T) {
