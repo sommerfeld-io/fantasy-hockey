@@ -36,7 +36,9 @@ docker run -d \
   sommerfeldio/fantasy-hockey:latest
 ```
 
-A player logs in with just their email address: the app emails a one-time 6-digit code, valid for 10 minutes, and a session then stays active while in use and expires after 30 minutes of inactivity.
+A player logs in with just their email address: the app emails a one-time 6-digit code, valid for 10 minutes, and a session then stays active while in use and expires after 30 minutes of inactivity. A player can log out at any time from the app shell's header, which ends their session immediately on that device.
+
+If none of the `SMTP_*` variables below are set, the app still starts, but login-code emails silently fail to send (an error is logged server-side; the player never receives a code) — set at least `SMTP_HOST`/`SMTP_PORT` in any real deployment.
 
 ### Configuration
 
@@ -49,7 +51,7 @@ A player logs in with just their email address: the app emails a one-time 6-digi
 | `SMTP_USERNAME`     | No       | SMTP username; omit for an unauthenticated local mail catcher                           |
 | `SMTP_APP_PASSWORD` | No       | SMTP password (e.g. a Gmail App Password)                                               |
 
-The `--port`/`-p` flag (default `8080`) sets the listening port. On first run, if the data file doesn't exist yet, the app creates it with an empty player list — the pool's actual players are then added by hand-editing that file, since there is no in-app way to create an account.
+The `--port`/`-p` flag (default `8080`) sets the listening port. On first run, if the data file doesn't exist yet, the app creates it with an empty player list — the pool's actual players are then added by hand-editing that file, since there is no in-app way to create an account. With the named-volume setup above, reach the file with `docker cp fantasy-hockey:/data/fantasy-hockey.yml .`, edit it, then copy it back with `docker cp ./fantasy-hockey.yml fantasy-hockey:/data/fantasy-hockey.yml`.
 
 ## Licensing
 

@@ -72,6 +72,26 @@ baseline_commit: 'e74d6fb4adef3dbe40c322f0d02d26d622b5991d'
 - Given I am on a phone-width viewport (~360–430px), when any shell page renders, then the layout is single-column and dark-theme only, and on a wider viewport the column stays centered at the same max width rather than stretching
 - Given I have no valid session, when I request `/predict`, `/leaderboard`, or `/compare` directly, then I am routed to `/login` exactly as `GET /{$}` already behaves today
 
+### Review Findings
+
+From the ad hoc `bmad-code-review` pass (combined with story 1.4, range `03b103b..HEAD`):
+
+- [x] [Review][Patch] Bottom-nav tabs render text-only, omitting the checklist/medal/people icons DESIGN.md's Bottom Navigation component (UX-DR5) specifies — `src/internal/web/templates/shell.html`'s nav anchors have no icon markup. Resolved: added inline SVG line icons, matching DESIGN.md's token system (no shadows/gradients, ≥32px tap target) [src/internal/web/templates/shell.html]
+- [x] [Review][Patch] README's Usage section documents login and session behavior but never mentions that a player can log out [README.md]
+- [x] [Review][Patch] README says the pool's players are "added by hand-editing that file," but the documented `docker run` uses a named volume (`fantasy-hockey-data:/data`) with no bind-mount, and never explains how an operator reaches that file (e.g. `docker cp`/`docker exec`) [README.md]
+- [x] [Review][Patch] README doesn't document that if no `SMTP_*` vars are set, login-code emails silently fail to send (logged server-side only) while the HTTP response stays identical — an operator deploying without SMTP configured gets a completely broken login flow with no visible symptom [README.md]
+- [x] [Review][Patch] New `--green: #3fb950` CSS token sits next to the pre-existing, differently-valued `--green-btn: #238636` with no comment distinguishing intended use, inviting a future contributor to grab the wrong one [src/internal/web/static/styles.css]
+- [x] [Review][Patch] Unit coverage for expired/tampered/empty-player-id sessions exists only for `GET /{$}`, not for `/predict`/`/leaderboard`/`/compare` — only the missing-cookie case is tested across all 4 routes; `requireSession` is shared and unchanged so the risk is low, but it's a literal shortfall against the Code Map's own test assignment [src/internal/web/web_test.go]
+- [x] [Review][Patch] `appShellScenarioState.thePlayerIsSignedIn` discards its captured player-name parameter (`_ string`) and always logs in as the hardcoded `basti` fixture — a future scenario naming a different player would silently still test `basti` [src/acceptance-tests/app_shell_steps_test.go:71-74]
+
+**Rejected:**
+- **false** — "README's Configuration table doesn't document env-var-vs-flag precedence" — the `DATA_FILE` row already states "a `--data-file` flag overrides it," and there is no port env var at all (only `--port`/`-p`), so there's no undocumented ambiguity to fix.
+- **false** — "No test asserts the season label renders correctly on Leaderboard/Compare, only player name is checked across destinations" (acceptance-level claim) — `web_test.go`'s `TestNewServerShouldRenderTheShellForEveryDestination` already runs `assertShellHeader` (name + season) for every one of the 4 shell routes at the unit level; the acceptance suite not duplicating that is consistent with this codebase's established acceptance-complements-unit-tests convention.
+- **false** — "The logout acceptance scenario's own name implies deriving the request from the rendered form, but it POSTs directly, so a form-divergence regression would go undetected" — refuted: `web_test.go`'s `assertLogoutControl` already unit-tests the rendered form's exact markup (`action="/logout"`, method, button) for every shell render; a regression there would be caught, just not by the acceptance layer.
+- **false** — "The dual-mux-registration risk has no scheduled point where it gets fixed since it's only recorded as prose in `deferred-work.md`" — `deferred-work.md` is this repo's established backlog for exactly this kind of item, per identical precedent from stories 1-1 and 1-2's own deferred findings; it is not expected to also appear in `sprint-status.yaml`.
+- **low, rejected** — "`store.Season()`/`formatSeason` have no guard or test for an empty/malformed season value" (blind-hunter + edge-case-hunter, same root cause) — `Season` is a hand-maintained operator config value seeded non-empty by default, unlikely to be hit in practice, and the fix (input-validation guards) is more than a direct correction.
+- **low, rejected** — "Spec's I/O & Edge-Case Matrix table isn't column-padded per the repo's Markdown style rules" (also flagged on spec-1-4) — fix requires editing the spec under review, out of scope for code review.
+
 ## Implementation Notes
 
 ## Spec Change Log

@@ -29,9 +29,9 @@
     <p class="coming-soon">{{.Message}}</p>
   </main>
   <nav class="shell-nav">
-    <a href="/predict" class="nav-item{{if eq .ActiveTab "predict"}} active{{end}}"{{if eq .ActiveTab "predict"}} aria-current="page"{{end}}>Predict</a>
-    <a href="/leaderboard" class="nav-item{{if eq .ActiveTab "leaderboard"}} active{{end}}"{{if eq .ActiveTab "leaderboard"}} aria-current="page"{{end}}>Leaderboard</a>
-    <a href="/compare" class="nav-item{{if eq .ActiveTab "compare"}} active{{end}}"{{if eq .ActiveTab "compare"}} aria-current="page"{{end}}>Compare</a>
+    <a href="/predict" class="nav-item{{if eq .ActiveTab "predict"}} active{{end}}"{{if eq .ActiveTab "predict"}} aria-current="page"{{end}}><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6l1.5 1.5L8 5"/><path d="M11 6h9"/><path d="M4 12l1.5 1.5L8 11"/><path d="M11 12h9"/><path d="M4 18l1.5 1.5L8 17"/><path d="M11 18h9"/></svg><span class="nav-label">Predict</span></a>
+    <a href="/leaderboard" class="nav-item{{if eq .ActiveTab "leaderboard"}} active{{end}}"{{if eq .ActiveTab "leaderboard"}} aria-current="page"{{end}}><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 3L7 9M15 3l2 6"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.9 1.8 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z"/></svg><span class="nav-label">Leaderboard</span></a>
+    <a href="/compare" class="nav-item{{if eq .ActiveTab "compare"}} active{{end}}"{{if eq .ActiveTab "compare"}} aria-current="page"{{end}}><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M4 19c0-3 2.2-5 5-5s5 2 5 5"/><circle cx="17" cy="9" r="2.3"/><path d="M14.5 19c.3-2.2 1.7-3.8 3.5-3.8 2 0 3.5 1.7 4 4"/></svg><span class="nav-label">Compare</span></a>
   </nav>
 </div>
 </body>

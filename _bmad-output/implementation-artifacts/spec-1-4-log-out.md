@@ -60,6 +60,14 @@ baseline_commit: '03b103b89ae736b5b35b41ea340cfa903d618657'
 - Given a player is logged in, when they trigger logout, then their session cookie is cleared and they are redirected to `/login`
 - Given a player has just logged out, when they make their very next request to a protected route, then they are treated as unauthenticated and routed to `/login`
 
+### Review Findings
+
+No `decision-needed` or `patch` findings for this story from the ad hoc `bmad-code-review` pass (combined with story 1.5, range `03b103b..HEAD`). Rejected appendix:
+
+- **low, rejected** — Implementation Notes says "All five acceptance scenarios" but `log-out.feature` has six (a jar-emptiness scenario was split out after this line was written). Fix requires editing the spec under review — out of scope for code review.
+- **low, rejected** — The frozen "Never" bullet's CSRF rationale ("matches the precedent... for `POST /login/code`") is now inconsistent with Design Notes' corrected, endpoint-specific rationale. Fix requires editing the spec under review (including its frozen block) — out of scope for code review.
+- **low, rejected** — The I/O & Edge-Case Matrix table isn't column-padded per the repo's Markdown style rules (also flagged on spec-1-5). Fix requires editing the spec under review, out of scope for code review.
+
 ## Implementation Notes
 
 - `ClearSessionCookie` sets `MaxAge: -1`; Go's `net/http` renders that as `Max-Age=0` on the wire (its documented convention for "delete this cookie now"), confirmed via manual `curl` verification.

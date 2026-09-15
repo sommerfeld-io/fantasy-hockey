@@ -21,6 +21,21 @@ import (
 // "the player \"Basti\" is signed in" issues.
 const appShellPlayerID = "basti"
 
+// appShellPlayerName is appShellPlayerID's seeded display name. Kept in
+// sync with it so a scenario naming a different player fails loudly in
+// thePlayerIsSignedIn rather than silently signing in as this fixture.
+const appShellPlayerName = "Basti"
+
+// navHrefsByTab maps each bottom-nav tab label to its route, so
+// theShellShowsAsTheActiveTab can tie a tab name to its own anchor's
+// active state without depending on the icon markup between the anchor's
+// opening tag and its label.
+var navHrefsByTab = map[string]string{
+	"Predict":     "/predict",
+	"Leaderboard": "/leaderboard",
+	"Compare":     "/compare",
+}
+
 // newAppShellStore bootstraps a store seeded with one player ("Basti"),
 // since (unlike newTempStore, which starts with an empty player list) the
 // shell's header needs a real player to resolve the session's id against.
@@ -68,7 +83,10 @@ func (s *appShellScenarioState) close() {
 	s.server.Close()
 }
 
-func (s *appShellScenarioState) thePlayerIsSignedIn(_ string) error {
+func (s *appShellScenarioState) thePlayerIsSignedIn(name string) error {
+	if name != appShellPlayerName {
+		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, appShellPlayerName)
+	}
 	s.sessionCookie = auth.IssueSessionCookie(appShellPlayerID, testSessionSecret)
 	return nil
 }
@@ -130,7 +148,11 @@ func (s *appShellScenarioState) theShellShowsTheSeason(season string) error {
 }
 
 func (s *appShellScenarioState) theShellShowsAsTheActiveTab(tab string) error {
-	active := `class="nav-item active" aria-current="page">` + tab + `</a>`
+	href, ok := navHrefsByTab[tab]
+	if !ok {
+		return fmt.Errorf("no known nav href for tab %q", tab)
+	}
+	active := `<a href="` + href + `" class="nav-item active" aria-current="page">`
 	if !strings.Contains(s.lastBody, active) {
 		return fmt.Errorf("expected %q to render as the active tab, got %q", tab, s.lastBody)
 	}
