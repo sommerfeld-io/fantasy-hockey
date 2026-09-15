@@ -86,3 +86,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - 8080:8080
+    environment:
+      - SESSION_SECRET=${SESSION_SECRET}
+      - DATA_FILE=${DATA_FILE:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_APP_PASSWORD=${SMTP_APP_PASSWORD:-}
