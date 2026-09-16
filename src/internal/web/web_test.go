@@ -604,8 +604,11 @@ func TestGetPredictSheetShouldRenderThePickFormWithNoTeamPreselectedWhenNoPriorP
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, `<select name="team_id" required >`) {
-		t.Errorf("expected an enabled, required team select, got %q", body)
+	if !strings.Contains(body, `<select name="team_id" aria-label="Cup champion pick" required >`) {
+		t.Errorf("expected an enabled, required, labeled team select, got %q", body)
+	}
+	if !strings.Contains(body, `<form class="pick-form" method="post" action="/predict/cup">`) {
+		t.Errorf("expected the form to submit to /predict/cup, got %q", body)
 	}
 	if !strings.Contains(body, `<option value="" disabled selected>Choose a team</option>`) {
 		t.Errorf("expected no team preselected, got %q", body)
@@ -671,8 +674,8 @@ func TestGetPredictSheetShouldRenderAReadOnlyBannerAndDisabledSelectWhenClosed(t
 	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	if !strings.Contains(body, `<select name="team_id" required disabled>`) {
-		t.Errorf("expected the select to render disabled, got %q", body)
+	if !strings.Contains(body, `<select name="team_id" aria-label="Cup champion pick" required disabled>`) {
+		t.Errorf("expected the select to render disabled and labeled, got %q", body)
 	}
 	if !strings.Contains(body, `<option value="TOR" selected>Toronto Maple Leafs</option>`) {
 		t.Errorf("expected the saved pick still shown, got %q", body)
@@ -769,6 +772,9 @@ func TestPostPredictSheetShouldSaveAValidPickForPresidentsAndShowSubmittedOnRelo
 	handler.ServeHTTP(reopenRec, reopenReq)
 
 	reopenBody := reopenRec.Body.String()
+	if !strings.Contains(reopenBody, `<form class="pick-form" method="post" action="/predict/presidents">`) {
+		t.Errorf("expected the presidents sheet to submit to /predict/presidents, not /predict/cup, got %q", reopenBody)
+	}
 	if !strings.Contains(reopenBody, `<option value="VGK" selected>Vegas Golden Knights</option>`) {
 		t.Errorf("expected the saved presidents pick preselected on reload, got %q", reopenBody)
 	}

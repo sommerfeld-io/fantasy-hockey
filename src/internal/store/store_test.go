@@ -702,6 +702,9 @@ func TestSavePredictionShouldNotTouchARowForADifferentKindOrPlayer(t *testing.T)
 	if err := st.SavePrediction("basti", KindPresidentsTrophy, "VGK", now); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
+	if err := st.SavePrediction("other-player", KindCupChampion, "COL", now); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
 
 	cup, ok := st.FindPrediction("basti", KindCupChampion)
 	if !ok || cup.TeamID != "TOR" {
@@ -710,6 +713,10 @@ func TestSavePredictionShouldNotTouchARowForADifferentKindOrPlayer(t *testing.T)
 	presidents, ok := st.FindPrediction("basti", KindPresidentsTrophy)
 	if !ok || presidents.TeamID != "VGK" {
 		t.Errorf("expected the presidents pick to be %q, got %+v (ok=%v)", "VGK", presidents, ok)
+	}
+	otherPlayerCup, ok := st.FindPrediction("other-player", KindCupChampion)
+	if !ok || otherPlayerCup.TeamID != "COL" {
+		t.Errorf("expected the other player's cup pick to be %q, got %+v (ok=%v)", "COL", otherPlayerCup, ok)
 	}
 }
 

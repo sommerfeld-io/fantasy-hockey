@@ -27,7 +27,7 @@
     <div class="sheet-deadline"><svg class="row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg><span>{{.DeadlineText}}</span><span>&nbsp;&middot; {{.Countdown}}</span></div>
     {{if .Pick}}
     <form class="pick-form" method="post" action="/predict/{{.ID}}">
-      <select name="team_id" required {{if .Closed}}disabled{{end}}>
+      <select name="team_id" aria-label="{{.Title}} pick" required {{if .Closed}}disabled{{end}}>
         <option value="" disabled {{if eq .Pick.SelectedTeamID ""}}selected{{end}}>Choose a team</option>
         {{range .Pick.Divisions}}
         <optgroup label="{{.Division}}">
