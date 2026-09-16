@@ -60,6 +60,7 @@ teams:
 // for one scenario. A fresh instance is created per scenario so state never
 // leaks between runs.
 type loadCanonicalTeamListScenarioState struct {
+	dataFile      string
 	server        *httptest.Server
 	sessionCookie *http.Cookie
 	lastStatus    int
@@ -68,8 +69,10 @@ type loadCanonicalTeamListScenarioState struct {
 // newLoadCanonicalTeamListStore bootstraps a store backed by
 // loadCanonicalTeamListSeed, so store.New's own parsing is exercised
 // end-to-end against a well-formed teams: section, not just the unit-level
-// yaml.Unmarshal calls in internal/store's own tests.
-func newLoadCanonicalTeamListStore() *store.Store {
+// yaml.Unmarshal calls in internal/store's own tests. It returns the seeded
+// data file's path alongside the store so the caller can clean up the temp
+// directory once the scenario ends.
+func newLoadCanonicalTeamListStore() (*store.Store, string) {
 	dir, err := os.MkdirTemp("", "fantasy-hockey-load-canonical-team-list-*")
 	if err != nil {
 		panic(fmt.Sprintf("create temp dir: %v", err))
@@ -82,17 +85,20 @@ func newLoadCanonicalTeamListStore() *store.Store {
 	if err != nil {
 		panic(fmt.Sprintf("store.New: %v", err))
 	}
-	return st
+	return st, path
 }
 
 func newLoadCanonicalTeamListScenarioState() *loadCanonicalTeamListScenarioState {
+	st, dataFile := newLoadCanonicalTeamListStore()
 	return &loadCanonicalTeamListScenarioState{
-		server: httptest.NewServer(web.NewServer(newLoadCanonicalTeamListStore(), noopSender, testSessionSecret)),
+		dataFile: dataFile,
+		server:   httptest.NewServer(web.NewServer(st, noopSender, testSessionSecret)),
 	}
 }
 
 func (s *loadCanonicalTeamListScenarioState) close() {
 	s.server.Close()
+	_ = os.RemoveAll(filepath.Dir(s.dataFile)) // best-effort cleanup of the scenario's temp dir
 }
 
 // aDataFileWhoseTeamsSectionHoldsASampleOfCanonicalTeams is a no-op: the
