@@ -103,7 +103,7 @@ func newLoginScenarioState() *loginScenarioState {
 		panic(fmt.Sprintf("create temp dir: %v", err))
 	}
 	return &loginScenarioState{
-		dataFile: filepath.Join(dir, "fantasy-hockey.yml"),
+		dataFile: filepath.Join(dir, store.DataFileName),
 		logs:     &bytes.Buffer{},
 	}
 }

@@ -12,7 +12,7 @@ import (
 
 func TestNewShouldBootstrapCreateAMissingFile(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 
 	st, err := New(path)
 	if err != nil {
@@ -46,7 +46,7 @@ func TestNewShouldBootstrapCreateAMissingFile(t *testing.T) {
 
 func TestNewShouldNotOverwriteAnExistingFile(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2025-26"
 players:
     - id: basti
@@ -73,7 +73,7 @@ players:
 
 func TestNewShouldFailWhenTheFileIsNotValidYAML(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	if err := os.WriteFile(path, []byte("not: valid: yaml: at all"), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestNewShouldFailWhenTheFileIsNotValidYAML(t *testing.T) {
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := New(filepath.Join(dir, "fantasy-hockey.yml"))
+	st, err := New(filepath.Join(dir, DataFileName))
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestFindPlayerByEmailShouldMatchIgnoringCaseAndSurroundingWhitespace(t *tes
 
 func TestFindPlayerByEmailShouldNotMatchAnEmptyEmailAgainstABlankPlayerRow(t *testing.T) {
 	dir := t.TempDir()
-	st, err := New(filepath.Join(dir, "fantasy-hockey.yml"))
+	st, err := New(filepath.Join(dir, DataFileName))
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestSeasonShouldReturnTheSeededSeason(t *testing.T) {
 
 func TestPredictionSetsShouldReturnTheSeededList(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -243,7 +243,7 @@ func TestPredictionSetsShouldReturnAnEmptyListWhenNoneAreSeeded(t *testing.T) {
 
 func TestPredictionSetsShouldReturnACopyThatCannotMutateTheStore(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -274,7 +274,7 @@ prediction_sets:
 
 func TestTeamsShouldReturnTheSeededList(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -322,7 +322,7 @@ func TestTeamsShouldReturnAnEmptyListWhenNoneAreSeeded(t *testing.T) {
 
 func TestTeamsShouldReturnACopyThatCannotMutateTheStore(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -396,7 +396,7 @@ func TestCreateLoginCodeShouldNotMutateAnEarlierRowOnARepeatRequest(t *testing.T
 
 func TestCreateLoginCodeShouldPersistToDisk(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	st, err := New(path)
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
@@ -421,7 +421,7 @@ func TestCreateLoginCodeShouldPersistToDisk(t *testing.T) {
 
 func TestCreateLoginCodeShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	st, err := New(path)
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
@@ -555,7 +555,7 @@ func TestConsumeLoginCodeShouldNotTouchAnyOtherRow(t *testing.T) {
 
 func TestConsumeLoginCodeShouldRollBackTheMarkWhenTheWriteFails(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	st, err := New(path)
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
@@ -722,7 +722,7 @@ func TestSavePredictionShouldNotTouchARowForADifferentKindOrPlayer(t *testing.T)
 
 func TestSavePredictionShouldPersistToDisk(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	st, err := New(path)
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
@@ -747,7 +747,7 @@ func TestSavePredictionShouldPersistToDisk(t *testing.T) {
 
 func TestSavePredictionShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	st, err := New(path)
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
@@ -768,7 +768,7 @@ func TestSavePredictionShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 
 func TestSavePredictionShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, DataFileName)
 	st, err := New(path)
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)

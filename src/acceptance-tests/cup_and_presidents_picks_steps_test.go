@@ -88,7 +88,7 @@ func newCupAndPresidentsPicksScenarioState() *cupAndPresidentsPicksScenarioState
 	if err != nil {
 		panic(fmt.Sprintf("create temp dir: %v", err))
 	}
-	return &cupAndPresidentsPicksScenarioState{dataFile: filepath.Join(dir, "fantasy-hockey.yml")}
+	return &cupAndPresidentsPicksScenarioState{dataFile: filepath.Join(dir, store.DataFileName)}
 }
 
 func (s *cupAndPresidentsPicksScenarioState) close() {

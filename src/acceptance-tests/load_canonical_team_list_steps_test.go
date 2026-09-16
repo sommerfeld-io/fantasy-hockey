@@ -77,7 +77,7 @@ func newLoadCanonicalTeamListStore() (*store.Store, string) {
 	if err != nil {
 		panic(fmt.Sprintf("create temp dir: %v", err))
 	}
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, store.DataFileName)
 	if err := os.WriteFile(path, []byte(loadCanonicalTeamListSeed), 0o600); err != nil {
 		panic(fmt.Sprintf("seed file: %v", err))
 	}

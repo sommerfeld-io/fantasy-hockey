@@ -18,9 +18,6 @@ import (
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
-// defaultDataFile is used when neither DATA_FILE nor --data-file is given.
-const defaultDataFile = "fantasy-hockey.yml"
-
 // config holds every value main.go resolves before wiring dependencies
 // together.
 type config struct {
@@ -52,7 +49,7 @@ func resolveConfig(args []string) (config, error) {
 		resolvedDataFile = *dataFile
 	}
 	if resolvedDataFile == "" {
-		resolvedDataFile = defaultDataFile
+		resolvedDataFile = store.DataFileName
 	}
 
 	secret := strings.TrimSpace(os.Getenv("SESSION_SECRET"))

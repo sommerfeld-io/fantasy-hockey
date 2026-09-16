@@ -59,7 +59,7 @@ func newEnterLoginCodeScenarioState() *enterLoginCodeScenarioState {
 		panic(fmt.Sprintf("create temp dir: %v", err))
 	}
 	return &enterLoginCodeScenarioState{
-		dataFile: filepath.Join(dir, "fantasy-hockey.yml"),
+		dataFile: filepath.Join(dir, store.DataFileName),
 		code:     "123456",
 		issuedAt: time.Now().UTC(),
 	}

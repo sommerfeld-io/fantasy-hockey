@@ -16,6 +16,14 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 )
 
+// DataFileName is the canonical name of the single data file this app reads
+// and writes. Every reference to that filename anywhere in this module -
+// production code and tests alike - goes through this constant instead of
+// the literal string, so a future rename only requires editing this one
+// line. Gherkin `.feature` files are the one sanctioned exception, since
+// they describe behavior in prose, not Go code.
+const DataFileName = "fantasy-hockey.yml"
+
 // loginCodeValidity is how long a LoginCode row stays eligible for
 // ConsumeLoginCode after it was issued (PRD FR-2).
 const loginCodeValidity = 10 * time.Minute

@@ -50,7 +50,7 @@ players:
       name: Basti
       email: basti@example.com
 `
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, store.DataFileName)
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		panic(fmt.Sprintf("seed file: %v", err))
 	}

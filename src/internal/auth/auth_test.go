@@ -68,7 +68,7 @@ func readPersisted(t *testing.T, path string) persistedDocument {
 func newSeededStore(t *testing.T) (*store.Store, string) {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, store.DataFileName)
 	seed := `season: "2026-27"
 players:
     - id: basti
@@ -313,7 +313,7 @@ func TestRequestLoginCodeShouldReturnNilWhenSendingFails(t *testing.T) {
 
 func TestRequestLoginCodeShouldReturnAnErrorWhenTheStoreWriteFails(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, store.DataFileName)
 	seed := `season: "2026-27"
 players:
     - id: basti

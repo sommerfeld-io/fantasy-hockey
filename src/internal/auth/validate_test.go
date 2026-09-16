@@ -24,7 +24,7 @@ func sha256Hex(s string) string {
 func seedStoreWithCode(t *testing.T, playerID, code string, issuedAt time.Time) *store.Store {
 	t.Helper()
 	dir := t.TempDir()
-	st, err := store.New(filepath.Join(dir, "fantasy-hockey.yml"))
+	st, err := store.New(filepath.Join(dir, store.DataFileName))
 	if err != nil {
 		t.Fatalf("store.New: %v", err)
 	}

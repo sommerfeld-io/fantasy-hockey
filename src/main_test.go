@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/server"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
 // testSessionSecret is set on every test that needs resolveConfig to
@@ -21,8 +22,8 @@ func TestResolveConfigShouldApplyDefaultsWithNoArgsOrEnv(t *testing.T) {
 	if cfg.port != server.DefaultPort {
 		t.Errorf("expected default port %d, got %d", server.DefaultPort, cfg.port)
 	}
-	if cfg.dataFile != defaultDataFile {
-		t.Errorf("expected default data file %q, got %q", defaultDataFile, cfg.dataFile)
+	if cfg.dataFile != store.DataFileName {
+		t.Errorf("expected default data file %q, got %q", store.DataFileName, cfg.dataFile)
 	}
 	if cfg.secret != testSessionSecret {
 		t.Errorf("expected secret %q, got %q", testSessionSecret, cfg.secret)

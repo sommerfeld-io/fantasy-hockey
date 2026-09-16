@@ -39,7 +39,7 @@ players:
       name: Basti
       email: basti@example.com
 `
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, store.DataFileName)
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
@@ -63,7 +63,7 @@ players:
       email: basti@example.com
 prediction_sets:
 ` + predictionSetsYAML
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, store.DataFileName)
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
@@ -105,7 +105,7 @@ prediction_sets:
       conference: Western
       division: Pacific
 `
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, store.DataFileName)
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
@@ -342,7 +342,7 @@ prediction_sets:
       phase: before_season
       upcoming: false
 `
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, store.DataFileName)
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
@@ -368,7 +368,7 @@ prediction_sets:
 		t.Fatalf("read file after requests: %v", err)
 	}
 	if string(before) != string(after) {
-		t.Errorf("expected fantasy-hockey.yml to stay untouched, got diff:\nbefore:\n%s\nafter:\n%s", before, after)
+		t.Errorf("expected %s to stay untouched, got diff:\nbefore:\n%s\nafter:\n%s", store.DataFileName, before, after)
 	}
 }
 
@@ -929,7 +929,7 @@ prediction_sets:
       conference: Eastern
       division: Atlantic
 `
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, store.DataFileName)
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
@@ -1414,7 +1414,7 @@ players:
       name: Basti
       email: basti@example.com
 `
-	path := filepath.Join(dir, "fantasy-hockey.yml")
+	path := filepath.Join(dir, store.DataFileName)
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}

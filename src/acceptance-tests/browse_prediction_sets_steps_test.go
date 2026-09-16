@@ -96,7 +96,7 @@ func newBrowsePredictionSetsScenarioState() *browsePredictionSetsScenarioState {
 	if err != nil {
 		panic(fmt.Sprintf("create temp dir: %v", err))
 	}
-	return &browsePredictionSetsScenarioState{dataFile: filepath.Join(dir, "fantasy-hockey.yml")}
+	return &browsePredictionSetsScenarioState{dataFile: filepath.Join(dir, store.DataFileName)}
 }
 
 func (s *browsePredictionSetsScenarioState) close() {
@@ -346,7 +346,7 @@ func (s *browsePredictionSetsScenarioState) theDataFileIsUnchanged() error {
 		return fmt.Errorf("read data file: %w", err)
 	}
 	if string(after) != string(s.fileBeforeRequests) {
-		return fmt.Errorf("expected fantasy-hockey.yml to stay untouched, got diff:\nbefore:\n%s\nafter:\n%s", s.fileBeforeRequests, after)
+		return fmt.Errorf("expected %s to stay untouched, got diff:\nbefore:\n%s\nafter:\n%s", store.DataFileName, s.fileBeforeRequests, after)
 	}
 	return nil
 }

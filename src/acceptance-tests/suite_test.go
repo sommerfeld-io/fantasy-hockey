@@ -70,7 +70,7 @@ func newTempStore() *store.Store {
 	if err != nil {
 		panic(fmt.Sprintf("create temp dir: %v", err))
 	}
-	st, err := store.New(filepath.Join(dir, "fantasy-hockey.yml"))
+	st, err := store.New(filepath.Join(dir, store.DataFileName))
 	if err != nil {
 		panic(fmt.Sprintf("store.New: %v", err))
 	}
