@@ -705,10 +705,11 @@ func handleLoginSubmit(st *store.Store, send mailer.Sender) http.HandlerFunc {
 // unused, unexpired code sets a signed session cookie (secret-keyed), marks
 // that LoginCode row used, and redirects to the home placeholder (Story
 // 1.5 builds the real destination). A wrong, expired, or already-used code
-// all re-render the same code-entry screen with an identical generic error
-// and the submitted value retained (FR-2) - ValidateLoginCode never tells
-// the three cases apart, so this handler can't leak which one happened
-// either. Only a failure to persist the consumed row surfaces as a 500.
+// all re-render the same code-entry screen (401, not 200 - the credential
+// presented was rejected) with an identical generic error and the submitted
+// value retained (FR-2) - ValidateLoginCode never tells the three cases
+// apart, so this handler can't leak which one happened either. Only a
+// failure to persist the consumed row surfaces as a 500.
 func handleLoginCodeSubmit(st *store.Store, secret string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxCodeFormBytes)
@@ -729,7 +730,7 @@ func handleLoginCodeSubmit(st *store.Store, secret string) http.HandlerFunc {
 			if ok {
 				slog.Error("validate login code", "error", "matched a login code row with an empty player id")
 			}
-			renderTemplate(w, "login-code.html", loginCodeData{Code: code, Error: genericCodeErrorText})
+			renderTemplateStatus(w, http.StatusUnauthorized, "login-code.html", loginCodeData{Code: code, Error: genericCodeErrorText})
 			return
 		}
 
@@ -748,11 +749,22 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusFound)
 }
 
-// renderTemplate writes name to w with data available to it, logging
-// (rather than surfacing) a rendering failure, since the response has
-// typically already started streaming by the time html/template can fail.
+// renderTemplate writes name to w with data available to it and an implicit
+// 200 status. See renderTemplateStatus for a response that must not default
+// to 200.
 func renderTemplate(w http.ResponseWriter, name string, data any) {
+	renderTemplateStatus(w, http.StatusOK, name, data)
+}
+
+// renderTemplateStatus is renderTemplate with an explicit status code,
+// logging (rather than surfacing) a rendering failure, since the response
+// has typically already started streaming by the time html/template can
+// fail. The status must be written before any body bytes, so this always
+// calls WriteHeader itself rather than letting the first Write default to
+// 200.
+func renderTemplateStatus(w http.ResponseWriter, status int, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
 	if err := templates.ExecuteTemplate(w, name, data); err != nil {
 		slog.Error("render template", "template", name, "error", err)
 	}

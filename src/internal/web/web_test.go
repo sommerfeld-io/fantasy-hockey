@@ -1643,8 +1643,8 @@ func TestPostLoginCodeShouldMarkTheCodeUsed(t *testing.T) {
 	postCode(t, handler, "123456")
 	rec := postCode(t, handler, "123456")
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200 on reuse, got %d", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401 on reuse, got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), renderedGenericCodeErrorText) {
 		t.Errorf("expected a reused code to show the generic error, got %q", rec.Body.String())
@@ -1656,8 +1656,8 @@ func TestPostLoginCodeShouldShowTheGenericErrorAndRetainTheCodeOnAWrongCode(t *t
 
 	rec := postCode(t, NewServer(st, noopSender, testSecret), "000000")
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), renderedGenericCodeErrorText) {
 		t.Errorf("expected the generic error, got %q", rec.Body.String())
@@ -1682,8 +1682,8 @@ func TestPostLoginCodeShouldShowTheGenericErrorWhenTheCodeFieldIsMissing(t *test
 
 	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200 for a missing code field, got %d", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401 for a missing code field, got %d", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), renderedGenericCodeErrorText) {
 		t.Errorf("expected the generic error for a missing code field, got %q", rec.Body.String())
