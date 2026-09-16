@@ -271,6 +271,39 @@ func (s *enterLoginCodeScenarioState) theSessionCookieIdentifiesAsTheLoggedInPla
 	return nil
 }
 
+// thePlayerThenRequestsAProtectedRoute simulates the visitor's browser -
+// which never received a session cookie from the failed code submission -
+// trying to reach the app anyway. It attaches no cookie, so the response
+// exercises the same requireSession gate as any other unauthenticated
+// request.
+func (s *enterLoginCodeScenarioState) thePlayerThenRequestsAProtectedRoute() error {
+	if err := s.ensureReady(); err != nil {
+		return err
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	resp, err := client.Get(s.server.URL + "/")
+	if err != nil {
+		return fmt.Errorf("get /: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read response body: %w", err)
+	}
+
+	s.responses = append(s.responses, enterLoginCodeResponse{
+		status:   resp.StatusCode,
+		body:     string(body),
+		cookies:  resp.Cookies(),
+		location: resp.Header.Get("Location"),
+	})
+	return nil
+}
+
 func (s *enterLoginCodeScenarioState) noSessionCookieIsSet() error {
 	got, err := s.lastResponse()
 	if err != nil {
@@ -335,5 +368,7 @@ func InitializeEnterLoginCodeScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^a session cookie is set$`, s.aSessionCookieIsSet)
 	ctx.Step(`^the session cookie identifies "([^"]*)" as the logged-in player$`, s.theSessionCookieIdentifiesAsTheLoggedInPlayer)
 	ctx.Step(`^no session cookie is set$`, s.noSessionCookieIsSet)
+	ctx.Step(`^the player then requests a protected route$`, s.thePlayerThenRequestsAProtectedRoute)
+	ctx.Step(`^that follow-up request is redirected to "([^"]*)"$`, s.loginCodeResponseRedirectsTo)
 	ctx.Step(`^the login code is marked used$`, s.theLoginCodeIsMarkedUsed)
 }

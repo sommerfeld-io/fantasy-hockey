@@ -35,3 +35,9 @@ Feature: Enter Login Code and Establish Session
     And the login-code response shows the generic code error
     And the submitted code "123456" is retained on the screen
     And no session cookie is set
+
+  Scenario: A player without a valid code cannot use the app and remains logged out
+    When the player submits the login code "000000"
+    And the player then requests a protected route
+    Then that follow-up request is redirected to "/login"
+    And no session cookie is set
