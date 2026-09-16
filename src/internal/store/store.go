@@ -64,6 +64,29 @@ type PredictionSet struct {
 	Upcoming    bool   `yaml:"upcoming"`
 }
 
+// Prediction Kind values, matching the Prediction Set's own id (AD-17/AD-24/
+// AD-28) - one identifier vocabulary, no separate mapping table between a
+// Prediction's kind and the Prediction Set it belongs to.
+const (
+	KindCupChampion      = "cup"
+	KindPresidentsTrophy = "presidents"
+)
+
+// Prediction is one player's saved pick for one Prediction Set kind (e.g.
+// their Stanley Cup champion pick). It's an application-created row (AD-17):
+// FindPrediction/SavePrediction are the only ways to read or write it, and a
+// resubmission updates the existing (PlayerID, Kind) row in place rather
+// than appending a duplicate (FR-9). TeamID is a Team.ID (e.g. "TOR"), the
+// value scoring later compares on. SubmittedAt is RFC3339 in UTC, matching
+// PredictionSet.DeadlineUTC's convention.
+type Prediction struct {
+	ID          string `yaml:"id"`
+	PlayerID    string `yaml:"player_id"`
+	Kind        string `yaml:"kind"`
+	TeamID      string `yaml:"team_id"`
+	SubmittedAt string `yaml:"submitted_at"`
+}
+
 // Team is one of the season's 32 NHL teams. Like Player and PredictionSet,
 // the list is hand-maintained directly in fantasy-hockey.yml;
 // internal/store never writes it (AD-23). ID is the team's standard
@@ -84,6 +107,7 @@ type document struct {
 	LoginCodes     []LoginCode     `yaml:"login_codes"`
 	PredictionSets []PredictionSet `yaml:"prediction_sets"`
 	Teams          []Team          `yaml:"teams"`
+	Predictions    []Prediction    `yaml:"predictions"`
 }
 
 // Store is the in-memory representation of fantasy-hockey.yml, guarded by a
@@ -254,6 +278,65 @@ func (s *Store) ConsumeLoginCode(codeHash string, now time.Time) (playerID strin
 	}
 
 	return "", false, nil
+}
+
+// FindPrediction returns playerID's saved Prediction row for kind, if any.
+func (s *Store) FindPrediction(playerID, kind string) (Prediction, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.doc.Predictions {
+		if p.PlayerID == playerID && p.Kind == kind {
+			return p, true
+		}
+	}
+	return Prediction{}, false
+}
+
+// SavePrediction saves playerID's pick of teamID for kind, persisting the
+// change. An existing (playerID, kind) row is updated in place - a
+// resubmission never appends a duplicate (FR-9); otherwise a new row is
+// appended with a generated id, mirroring CreateLoginCode's append pattern.
+// If the write fails, the change is rolled back from memory (restoring the
+// row's old TeamID/SubmittedAt on an update, or truncating the appended row)
+// so a caller told the write failed can't later have it silently persisted
+// by an unrelated successful write.
+func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	submittedAt := now.UTC().Format(time.RFC3339)
+
+	for i := range s.doc.Predictions {
+		row := &s.doc.Predictions[i]
+		if row.PlayerID != playerID || row.Kind != kind {
+			continue
+		}
+
+		oldTeamID, oldSubmittedAt := row.TeamID, row.SubmittedAt
+		row.TeamID = teamID
+		row.SubmittedAt = submittedAt
+
+		if err := s.writeLocked(); err != nil {
+			row.TeamID, row.SubmittedAt = oldTeamID, oldSubmittedAt
+			return fmt.Errorf("store: persist prediction: %w", err)
+		}
+		return nil
+	}
+
+	s.doc.Predictions = append(s.doc.Predictions, Prediction{
+		ID:          uuid.NewString(),
+		PlayerID:    playerID,
+		Kind:        kind,
+		TeamID:      teamID,
+		SubmittedAt: submittedAt,
+	})
+
+	if err := s.writeLocked(); err != nil {
+		s.doc.Predictions = s.doc.Predictions[:len(s.doc.Predictions)-1]
+		return fmt.Errorf("store: persist prediction: %w", err)
+	}
+	return nil
 }
 
 // writeLocked serializes the in-memory document and atomically replaces the

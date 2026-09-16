@@ -77,10 +77,15 @@ var tabMessages = map[string]string{
 }
 
 // predictSheetPattern is the single source of truth for the per-Prediction-
-// Set stub page's route, registered on both authMux and the outer mux so the
+// Set sheet page's route, registered on both authMux and the outer mux so the
 // two can't drift out of sync, the same way shellRoutes is for the bottom-nav
 // routes.
 const predictSheetPattern = "GET /predict/{id}"
+
+// predictSheetSubmitPattern is the single source of truth for the cup/
+// presidents pick submission route, registered on both authMux and the outer
+// mux the same way predictSheetPattern is, so the two can't drift.
+const predictSheetSubmitPattern = "POST /predict/{id}"
 
 // Prediction Set phases, matching fantasy-hockey.yml's prediction_sets[].phase
 // values and the Predict screen's two section labels (DESIGN.md's Section
@@ -92,10 +97,7 @@ const (
 )
 
 // Prediction Set status labels and their status-pill CSS classes
-// (styles.css). "Submitted" is unreachable until a later story can record a
-// pick (this story never writes one), but the constant and its pill class
-// exist now so that story only has to start returning it, not build the
-// pill for it.
+// (styles.css).
 const (
 	statusOpen      = "Open"
 	statusSubmitted = "Submitted"
@@ -133,20 +135,26 @@ type predictPhases struct {
 }
 
 // newPredictSetView derives set's presentation-ready row from its
-// hand-maintained YAML fields, evaluating status/countdown against now. An
-// error means set.DeadlineUTC isn't valid RFC3339 - a hand-edit mistake in
+// hand-maintained YAML fields, evaluating status/countdown against now.
+// submitted is whether the current player already has a saved Prediction row
+// for set (st.FindPrediction(playerID, set.ID)); it only ever affects
+// non-upcoming sets, since Upcoming always wins (Boundaries & Constraints).
+// An error means set.DeadlineUTC isn't valid RFC3339 - a hand-edit mistake in
 // fantasy-hockey.yml, not something a caller can recover from per-row, so
 // the caller drops the row rather than rendering a broken one.
-func newPredictSetView(set store.PredictionSet, now time.Time) (predictSetView, error) {
+func newPredictSetView(set store.PredictionSet, submitted bool, now time.Time) (predictSetView, error) {
 	deadline, err := time.Parse(time.RFC3339, set.DeadlineUTC)
 	if err != nil {
 		return predictSetView{}, fmt.Errorf("parse deadline_utc %q: %w", set.DeadlineUTC, err)
 	}
 
-	status, pillCSS := predictStatus(set.Upcoming, deadline, now)
+	status, pillCSS := predictStatus(set.Upcoming, submitted, deadline, now)
 	accentCSS := "set-row--open"
-	if set.Upcoming {
+	switch {
+	case set.Upcoming:
 		accentCSS = "set-row--upcoming"
+	case submitted:
+		accentCSS = "set-row--submitted"
 	}
 
 	return predictSetView{
@@ -164,31 +172,39 @@ func newPredictSetView(set store.PredictionSet, now time.Time) (predictSetView, 
 }
 
 // predictStatus computes a Prediction Set's status label and status-pill CSS
-// class from its Upcoming flag and deadline. It never returns "Submitted" -
-// this story never records a pick, so that status stays unreachable until a
-// later story can produce it. A deadline exactly at now counts as closed
-// (now is never "still open" once it reaches the deadline).
-func predictStatus(upcoming bool, deadline, now time.Time) (label, pillCSS string) {
+// class from its Upcoming flag, whether the player already has a saved pick
+// (submitted), and its deadline. Precedence is Upcoming > Closed > Submitted
+// > Open - a deadline exactly at now counts as closed (now is never "still
+// open" once it reaches the deadline), and a closed set never shows
+// Submitted even if a pick was saved before the deadline passed.
+func predictStatus(upcoming, submitted bool, deadline, now time.Time) (label, pillCSS string) {
 	switch {
 	case upcoming:
 		return statusUpcoming, statusPillUpcoming
 	case !deadline.After(now):
 		return statusClosed, statusPillClosed
+	case submitted:
+		return statusSubmitted, statusPillSubmitted
 	default:
 		return statusOpen, statusPillOpen
 	}
 }
 
 // buildPredictPhases groups st's Prediction Sets into their two Predict
-// sections, in the order fantasy-hockey.yml lists them. A row whose
+// sections, in the order fantasy-hockey.yml lists them. playerID is the
+// logged-in player's id (may be empty for a session lookup miss), used to
+// look up each set's saved Prediction (kind == set.ID) so its row can show
+// Submitted status - a set with no matching Prediction.Kind (every id other
+// than "cup"/"presidents", today) naturally never finds one. A row whose
 // deadline_utc fails to parse is logged and skipped rather than failing the
 // whole page - one hand-edit mistake shouldn't take down every other
 // Prediction Set. A row with a phase other than "before_season" or
 // "playoffs" is likewise logged and skipped.
-func buildPredictPhases(st *store.Store, now time.Time) predictPhases {
+func buildPredictPhases(st *store.Store, playerID string, now time.Time) predictPhases {
 	var phases predictPhases
 	for _, set := range st.PredictionSets() {
-		view, err := newPredictSetView(set, now)
+		_, submitted := st.FindPrediction(playerID, set.ID)
+		view, err := newPredictSetView(set, submitted, now)
 		if err != nil {
 			slog.Error("build predict set view", "prediction_set_id", set.ID, "error", err)
 			continue
@@ -207,17 +223,19 @@ func buildPredictPhases(st *store.Store, now time.Time) predictPhases {
 }
 
 // teamOption is one entry in the shared autocomplete embed shape (AD-19):
-// every embedding site (this story's teams, and 2.3/2.4/2.5's own data)
-// renders this identical {"id", "label"} JSON object, and the widget always
-// submits ID, never Label, into its bound form field.
+// every embedding site (this story's teams, and 2.4/2.6's own data) renders
+// this identical {"id", "label"} JSON object, and the widget always submits
+// ID, never Label, into its bound form field.
 type teamOption struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 }
 
 // newTeamOptions converts teams into the shared embed shape, preserving
-// input order. Not called from any handler yet - 2.3/2.4 embed it once they
-// add their own dropdowns/chips.
+// input order. Not called from any handler yet - Story 2.3's cup/presidents
+// sheet renders native <option>s from Store.Teams() directly instead
+// (Boundaries & Constraints: no JSON-embed shape for this story); 2.4/2.6
+// embed it once they add their own dropdowns/chips.
 func newTeamOptions(teams []store.Team) []teamOption {
 	options := make([]teamOption, len(teams))
 	for i, team := range teams {
@@ -283,9 +301,11 @@ var shellRoutes = []struct {
 // their own authMux, which requireSession wraps before it's mounted on the
 // outer mux alongside the public routes - a future protected route joins
 // shellRoutes the same way, without touching how public routes are wired.
-// GET /predict/{id} (the per-Prediction-Set stub page) is registered the
-// same way but outside shellRoutes, since it isn't a bottom-nav destination
-// and needs its own handler (handleSheet) rather than handleShell.
+// GET /predict/{id} (the per-Prediction-Set sheet page) and POST /predict/{id}
+// (its cup/presidents pick submission) are registered the same way but
+// outside shellRoutes, since neither is a bottom-nav destination; they get
+// their own handlers (handleSheet, handleSheetSubmit) rather than
+// handleShell.
 // POST /logout is registered directly on the outer mux rather than authMux,
 // since clearing the session cookie must work even when the presented
 // cookie is missing, expired, or tampered.
@@ -295,6 +315,7 @@ func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler 
 		authMux.Handle(r.pattern, handleShell(st, r.tab))
 	}
 	authMux.Handle(predictSheetPattern, handleSheet(st))
+	authMux.Handle(predictSheetSubmitPattern, handleSheetSubmit(st))
 	protected := requireSession(secret, authMux)
 
 	mux := http.NewServeMux()
@@ -302,6 +323,7 @@ func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler 
 		mux.Handle(r.pattern, protected)
 	}
 	mux.Handle(predictSheetPattern, protected)
+	mux.Handle(predictSheetSubmitPattern, protected)
 	mux.HandleFunc("GET /login", handleLoginForm(secret))
 	mux.HandleFunc("POST /login", handleLoginSubmit(st, send))
 	mux.HandleFunc("POST /login/code", handleLoginCodeSubmit(st, secret))
@@ -360,8 +382,10 @@ func staticFiles() fs.FS {
 // logging the lookup miss server-side.
 func handleShell(st *store.Store, tab string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		playerID, ok := auth.PlayerIDFromContext(r.Context())
+
 		var name string
-		if playerID, ok := auth.PlayerIDFromContext(r.Context()); ok {
+		if ok {
 			if player, found := st.FindPlayerByID(playerID); found {
 				name = player.Name
 			} else {
@@ -377,7 +401,7 @@ func handleShell(st *store.Store, tab string) http.HandlerFunc {
 			Message:    tabMessages[tab],
 		}
 		if tab == tabPredict {
-			phases := buildPredictPhases(st, clock.NowTime())
+			phases := buildPredictPhases(st, playerID, clock.NowTime())
 			data.Predict = &phases
 		}
 
@@ -385,48 +409,256 @@ func handleShell(st *store.Store, tab string) http.HandlerFunc {
 	}
 }
 
-// sheetData feeds templates/sheet.html: the minimal per-Prediction-Set stub
-// page this story adds - a real pick-entry sheet is a later story's work
-// (Boundaries & Constraints: "not a real Prediction sheet").
+// pickableSheetKinds is the set of Prediction Set ids that get today's real
+// single-team pick-entry sheet (Story 2.3) instead of the static stub -
+// every other id keeps rendering the stub unchanged (Boundaries &
+// Constraints: "Only the 'cup' and 'presidents' ids get this real form").
+var pickableSheetKinds = map[string]bool{
+	store.KindCupChampion:      true,
+	store.KindPresidentsTrophy: true,
+}
+
+// teamDivisionOrder is the fixed division display order for the
+// cup/presidents pick sheet's <optgroup> grouping (DESIGN.md's dropdown
+// component groups by division).
+var teamDivisionOrder = []string{"Atlantic", "Metropolitan", "Central", "Pacific"}
+
+// teamDivisionGroup is one <optgroup> of teamDivisionOrder's dropdown: every
+// team sharing one Division, in st.Teams()'s own order.
+type teamDivisionGroup struct {
+	Division string
+	Teams    []store.Team
+}
+
+// groupTeamsByDivision groups teams into teamDivisionOrder's fixed order,
+// preserving each division's input order. A division with no teams present
+// in teams is simply omitted.
+func groupTeamsByDivision(teams []store.Team) []teamDivisionGroup {
+	byDivision := make(map[string][]store.Team)
+	for _, team := range teams {
+		byDivision[team.Division] = append(byDivision[team.Division], team)
+	}
+
+	var groups []teamDivisionGroup
+	for _, division := range teamDivisionOrder {
+		if divisionTeams, ok := byDivision[division]; ok {
+			groups = append(groups, teamDivisionGroup{Division: division, Teams: divisionTeams})
+		}
+	}
+	return groups
+}
+
+// pickView is the cup/presidents sheet's pick-entry state: SelectedTeamID
+// pre-fills the dropdown from a saved Prediction (empty for no prior pick);
+// Submitted controls the action button's "Update predictions" vs. "Submit
+// predictions" text; Error is a non-empty inline caption after a rejected
+// submission; Divisions is the season's canonical teams, grouped for the
+// <optgroup> markup.
+type pickView struct {
+	SelectedTeamID string
+	Submitted      bool
+	Error          string
+	Divisions      []teamDivisionGroup
+}
+
+// sheetData feeds templates/sheet.html: Title/DeadlineText/Countdown render
+// for every Prediction Set id. Closed and Pick are only populated for the
+// "cup"/"presidents" ids (handleSheet/handleSheetSubmit) - Pick stays nil for
+// every other id, which keeps rendering the static "not available yet." stub
+// (Boundaries & Constraints).
 type sheetData struct {
+	ID           string
 	Title        string
 	DeadlineText string
 	Countdown    string
+	Closed       bool
+	Pick         *pickView
 }
 
-// handleSheet renders the GET /predict/{id} stub page for the Prediction Set
-// matching {id}: title, formatted deadline+countdown, and a static "not
-// available yet" body - no pick-entry form, no action bar. An {id} matching
-// no Prediction Set gets a generic http.StatusNotFound response, the same
-// as any other unknown path, so it can't be used to probe which ids exist.
-// A row whose deadline_utc fails to parse is treated the same way, since
-// there's nothing sensible to render for it either. It reuses
-// newPredictSetView (rather than re-parsing deadline_utc itself) so the
-// deadline-formatting and countdown logic stays in one place.
+// newSheetData builds sheetData for set as seen by playerID at now: the
+// common Title/DeadlineText/Countdown/Closed fields every id gets, plus a
+// populated Pick for the "cup"/"presidents" ids. teamIDOverride, when
+// non-nil, replaces the saved pick's team id in the rendered form - used by
+// handleSheetSubmit to re-render the sheet with the rejected submission's
+// (invalid) value instead of the last-saved one. err is non-nil only when
+// set.DeadlineUTC fails to parse, mirroring newPredictSetView.
+func newSheetData(st *store.Store, set store.PredictionSet, playerID string, now time.Time, teamIDOverride *string) (sheetData, error) {
+	prediction, submitted := st.FindPrediction(playerID, set.ID)
+
+	view, err := newPredictSetView(set, submitted, now)
+	if err != nil {
+		return sheetData{}, err
+	}
+
+	data := sheetData{
+		ID:           set.ID,
+		Title:        view.Title,
+		DeadlineText: view.DeadlineText,
+		Countdown:    view.Countdown,
+		Closed:       view.Status == statusClosed,
+	}
+
+	if pickableSheetKinds[set.ID] {
+		selectedTeamID := prediction.TeamID
+		if teamIDOverride != nil {
+			selectedTeamID = *teamIDOverride
+		}
+		data.Pick = &pickView{
+			SelectedTeamID: selectedTeamID,
+			Submitted:      submitted,
+			Divisions:      groupTeamsByDivision(st.Teams()),
+		}
+	}
+
+	return data, nil
+}
+
+// handleSheet renders the GET /predict/{id} page for the Prediction Set
+// matching {id}. For "cup"/"presidents", this is a real pick-entry sheet: a
+// single team dropdown (pre-filled from a saved Prediction, if any) grouped
+// by division, a Submit/Update action button, and - once the deadline has
+// passed - a read-only banner with the select disabled and no action bar
+// (FR-8's "no override for anyone"). Every other id keeps rendering the
+// static "not available yet." stub. An {id} matching no Prediction Set gets
+// a generic http.StatusNotFound response, the same as any other unknown
+// path, so it can't be used to probe which ids exist. A row whose
+// deadline_utc fails to parse is treated the same way, since there's nothing
+// sensible to render for it either.
 func handleSheet(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		for _, set := range st.PredictionSets() {
-			if set.ID != id {
-				continue
-			}
+		playerID, _ := auth.PlayerIDFromContext(r.Context())
 
-			view, err := newPredictSetView(set, clock.NowTime())
-			if err != nil {
-				slog.Error("parse deadline_utc for prediction set", "prediction_set_id", set.ID, "error", err)
-				http.NotFound(w, r)
-				return
-			}
-
-			renderTemplate(w, "sheet.html", sheetData{
-				Title:        view.Title,
-				DeadlineText: view.DeadlineText,
-				Countdown:    view.Countdown,
-			})
+		set, found := findPredictionSetByID(st, id)
+		if !found {
+			http.NotFound(w, r)
 			return
 		}
-		http.NotFound(w, r)
+
+		data, err := newSheetData(st, set, playerID, clock.NowTime(), nil)
+		if err != nil {
+			slog.Error("parse deadline_utc for prediction set", "prediction_set_id", set.ID, "error", err)
+			http.NotFound(w, r)
+			return
+		}
+
+		renderTemplate(w, "sheet.html", data)
 	}
+}
+
+// findPredictionSetByID returns the Prediction Set matching id, if any -
+// shared by handleSheet and handleSheetSubmit so the lookup can't drift
+// between the two.
+func findPredictionSetByID(st *store.Store, id string) (store.PredictionSet, bool) {
+	for _, set := range st.PredictionSets() {
+		if set.ID == id {
+			return set, true
+		}
+	}
+	return store.PredictionSet{}, false
+}
+
+// isKnownTeamID reports whether teamID matches one of st.Teams() - the
+// server-side re-validation AD-10 requires regardless of what the client
+// submitted.
+func isKnownTeamID(st *store.Store, teamID string) bool {
+	for _, team := range st.Teams() {
+		if team.ID == teamID {
+			return true
+		}
+	}
+	return false
+}
+
+// maxSheetFormBytes bounds the POST /predict/{id} body the same way
+// maxLoginFormBytes bounds POST /login: a single team id needs only a
+// handful of bytes, so this leaves generous headroom while still capping how
+// much an unbounded request body can make the server read.
+const maxSheetFormBytes = 4096
+
+// invalidTeamErrorText is the inline caption shown when the submitted
+// team_id doesn't match any of Store.Teams() (AD-10's server-revalidates
+// stance) - an empty, missing, or unknown id all render this identical
+// caption, and nothing is saved.
+const invalidTeamErrorText = "Pick a team before submitting."
+
+// handleSheetSubmit handles POST /predict/{id}, the cup/presidents pick
+// submission. {id} not being "cup"/"presidents", or matching no Prediction
+// Set, gets a generic http.StatusNotFound - identical to handleSheet's own
+// unknown-id handling, so it can't be used to probe which ids exist. A
+// closed (past-deadline) set rejects the submission outright with
+// http.StatusForbidden, no override for anyone (FR-8), and nothing is
+// re-rendered. The submitted team_id is re-validated against st.Teams()
+// regardless of what the client sent (AD-10); an empty, missing, or unknown
+// id re-renders the sheet (200) with an inline error caption and the
+// rejected value retained, saving nothing. A valid id is saved via
+// st.SavePrediction and redirects to /predict (302).
+func handleSheetSubmit(st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if !pickableSheetKinds[id] {
+			http.NotFound(w, r)
+			return
+		}
+
+		set, found := findPredictionSetByID(st, id)
+		if !found {
+			http.NotFound(w, r)
+			return
+		}
+
+		now := clock.NowTime()
+		deadline, err := time.Parse(time.RFC3339, set.DeadlineUTC)
+		if err != nil {
+			slog.Error("parse deadline_utc for prediction set", "prediction_set_id", set.ID, "error", err)
+			http.NotFound(w, r)
+			return
+		}
+		if !deadline.After(now) {
+			http.Error(w, genericErrorBody, http.StatusForbidden)
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, maxSheetFormBytes)
+		if err := r.ParseForm(); err != nil {
+			slog.Error("parse predict sheet form", "error", err)
+			http.Error(w, genericErrorBody, http.StatusInternalServerError)
+			return
+		}
+
+		teamID := r.FormValue("team_id")
+		playerID, _ := auth.PlayerIDFromContext(r.Context())
+
+		if !isKnownTeamID(st, teamID) {
+			renderRejectedPick(w, r, st, set, playerID, now, teamID)
+			return
+		}
+
+		if err := st.SavePrediction(playerID, id, teamID, now); err != nil {
+			slog.Error("save prediction", "player_id", playerID, "kind", id, "error", err)
+			http.Error(w, genericErrorBody, http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, "/predict", http.StatusFound)
+	}
+}
+
+// renderRejectedPick re-renders set's sheet (200) with teamID retained and
+// an inline error caption, after handleSheetSubmit rejects it as missing or
+// unknown - nothing is saved. err from newSheetData can only come from
+// set.DeadlineUTC failing to parse, which handleSheetSubmit's caller already
+// parsed successfully moments earlier - kept here (rather than assumed nil)
+// so this path stays correct even if that invariant ever changes.
+func renderRejectedPick(w http.ResponseWriter, r *http.Request, st *store.Store, set store.PredictionSet, playerID string, now time.Time, teamID string) {
+	data, err := newSheetData(st, set, playerID, now, &teamID)
+	if err != nil {
+		slog.Error("parse deadline_utc for prediction set", "prediction_set_id", set.ID, "error", err)
+		http.NotFound(w, r)
+		return
+	}
+	data.Pick.Error = invalidTeamErrorText
+	renderTemplate(w, "sheet.html", data)
 }
 
 // handleLoginForm renders the email-entry step of the login flow, unless

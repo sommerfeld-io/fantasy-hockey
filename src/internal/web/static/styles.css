@@ -468,3 +468,59 @@ a.set-row {
   font-size: 13px;
   color: var(--muted);
 }
+
+/*
+  Cup champion / Presidents' Trophy pick form (Story 2.3): DESIGN.md's
+  Input / dropdown field component (raised fill, border, lg/10px radius) for
+  the team select, plus a read-only banner shown once a set is closed.
+*/
+
+.pick-form {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+select {
+  width: 100%;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+}
+
+select:disabled {
+  color: var(--faint);
+  opacity: 0.7;
+}
+
+optgroup {
+  color: var(--muted);
+  font-weight: 600;
+  font-style: normal;
+}
+
+option {
+  color: var(--text);
+  font-weight: 400;
+}
+
+select:disabled optgroup,
+select:disabled option {
+  color: var(--faint);
+}
+
+.closed-banner {
+  margin: 0;
+  padding: 12px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}

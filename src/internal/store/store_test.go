@@ -583,6 +583,210 @@ func TestConsumeLoginCodeShouldRollBackTheMarkWhenTheWriteFails(t *testing.T) {
 	}
 }
 
+func TestFindPredictionShouldNotReturnARowOnNoMatch(t *testing.T) {
+	st := newTestStore(t)
+
+	_, ok := st.FindPrediction("basti", KindCupChampion)
+	if ok {
+		t.Fatal("expected no match when no Prediction rows exist")
+	}
+}
+
+// seedPrediction appends a Prediction row directly into st's in-memory
+// document (bypassing SavePrediction) so tests can seed a row without
+// exercising the write path under test.
+func seedPrediction(t *testing.T, st *Store, row Prediction) {
+	t.Helper()
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.doc.Predictions = append(st.doc.Predictions, row)
+}
+
+func TestFindPredictionShouldReturnTheSeededRowOnAMatch(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindCupChampion, TeamID: "TOR", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	got, ok := st.FindPrediction("basti", KindCupChampion)
+	if !ok {
+		t.Fatal("expected a match, got none")
+	}
+	if got.TeamID != "TOR" {
+		t.Errorf("expected team id %q, got %q", "TOR", got.TeamID)
+	}
+}
+
+func TestFindPredictionShouldNotMatchARowForADifferentKind(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindCupChampion, TeamID: "TOR", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindPrediction("basti", KindPresidentsTrophy)
+	if ok {
+		t.Fatal("expected no match for a different kind, even for the same player")
+	}
+}
+
+func TestFindPredictionShouldNotMatchARowForADifferentPlayer(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindCupChampion, TeamID: "TOR", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindPrediction("someone-else", KindCupChampion)
+	if ok {
+		t.Fatal("expected no match for a different player, even for the same kind")
+	}
+}
+
+func TestSavePredictionShouldAppendANewRowWhenNoneExists(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	got, ok := st.FindPrediction("basti", KindCupChampion)
+	if !ok {
+		t.Fatal("expected a Prediction row to have been saved")
+	}
+	if got.TeamID != "TOR" {
+		t.Errorf("expected team id %q, got %q", "TOR", got.TeamID)
+	}
+	if got.PlayerID != "basti" || got.Kind != KindCupChampion {
+		t.Errorf("unexpected prediction row: %+v", got)
+	}
+	if got.SubmittedAt != "2026-09-14T10:00:00Z" {
+		t.Errorf("expected submitted_at %q, got %q", "2026-09-14T10:00:00Z", got.SubmittedAt)
+	}
+	if got.ID == "" {
+		t.Error("expected a generated id, got empty string")
+	}
+}
+
+func TestSavePredictionShouldUpdateAnExistingRowInPlaceOnResubmission(t *testing.T) {
+	st := newTestStore(t)
+	first := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	second := first.Add(time.Hour)
+
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", first); err != nil {
+		t.Fatalf("first SavePrediction returned error: %v", err)
+	}
+	if err := st.SavePrediction("basti", KindCupChampion, "VGK", second); err != nil {
+		t.Fatalf("second SavePrediction returned error: %v", err)
+	}
+
+	st.mu.RLock()
+	rows := len(st.doc.Predictions)
+	st.mu.RUnlock()
+	if rows != 1 {
+		t.Fatalf("expected the resubmission to update the existing row rather than append, got %d rows", rows)
+	}
+
+	got, ok := st.FindPrediction("basti", KindCupChampion)
+	if !ok {
+		t.Fatal("expected a match")
+	}
+	if got.TeamID != "VGK" {
+		t.Errorf("expected the updated team id %q, got %q", "VGK", got.TeamID)
+	}
+	if got.SubmittedAt != second.Format(time.RFC3339) {
+		t.Errorf("expected the updated submitted_at %q, got %q", second.Format(time.RFC3339), got.SubmittedAt)
+	}
+}
+
+func TestSavePredictionShouldNotTouchARowForADifferentKindOrPlayer(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+	if err := st.SavePrediction("basti", KindPresidentsTrophy, "VGK", now); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	cup, ok := st.FindPrediction("basti", KindCupChampion)
+	if !ok || cup.TeamID != "TOR" {
+		t.Errorf("expected the cup pick to stay %q, got %+v (ok=%v)", "TOR", cup, ok)
+	}
+	presidents, ok := st.FindPrediction("basti", KindPresidentsTrophy)
+	if !ok || presidents.TeamID != "VGK" {
+		t.Errorf("expected the presidents pick to be %q, got %+v (ok=%v)", "VGK", presidents, ok)
+	}
+}
+
+func TestSavePredictionShouldPersistToDisk(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fantasy-hockey.yml")
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	var doc document
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal file: %v", err)
+	}
+	if len(doc.Predictions) != 1 || doc.Predictions[0].TeamID != "TOR" {
+		t.Errorf("expected the persisted file to contain the new prediction, got %+v", doc.Predictions)
+	}
+}
+
+func TestSavePredictionShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fantasy-hockey.yml")
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Now().UTC()); err == nil {
+		t.Fatal("expected SavePrediction to return an error when the write fails")
+	}
+
+	if _, ok := st.FindPrediction("basti", KindCupChampion); ok {
+		t.Error("expected the failed append to be rolled back, but a Prediction row was found")
+	}
+}
+
+func TestSavePredictionShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fantasy-hockey.yml")
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Now().UTC()); err != nil {
+		t.Fatalf("seed SavePrediction returned error: %v", err)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if err := st.SavePrediction("basti", KindCupChampion, "VGK", time.Now().UTC()); err == nil {
+		t.Fatal("expected SavePrediction to return an error when the write fails")
+	}
+
+	got, ok := st.FindPrediction("basti", KindCupChampion)
+	if !ok {
+		t.Fatal("expected the original row to still be found")
+	}
+	if got.TeamID != "TOR" {
+		t.Errorf("expected the failed update to be rolled back to %q, got %q", "TOR", got.TeamID)
+	}
+}
+
 func TestStoreShouldBeSafeForConcurrentCreateLoginCode(t *testing.T) {
 	st := newTestStore(t)
 

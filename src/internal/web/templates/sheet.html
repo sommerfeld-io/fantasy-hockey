@@ -1,10 +1,13 @@
 {{/*
-  Per-Prediction-Set stub page (Story 2.1's minimal GET /predict/{id}
-  destination): a back arrow to /predict, the set's title, its formatted
-  deadline+countdown, and a static "not available yet" body - no
-  pick-entry form, no action bar (Boundaries & Constraints: "a static stub,
-  not a real Prediction sheet"). A later story replaces this body with the
-  real form; the route and this page's shape stay.
+  Per-Prediction-Set sheet page: a back arrow to /predict, the set's title,
+  its formatted deadline+countdown, and either the static "not available
+  yet" stub body (every id but "cup"/"presidents", Story 2.1), or - when
+  .Pick is set (Story 2.3) - a real single-team dropdown grouped by
+  division, sourced from Store.Teams(). Submitting POSTs to /predict/{id};
+  the button reads "Update predictions" once .Pick.Submitted is true. Once
+  .Closed, the select renders disabled and the action bar (button + hint)
+  is replaced by a read-only banner - no override for anyone, even the
+  player who made the pick.
 */}}
 <!doctype html>
 <html lang="en">
@@ -22,7 +25,29 @@
   </header>
   <main class="sheet-content">
     <div class="sheet-deadline"><svg class="row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg><span>{{.DeadlineText}}</span><span>&nbsp;&middot; {{.Countdown}}</span></div>
+    {{if .Pick}}
+    <form class="pick-form" method="post" action="/predict/{{.ID}}">
+      <select name="team_id" required {{if .Closed}}disabled{{end}}>
+        <option value="" disabled {{if eq .Pick.SelectedTeamID ""}}selected{{end}}>Choose a team</option>
+        {{range .Pick.Divisions}}
+        <optgroup label="{{.Division}}">
+          {{range .Teams}}
+          <option value="{{.ID}}" {{if eq $.Pick.SelectedTeamID .ID}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </optgroup>
+        {{end}}
+      </select>
+      {{if .Pick.Error}}<p class="error-text">{{.Pick.Error}}</p>{{end}}
+      {{if .Closed}}
+      <p class="closed-banner">This Prediction Set is closed. No changes can be made.</p>
+      {{else}}
+      <button type="submit">{{if .Pick.Submitted}}Update predictions{{else}}Submit predictions{{end}}</button>
+      <p class="hint">Editable until the deadline.</p>
+      {{end}}
+    </form>
+    {{else}}
     <p class="sheet-placeholder">Not available yet.</p>
+    {{end}}
   </main>
 </div>
 </body>
