@@ -1,13 +1,24 @@
----
 season: 2026-27
 players:
     - id: sebastian
       name: Sebastian
       email: sebastian@sommerfeld.io
-login_codes: []
-# deadline_utc values below are the UX click-dummy's illustrative placeholder
-# dates (Europe/Berlin, converted to UTC), not the real 2026-27 season
-# schedule - hand-edit them to the real deadlines before players rely on them.
+login_codes:
+    - id: ea8e4e54-cb95-4227-a47f-a6cafb590b3d
+      player_id: sebastian
+      code_hash: 3f2165ae576b1a1277f4f15d59b88ba386f4c9abdfe483208283f90fb53cd9ad
+      issued_at: "2026-09-16T18:59:11Z"
+      used_at: "2026-09-16T18:59:19Z"
+    - id: a9346d62-7786-4cbf-8537-bc60426e82c2
+      player_id: sebastian
+      code_hash: fa3388ffe5c31642cb6c5b8cbbc46b2a07e2c70b4f5f51d751a49e836f37ed25
+      issued_at: "2026-09-16T19:00:11Z"
+      used_at: "2026-09-16T19:00:29Z"
+    - id: 418e03ce-e923-4270-906a-5f57e8526b22
+      player_id: sebastian
+      code_hash: 0af5414f0548e23b541291aa6d7aa796eb724511ccd9f7deb3c1471ed089d40e
+      issued_at: "2026-09-16T19:43:56Z"
+      used_at: "2026-09-16T19:44:01Z"
 prediction_sets:
     - id: cup
       title: Cup champion
@@ -192,3 +203,14 @@ teams:
       name: Vegas Golden Knights
       conference: Western
       division: Pacific
+predictions:
+    - id: 7056d8d8-738e-4605-bc5f-2e379c0323cb
+      player_id: sebastian
+      kind: cup
+      team_id: DET
+      submitted_at: "2026-09-16T18:59:33Z"
+    - id: f843f959-2210-4ebe-8c3b-6e2d083225a9
+      player_id: sebastian
+      kind: presidents
+      team_id: DET
+      submitted_at: "2026-09-16T18:59:53Z"
