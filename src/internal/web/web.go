@@ -206,6 +206,26 @@ func buildPredictPhases(st *store.Store, now time.Time) predictPhases {
 	return phases
 }
 
+// teamOption is one entry in the shared autocomplete embed shape (AD-19):
+// every embedding site (this story's teams, and 2.3/2.4/2.5's own data)
+// renders this identical {"id", "label"} JSON object, and the widget always
+// submits ID, never Label, into its bound form field.
+type teamOption struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+// newTeamOptions converts teams into the shared embed shape, preserving
+// input order. Not called from any handler yet - 2.3/2.4 embed it once they
+// add their own dropdowns/chips.
+func newTeamOptions(teams []store.Team) []teamOption {
+	options := make([]teamOption, len(teams))
+	for i, team := range teams {
+		options[i] = teamOption{ID: team.ID, Label: team.Name}
+	}
+	return options
+}
+
 // shellData feeds templates/shell.html. PlayerName is empty when the
 // session's player id has no matching player left in the store (a
 // stale/deleted id) - the header then degrades to a neutral state instead

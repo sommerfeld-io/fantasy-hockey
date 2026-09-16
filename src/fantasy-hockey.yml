@@ -63,3 +63,132 @@ prediction_sets:
       deadline_utc: "2027-05-28T16:00:00Z"
       phase: playoffs
       upcoming: true
+teams:
+    - id: BOS
+      name: Boston Bruins
+      conference: Eastern
+      division: Atlantic
+    - id: BUF
+      name: Buffalo Sabres
+      conference: Eastern
+      division: Atlantic
+    - id: DET
+      name: Detroit Red Wings
+      conference: Eastern
+      division: Atlantic
+    - id: FLA
+      name: Florida Panthers
+      conference: Eastern
+      division: Atlantic
+    - id: MTL
+      name: Montréal Canadiens
+      conference: Eastern
+      division: Atlantic
+    - id: OTT
+      name: Ottawa Senators
+      conference: Eastern
+      division: Atlantic
+    - id: TBL
+      name: Tampa Bay Lightning
+      conference: Eastern
+      division: Atlantic
+    - id: TOR
+      name: Toronto Maple Leafs
+      conference: Eastern
+      division: Atlantic
+    - id: CAR
+      name: Carolina Hurricanes
+      conference: Eastern
+      division: Metropolitan
+    - id: CBJ
+      name: Columbus Blue Jackets
+      conference: Eastern
+      division: Metropolitan
+    - id: NJD
+      name: New Jersey Devils
+      conference: Eastern
+      division: Metropolitan
+    - id: NYI
+      name: New York Islanders
+      conference: Eastern
+      division: Metropolitan
+    - id: NYR
+      name: New York Rangers
+      conference: Eastern
+      division: Metropolitan
+    - id: PHI
+      name: Philadelphia Flyers
+      conference: Eastern
+      division: Metropolitan
+    - id: PIT
+      name: Pittsburgh Penguins
+      conference: Eastern
+      division: Metropolitan
+    - id: WSH
+      name: Washington Capitals
+      conference: Eastern
+      division: Metropolitan
+    - id: CHI
+      name: Chicago Blackhawks
+      conference: Western
+      division: Central
+    - id: COL
+      name: Colorado Avalanche
+      conference: Western
+      division: Central
+    - id: DAL
+      name: Dallas Stars
+      conference: Western
+      division: Central
+    - id: MIN
+      name: Minnesota Wild
+      conference: Western
+      division: Central
+    - id: NSH
+      name: Nashville Predators
+      conference: Western
+      division: Central
+    - id: STL
+      name: St. Louis Blues
+      conference: Western
+      division: Central
+    - id: UTA
+      name: Utah Mammoth
+      conference: Western
+      division: Central
+    - id: WPG
+      name: Winnipeg Jets
+      conference: Western
+      division: Central
+    - id: ANA
+      name: Anaheim Ducks
+      conference: Western
+      division: Pacific
+    - id: CGY
+      name: Calgary Flames
+      conference: Western
+      division: Pacific
+    - id: EDM
+      name: Edmonton Oilers
+      conference: Western
+      division: Pacific
+    - id: LAK
+      name: Los Angeles Kings
+      conference: Western
+      division: Pacific
+    - id: SJS
+      name: San Jose Sharks
+      conference: Western
+      division: Pacific
+    - id: SEA
+      name: Seattle Kraken
+      conference: Western
+      division: Pacific
+    - id: VAN
+      name: Vancouver Canucks
+      conference: Western
+      division: Pacific
+    - id: VGK
+      name: Vegas Golden Knights
+      conference: Western
+      division: Pacific

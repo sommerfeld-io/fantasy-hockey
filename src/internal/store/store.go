@@ -64,12 +64,26 @@ type PredictionSet struct {
 	Upcoming    bool   `yaml:"upcoming"`
 }
 
+// Team is one of the season's 32 NHL teams. Like Player and PredictionSet,
+// the list is hand-maintained directly in fantasy-hockey.yml;
+// internal/store never writes it (AD-23). ID is the team's standard
+// 3-letter abbreviation (e.g. "TOR"), never a UUID (AD-17) - it's the value
+// every downstream reader (a saved Prediction, internal/scoring) compares
+// on, never Name.
+type Team struct {
+	ID         string `yaml:"id"`
+	Name       string `yaml:"name"`
+	Conference string `yaml:"conference"`
+	Division   string `yaml:"division"`
+}
+
 // document mirrors fantasy-hockey.yml's on-disk shape.
 type document struct {
 	Season         string          `yaml:"season"`
 	Players        []Player        `yaml:"players"`
 	LoginCodes     []LoginCode     `yaml:"login_codes"`
 	PredictionSets []PredictionSet `yaml:"prediction_sets"`
+	Teams          []Team          `yaml:"teams"`
 }
 
 // Store is the in-memory representation of fantasy-hockey.yml, guarded by a
@@ -164,6 +178,20 @@ func (s *Store) PredictionSets() []PredictionSet {
 	sets := make([]PredictionSet, len(s.doc.PredictionSets))
 	copy(sets, s.doc.PredictionSets)
 	return sets
+}
+
+// Teams returns every one of the season's canonical NHL teams, as
+// hand-maintained in fantasy-hockey.yml (Season's read-only pattern: no
+// write method exists, since this story only ever reads the list). The
+// returned slice is a copy, so a caller mutating it can't reach back into
+// the store's own state.
+func (s *Store) Teams() []Team {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	teams := make([]Team, len(s.doc.Teams))
+	copy(teams, s.doc.Teams)
+	return teams
 }
 
 // CreateLoginCode appends a new LoginCode row for playerID and persists it.

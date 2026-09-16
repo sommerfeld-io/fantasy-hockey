@@ -272,6 +272,83 @@ prediction_sets:
 	}
 }
 
+func TestTeamsShouldReturnTheSeededList(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fantasy-hockey.yml")
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+teams:
+    - id: TOR
+      name: Toronto Maple Leafs
+      conference: Eastern
+      division: Atlantic
+    - id: VGK
+      name: Vegas Golden Knights
+      conference: Western
+      division: Pacific
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	want := []Team{
+		{ID: "TOR", Name: "Toronto Maple Leafs", Conference: "Eastern", Division: "Atlantic"},
+		{ID: "VGK", Name: "Vegas Golden Knights", Conference: "Western", Division: "Pacific"},
+	}
+	teams := st.Teams()
+	if len(teams) != len(want) {
+		t.Fatalf("expected %d teams, got %d", len(want), len(teams))
+	}
+	for i, w := range want {
+		if teams[i] != w {
+			t.Errorf("unexpected team at index %d: got %+v, want %+v", i, teams[i], w)
+		}
+	}
+}
+
+func TestTeamsShouldReturnAnEmptyListWhenNoneAreSeeded(t *testing.T) {
+	st := newTestStore(t)
+
+	teams := st.Teams()
+	if len(teams) != 0 {
+		t.Errorf("expected an empty list, got %v", teams)
+	}
+}
+
+func TestTeamsShouldReturnACopyThatCannotMutateTheStore(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fantasy-hockey.yml")
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+teams:
+    - id: TOR
+      name: Toronto Maple Leafs
+      conference: Eastern
+      division: Atlantic
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	teams := st.Teams()
+	teams[0].Name = "Tampered"
+
+	again := st.Teams()
+	if again[0].Name != "Toronto Maple Leafs" {
+		t.Errorf("expected the store's own copy to stay untouched, got name %q", again[0].Name)
+	}
+}
+
 func TestCreateLoginCodeShouldAppendANewRow(t *testing.T) {
 	st := newTestStore(t)
 

@@ -41,6 +41,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeLogOutScenario(ctx)
 			InitializeAppShellScenario(ctx)
 			InitializeBrowsePredictionSetsScenario(ctx)
+			InitializeLoadCanonicalTeamListScenario(ctx)
 		},
 		Options: &opts,
 	}
