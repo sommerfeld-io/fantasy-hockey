@@ -117,14 +117,17 @@ action_items:
   - id: "epic-1-retro-item-6-decide-whether-the-post-login-redirect-s"
     epic: 1
     action: "Decide whether the post-login redirect should preserve the originally-requested
-      destination"
+      destination -- RESOLVED 2026-09-16: always redirect to the default landing
+      page; matches current handleLoginCodeSubmit behavior, no code change needed"
     owner: "John (PM) / Sally (UX)"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
   - id: "epic-1-retro-item-7-decide-whether-sessions-need-an-absolute"
     epic: 1
     action: "Decide whether sessions need an absolute maximum lifetime in addition
-      to the sliding idle timeout"
+      to the sliding idle timeout -- RESOLVED 2026-09-16: no absolute lifetime;
+      sliding idle timeout only, matches current implementation, no code change
+      needed"
     owner: "Winston (Architect)"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
