@@ -45,6 +45,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeLoadCanonicalNHLPlayerListScenario(ctx)
 			InitializeCupAndPresidentsPicksScenario(ctx)
 			InitializeDivisionPicksScenario(ctx)
+			InitializeAwardFinalistsScenario(ctx)
 		},
 		Options: &opts,
 	}

@@ -1228,6 +1228,253 @@ func TestSaveDivisionPicksShouldRollBackTheUpdatesWhenTheWriteFails(t *testing.T
 	}
 }
 
+func TestFindAwardFinalistsShouldNotReturnARowOnNoMatch(t *testing.T) {
+	st := newTestStore(t)
+
+	_, ok := st.FindAwardFinalists("basti", AwardHart)
+	if ok {
+		t.Fatal("expected no match when no award rows exist")
+	}
+}
+
+func TestFindAwardFinalistsShouldReturnTheSeededRowOnAMatch(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindAward, Award: AwardHart, FinalistSlugs: []string{"mcdavid-connor", "mackinnon-nathan", "kucherov-nikita"}, SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	got, ok := st.FindAwardFinalists("basti", AwardHart)
+	if !ok {
+		t.Fatal("expected a match, got none")
+	}
+	want := []string{"mcdavid-connor", "mackinnon-nathan", "kucherov-nikita"}
+	if !slices.Equal(got.FinalistSlugs, want) {
+		t.Errorf("expected finalist slugs %v, got %v", want, got.FinalistSlugs)
+	}
+}
+
+func TestFindAwardFinalistsShouldNotMatchARowForADifferentAward(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindAward, Award: AwardHart, FinalistSlugs: []string{"a", "b", "c"}, SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindAwardFinalists("basti", AwardNorris)
+	if ok {
+		t.Fatal("expected no match for a different award, even for the same player")
+	}
+}
+
+func TestFindAwardFinalistsShouldNotMatchARowForADifferentPlayer(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindAward, Award: AwardHart, FinalistSlugs: []string{"a", "b", "c"}, SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindAwardFinalists("someone-else", AwardHart)
+	if ok {
+		t.Fatal("expected no match for a different player, even for the same award")
+	}
+}
+
+func TestFindAwardFinalistsShouldNotMatchADifferentlyKindedRow(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindDivisionWinner, Award: AwardHart, TeamID: "TOR", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindAwardFinalists("basti", AwardHart)
+	if ok {
+		t.Fatal("expected no match for a differently-kinded row, even sharing the same scoping key")
+	}
+}
+
+func TestSaveAwardPicksShouldAppendNewRowsForEveryFullyFilledAward(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	finalists := map[string][]string{
+		AwardHart:   {"mcdavid-connor", "mackinnon-nathan", "kucherov-nikita"},
+		AwardNorris: {"makar-cale", "hughes-quinn", "werenski-zach"},
+	}
+
+	if err := st.SaveAwardPicks("basti", finalists, now); err != nil {
+		t.Fatalf("SaveAwardPicks returned error: %v", err)
+	}
+
+	hart, ok := st.FindAwardFinalists("basti", AwardHart)
+	if !ok || len(hart.FinalistSlugs) != 3 {
+		t.Errorf("expected a Hart row with 3 finalist slugs, got %+v (ok=%v)", hart, ok)
+	}
+	norris, ok := st.FindAwardFinalists("basti", AwardNorris)
+	if !ok || len(norris.FinalistSlugs) != 3 {
+		t.Errorf("expected a Norris row with 3 finalist slugs, got %+v (ok=%v)", norris, ok)
+	}
+}
+
+func TestSaveAwardPicksShouldNotUpsertAnAwardWithFewerThanThreeSlugs(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	finalists := map[string][]string{
+		AwardHart: {"mcdavid-connor", "mackinnon-nathan"}, // only 2 of 3.
+	}
+
+	if err := st.SaveAwardPicks("basti", finalists, now); err != nil {
+		t.Fatalf("SaveAwardPicks returned error: %v", err)
+	}
+
+	if _, ok := st.FindAwardFinalists("basti", AwardHart); ok {
+		t.Error("expected no row for an award with fewer than 3 finalist slugs")
+	}
+}
+
+func TestSaveAwardPicksShouldNotUpsertAnAwardWithAnEmptySlugAmongThree(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	finalists := map[string][]string{
+		AwardHart: {"mcdavid-connor", "", "kucherov-nikita"},
+	}
+
+	if err := st.SaveAwardPicks("basti", finalists, now); err != nil {
+		t.Fatalf("SaveAwardPicks returned error: %v", err)
+	}
+
+	if _, ok := st.FindAwardFinalists("basti", AwardHart); ok {
+		t.Error("expected no row for an award with an empty slug among its three")
+	}
+}
+
+func TestSaveAwardPicksShouldNotUpsertAnAwardAbsentFromTheMap(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, now); err != nil {
+		t.Fatalf("SaveAwardPicks returned error: %v", err)
+	}
+
+	if _, ok := st.FindAwardFinalists("basti", AwardNorris); ok {
+		t.Error("expected no row for an award genuinely absent from the map")
+	}
+}
+
+func TestSaveAwardPicksShouldUpdateAnExistingRowInPlaceOnResubmission(t *testing.T) {
+	st := newTestStore(t)
+	first := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	second := first.Add(time.Hour)
+
+	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, first); err != nil {
+		t.Fatalf("first SaveAwardPicks returned error: %v", err)
+	}
+	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"x", "y", "z"}}, second); err != nil {
+		t.Fatalf("second SaveAwardPicks returned error: %v", err)
+	}
+
+	st.mu.RLock()
+	rows := len(st.doc.Predictions)
+	st.mu.RUnlock()
+	if rows != 1 {
+		t.Fatalf("expected the resubmission to update the existing row rather than append, got %d rows", rows)
+	}
+
+	got, ok := st.FindAwardFinalists("basti", AwardHart)
+	if !ok || !slices.Equal(got.FinalistSlugs, []string{"x", "y", "z"}) {
+		t.Errorf("expected the updated finalist slugs %v, got %+v (ok=%v)", []string{"x", "y", "z"}, got, ok)
+	}
+}
+
+func TestSaveAwardPicksShouldNotTouchARowForADifferentAwardOrPlayer(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, now); err != nil {
+		t.Fatalf("SaveAwardPicks returned error: %v", err)
+	}
+	if err := st.SaveAwardPicks("basti", map[string][]string{AwardNorris: {"d", "e", "f"}}, now); err != nil {
+		t.Fatalf("SaveAwardPicks returned error: %v", err)
+	}
+	if err := st.SaveAwardPicks("other-player", map[string][]string{AwardHart: {"g", "h", "i"}}, now); err != nil {
+		t.Fatalf("SaveAwardPicks returned error: %v", err)
+	}
+
+	bastiHart, ok := st.FindAwardFinalists("basti", AwardHart)
+	if !ok || !slices.Equal(bastiHart.FinalistSlugs, []string{"a", "b", "c"}) {
+		t.Errorf("expected basti's Hart slugs %v, got %+v (ok=%v)", []string{"a", "b", "c"}, bastiHart, ok)
+	}
+	bastiNorris, ok := st.FindAwardFinalists("basti", AwardNorris)
+	if !ok || !slices.Equal(bastiNorris.FinalistSlugs, []string{"d", "e", "f"}) {
+		t.Errorf("expected basti's Norris slugs %v, got %+v (ok=%v)", []string{"d", "e", "f"}, bastiNorris, ok)
+	}
+	otherHart, ok := st.FindAwardFinalists("other-player", AwardHart)
+	if !ok || !slices.Equal(otherHart.FinalistSlugs, []string{"g", "h", "i"}) {
+		t.Errorf("expected other-player's Hart slugs %v, got %+v (ok=%v)", []string{"g", "h", "i"}, otherHart, ok)
+	}
+}
+
+func TestSaveAwardPicksShouldPersistToDisk(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("SaveAwardPicks returned error: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	var doc document
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal file: %v", err)
+	}
+	if len(doc.Predictions) != 1 {
+		t.Fatalf("expected 1 persisted row, got %+v", doc.Predictions)
+	}
+}
+
+func TestSaveAwardPicksShouldRollBackTheAppendsWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Now().UTC()); err == nil {
+		t.Fatal("expected SaveAwardPicks to return an error when the write fails")
+	}
+
+	if _, ok := st.FindAwardFinalists("basti", AwardHart); ok {
+		t.Error("expected the failed append to be rolled back, but an award row was found")
+	}
+}
+
+func TestSaveAwardPicksShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Now().UTC()); err != nil {
+		t.Fatalf("seed SaveAwardPicks returned error: %v", err)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"x", "y", "z"}}, time.Now().UTC()); err == nil {
+		t.Fatal("expected SaveAwardPicks to return an error when the write fails")
+	}
+
+	got, ok := st.FindAwardFinalists("basti", AwardHart)
+	if !ok || !slices.Equal(got.FinalistSlugs, []string{"a", "b", "c"}) {
+		t.Errorf("expected the failed update to be rolled back to %v, got %+v (ok=%v)", []string{"a", "b", "c"}, got, ok)
+	}
+}
+
 func TestStoreShouldBeSafeForConcurrentCreateLoginCode(t *testing.T) {
 	st := newTestStore(t)
 

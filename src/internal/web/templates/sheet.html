@@ -1,12 +1,14 @@
 {{/*
   Per-Prediction-Set sheet page: a back arrow to /predict, the set's title,
-  its formatted deadline+countdown, and one of three bodies - the static
+  its formatted deadline+countdown, and one of four bodies - the static
   "not available yet" stub (every id but the pickable ones, Story 2.1);
   when .Pick is set (Story 2.3), a real single-team dropdown grouped by
-  division, sourced from Store.Teams(); or, when .DivisionPick is set
+  division, sourced from Store.Teams(); when .DivisionPick is set
   (Story 2.4), the checkbox-chip playoff-teams form plus four division-
-  winner selects. Submitting POSTs to /predict/{id}; the button reads
-  "Update predictions" once .Pick.Submitted/.DivisionPick.Submitted is true.
+  winner selects; or, when .AwardsPick is set (Story 2.6), 5 trophy groups
+  of 3 text/hidden-slug finalist-autocomplete pairs each. Submitting POSTs
+  to /predict/{id}; the button reads "Update predictions" once
+  .Pick.Submitted/.DivisionPick.Submitted/.AwardsPick.Submitted is true.
   Once .Closed, the inputs render disabled and the action bar (button + hint)
   is replaced by a read-only banner - no override for anyone, even the
   player who made the pick.
@@ -105,6 +107,42 @@
       {{end}}
     </form>
     <script src="/static/divisions.js" defer></script>
+    {{else if .AwardsPick}}
+    <form class="pick-form awards-form" method="post" action="/predict/{{.ID}}" id="awards-form" {{if .Closed}}data-closed{{end}}>
+      {{range .AwardsPick.Groups}}
+      {{$group := .}}
+      <fieldset class="award-group {{if .Filled}}award-group--filled{{end}}" data-award="{{.Award}}">
+        <legend class="award-group-legend">
+          <span class="award-group-title">{{.Title}}</span>
+          <span class="award-check" data-role="award-check">
+            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 6L9 17l-5-5"/></svg>
+          </span>
+        </legend>
+        <p class="hint award-hint">Pick 3 finalists.</p>
+        <div class="finalist-slots">
+          {{range .Finalists}}
+          <div class="finalist-slot" data-position="{{$group.Position}}">
+            <input type="text" class="finalist-text {{if .Invalid}}error{{end}}" name="{{.TextField}}" value="{{.Text}}" placeholder="{{$group.Placeholder}}" aria-label="{{.AriaLabel}}" autocomplete="off" {{if $.Closed}}disabled{{end}}>
+            <input type="hidden" class="finalist-slug" name="{{.SlugField}}" value="{{.Slug}}">
+            {{if .Error}}<p class="error-text">{{.Error}}</p>{{end}}
+          </div>
+          {{end}}
+        </div>
+      </fieldset>
+      {{end}}
+
+      <script type="application/json" id="award-options-skater">{{.AwardsPick.SkaterOptionsJSON}}</script>
+      <script type="application/json" id="award-options-defenseman">{{.AwardsPick.DefensemanOptionsJSON}}</script>
+      <script type="application/json" id="award-options-goalie">{{.AwardsPick.GoalieOptionsJSON}}</script>
+
+      {{if .Closed}}
+      <p class="closed-banner">This Prediction Set is closed. No changes can be made.</p>
+      {{else}}
+      <button type="submit">{{if .AwardsPick.Submitted}}Update predictions{{else}}Submit predictions{{end}}</button>
+      <p class="hint">Editable until the deadline.</p>
+      {{end}}
+    </form>
+    <script src="/static/awards.js" defer></script>
     {{else}}
     <p class="sheet-placeholder">Not available yet.</p>
     {{end}}

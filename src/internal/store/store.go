@@ -86,6 +86,25 @@ const (
 	// instead keyed by (PlayerID, Kind, Division), never by Kind alone.
 	KindDivisionPlayoffTeams = "division_playoff_teams"
 	KindDivisionWinner       = "division_winner"
+
+	// KindAward is Story 2.6's award-scoped Kind value: like
+	// KindDivisionPlayoffTeams/KindDivisionWinner, it doesn't match a
+	// Prediction Set id directly (all five awards belong to the single
+	// "awards" set) - a row of this kind is instead keyed by (PlayerID,
+	// Kind, Award), never by Kind alone.
+	KindAward = "award"
+)
+
+// Award values, matching the PRD's own five individual-award names
+// (FR-17/AD-28) - the fixed key every KindAward Prediction row is scoped by,
+// mirroring Division's own scoping of KindDivisionPlayoffTeams/
+// KindDivisionWinner rows.
+const (
+	AwardHart          = "hart"
+	AwardNorris        = "norris"
+	AwardVezina        = "vezina"
+	AwardArtRoss       = "art_ross"
+	AwardRocketRichard = "rocket_richard"
 )
 
 // Prediction is one player's saved pick for one Prediction Set kind (e.g.
@@ -101,14 +120,22 @@ const (
 // a KindDivisionWinner row instead uses TeamID, the same field the cup/
 // presidents rows use. Division and TeamIDs both stay zero-valued/omitted on
 // every cup/presidents row, where a row is keyed by (PlayerID, Kind) alone.
+// Award and FinalistSlugs are set only on a KindAward row
+// (FindAwardFinalists/SaveAwardPicks): Award is one of the AwardHart/
+// AwardNorris/AwardVezina/AwardArtRoss/AwardRocketRichard keys, and
+// FinalistSlugs holds exactly 3 ordered NHL Player (AwardFinalist) slugs -
+// SaveAwardPicks never upserts a row with fewer. Both stay zero-valued/
+// omitted on every other Kind's row.
 type Prediction struct {
-	ID          string   `yaml:"id"`
-	PlayerID    string   `yaml:"player_id"`
-	Kind        string   `yaml:"kind"`
-	TeamID      string   `yaml:"team_id"`
-	SubmittedAt string   `yaml:"submitted_at"`
-	Division    string   `yaml:"division,omitempty"`
-	TeamIDs     []string `yaml:"team_ids,omitempty"`
+	ID            string   `yaml:"id"`
+	PlayerID      string   `yaml:"player_id"`
+	Kind          string   `yaml:"kind"`
+	TeamID        string   `yaml:"team_id"`
+	SubmittedAt   string   `yaml:"submitted_at"`
+	Division      string   `yaml:"division,omitempty"`
+	TeamIDs       []string `yaml:"team_ids,omitempty"`
+	Award         string   `yaml:"award,omitempty"`
+	FinalistSlugs []string `yaml:"finalist_slugs,omitempty"`
 }
 
 // Team is one of the season's 32 NHL teams. Like Player and PredictionSet,
@@ -514,6 +541,105 @@ func (s *Store) upsertDivisionPredictionLocked(playerID, kind, division string, 
 		TeamIDs:     teamIDs,
 		TeamID:      teamID,
 		SubmittedAt: submittedAt,
+	})
+}
+
+// AwardFinalistCount is the exact number of finalist slugs a KindAward row
+// must carry (PRD FR-17/AD-28's "3 finalists per award") - SaveAwardPicks
+// never upserts a row with fewer. Exported so internal/web references this
+// one home instead of declaring its own copy of the same PRD-fixed number.
+const AwardFinalistCount = 3
+
+// FindAwardFinalists returns playerID's saved finalist-trio pick for award,
+// if any (Kind == KindAward), mirroring FindDivisionPlayoffTeams/
+// FindDivisionWinner's own (PlayerID, Kind, scoping-key) match.
+func (s *Store) FindAwardFinalists(playerID, award string) (Prediction, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.doc.Predictions {
+		if p.PlayerID == playerID && p.Kind == KindAward && p.Award == award {
+			return p, true
+		}
+	}
+	return Prediction{}, false
+}
+
+// awardHasAllFinalistSlugs reports whether slugs holds exactly
+// AwardFinalistCount non-empty entries - SaveAwardPicks' own gate for
+// upserting an award's row at all (never a force-created partial row).
+func awardHasAllFinalistSlugs(slugs []string) bool {
+	if len(slugs) != AwardFinalistCount {
+		return false
+	}
+	for _, slug := range slugs {
+		if slug == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// SaveAwardPicks saves every award present in finalists whose slice holds
+// all AwardFinalistCount non-empty slugs, persisting all of it through
+// exactly one atomic write (SaveDivisionPicks' own batched-write
+// precedent). An award present with fewer than AwardFinalistCount non-empty
+// slugs gets no upsert at all - a 1-or-2-filled award is treated
+// identically to a fully-blank one (FR-11, AD-28's framing of the row as
+// "the trio," not three independent slots). An existing (playerID,
+// KindAward, Award) row is updated in place, mirroring
+// upsertDivisionPredictionLocked's own upsert shape. If the single write
+// fails, every row touched by this call is rolled back by restoring a
+// whole-document snapshot taken before any mutation, the same rollback
+// shape SaveDivisionPicks uses for the same reason (this call's own
+// interleaved appends could invalidate held row pointers once the
+// underlying slice reallocates).
+func (s *Store) SaveAwardPicks(playerID string, finalists map[string][]string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	snapshot := make([]Prediction, len(s.doc.Predictions))
+	copy(snapshot, s.doc.Predictions)
+
+	submittedAt := now.UTC().Format(time.RFC3339)
+
+	for award, slugs := range finalists {
+		if !awardHasAllFinalistSlugs(slugs) {
+			continue
+		}
+		s.upsertAwardPredictionLocked(playerID, award, slugs, submittedAt)
+	}
+
+	if err := s.writeLocked(); err != nil {
+		s.doc.Predictions = snapshot
+		return fmt.Errorf("store: persist award picks: %w", err)
+	}
+	return nil
+}
+
+// upsertAwardPredictionLocked updates the existing (playerID, KindAward,
+// award) row's FinalistSlugs/SubmittedAt in place, or appends a new row
+// with a generated id - shared by SaveAwardPicks' own upsert loop, mirroring
+// upsertDivisionPredictionLocked. Callers must hold s.mu for writing.
+func (s *Store) upsertAwardPredictionLocked(playerID, award string, slugs []string, submittedAt string) {
+	finalistSlugs := append([]string(nil), slugs...) // own copy: never alias the caller's slice.
+
+	for i := range s.doc.Predictions {
+		row := &s.doc.Predictions[i]
+		if row.PlayerID == playerID && row.Kind == KindAward && row.Award == award {
+			row.FinalistSlugs = finalistSlugs
+			row.SubmittedAt = submittedAt
+			return
+		}
+	}
+
+	s.doc.Predictions = append(s.doc.Predictions, Prediction{
+		ID:            uuid.NewString(),
+		PlayerID:      playerID,
+		Kind:          KindAward,
+		Award:         award,
+		FinalistSlugs: finalistSlugs,
+		SubmittedAt:   submittedAt,
 	})
 }
 

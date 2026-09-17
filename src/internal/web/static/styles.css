@@ -674,3 +674,105 @@ select:disabled option {
   flex-direction: column;
   gap: 6px;
 }
+
+/*
+  Player awards finalists (Story 2.6): 5 trophy groups of 3 text-input
+  finalist slots each, each slot pairing a visible text input with a hidden
+  slug input (AD-19). Reuses input.error's existing goal-border convention
+  for an unresolved/rejected slot rather than introducing a second one, and
+  the Division-picks count-indicator's green/valid palette for the
+  once-filled check.
+*/
+
+.awards-form {
+  gap: 20px;
+}
+
+.award-group {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.award-group-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+.award-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.award-hint {
+  margin: 2px 0 8px;
+  text-align: left;
+}
+
+.award-check {
+  display: none;
+  color: var(--green);
+}
+
+.award-group--filled .award-check {
+  display: inline-flex;
+}
+
+.check-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.finalist-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.finalist-slot {
+  position: relative;
+}
+
+.finalist-text {
+  width: 100%;
+}
+
+.finalist-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin-top: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.finalist-suggestion {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  font-family: inherit;
+}
+
+.finalist-suggestion:hover,
+.finalist-suggestion:focus {
+  background: var(--sel);
+}
