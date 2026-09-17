@@ -350,6 +350,148 @@ teams:
 	}
 }
 
+func TestNHLPlayersShouldReturnTheSeededList(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+nhl_players:
+    - slug: mcdavid-connor
+      display_name: Connor McDavid
+      position: skater
+    - slug: hellebuyck-connor
+      display_name: Connor Hellebuyck
+      position: goalie
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	want := []AwardFinalist{
+		{Slug: "mcdavid-connor", DisplayName: "Connor McDavid", Position: PositionSkater},
+		{Slug: "hellebuyck-connor", DisplayName: "Connor Hellebuyck", Position: PositionGoalie},
+	}
+	players := st.NHLPlayers()
+	if len(players) != len(want) {
+		t.Fatalf("expected %d NHL Players, got %d", len(want), len(players))
+	}
+	for i, w := range want {
+		if players[i] != w {
+			t.Errorf("unexpected NHL Player at index %d: got %+v, want %+v", i, players[i], w)
+		}
+	}
+}
+
+func TestNHLPlayersShouldReturnAnEmptyListWhenNoneAreSeeded(t *testing.T) {
+	st := newTestStore(t)
+
+	players := st.NHLPlayers()
+	if len(players) != 0 {
+		t.Errorf("expected an empty list, got %v", players)
+	}
+}
+
+func TestNHLPlayersShouldReturnACopyThatCannotMutateTheStore(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+nhl_players:
+    - slug: mcdavid-connor
+      display_name: Connor McDavid
+      position: skater
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	players := st.NHLPlayers()
+	players[0].DisplayName = "Tampered"
+
+	again := st.NHLPlayers()
+	if again[0].DisplayName != "Connor McDavid" {
+		t.Errorf("expected the store's own copy to stay untouched, got name %q", again[0].DisplayName)
+	}
+}
+
+func TestNHLPlayersByPositionShouldReturnOnlyThatPositionsEntries(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+nhl_players:
+    - slug: mcdavid-connor
+      display_name: Connor McDavid
+      position: skater
+    - slug: hughes-quinn
+      display_name: Quinn Hughes
+      position: defenseman
+    - slug: makar-cale
+      display_name: Cale Makar
+      position: defenseman
+    - slug: hellebuyck-connor
+      display_name: Connor Hellebuyck
+      position: goalie
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	want := []AwardFinalist{
+		{Slug: "hughes-quinn", DisplayName: "Quinn Hughes", Position: PositionDefenseman},
+		{Slug: "makar-cale", DisplayName: "Cale Makar", Position: PositionDefenseman},
+	}
+	got := st.NHLPlayersByPosition(PositionDefenseman)
+	if len(got) != len(want) {
+		t.Fatalf("expected %d defensemen, got %d: %+v", len(want), len(got), got)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("unexpected NHL Player at index %d: got %+v, want %+v", i, got[i], w)
+		}
+	}
+}
+
+func TestNHLPlayersByPositionShouldReturnAnEmptyListWhenThatPositionHasNoMatches(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+nhl_players:
+    - slug: mcdavid-connor
+      display_name: Connor McDavid
+      position: skater
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	got := st.NHLPlayersByPosition(PositionGoalie)
+	if len(got) != 0 {
+		t.Errorf("expected no goalies, got %v", got)
+	}
+}
+
 func TestCreateLoginCodeShouldAppendANewRow(t *testing.T) {
 	st := newTestStore(t)
 

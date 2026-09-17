@@ -124,6 +124,31 @@ type Team struct {
 	Division   string `yaml:"division"`
 }
 
+// Position values for an AwardFinalist, matching the PRD's own wording
+// (FR-33/AD-24). Like Prediction.Kind, Position stays a plain string
+// constant rather than a dedicated type - this codebase never validates
+// hand-maintained enum-like fields (a hand-edited value outside these three
+// is simply never returned by NHLPlayersByPosition, never rejected).
+const (
+	PositionSkater     = "skater"
+	PositionDefenseman = "defenseman"
+	PositionGoalie     = "goalie"
+)
+
+// AwardFinalist is one NHL player eligible as a Story 2.6 award-finalist
+// pick (Hart/Art Ross/Rocket Richard need skaters, Norris needs
+// defensemen, Vezina needs goalies). Like Team, the list is hand-maintained
+// directly in fantasy-hockey.yml's nhl_players: section; internal/store
+// never writes it (AD-23). Slug is the value every downstream reader (a
+// saved Prediction's finalist pick, the embed's submitted id) ever compares
+// on, never DisplayName (AD-17) - hand-picked once by the maintainer and
+// never regenerated.
+type AwardFinalist struct {
+	Slug        string `yaml:"slug"`
+	DisplayName string `yaml:"display_name"`
+	Position    string `yaml:"position"`
+}
+
 // document mirrors fantasy-hockey.yml's on-disk shape.
 type document struct {
 	Season         string          `yaml:"season"`
@@ -131,6 +156,7 @@ type document struct {
 	LoginCodes     []LoginCode     `yaml:"login_codes"`
 	PredictionSets []PredictionSet `yaml:"prediction_sets"`
 	Teams          []Team          `yaml:"teams"`
+	NHLPlayers     []AwardFinalist `yaml:"nhl_players"`
 	Predictions    []Prediction    `yaml:"predictions"`
 }
 
@@ -240,6 +266,37 @@ func (s *Store) Teams() []Team {
 	teams := make([]Team, len(s.doc.Teams))
 	copy(teams, s.doc.Teams)
 	return teams
+}
+
+// NHLPlayers returns every one of the season's canonical NHL Players
+// (AwardFinalist), as hand-maintained in fantasy-hockey.yml (Teams's own
+// read-only pattern: no write method exists, since this story only ever
+// reads the list). The returned slice is a copy, so a caller mutating it
+// can't reach back into the store's own state.
+func (s *Store) NHLPlayers() []AwardFinalist {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	players := make([]AwardFinalist, len(s.doc.NHLPlayers))
+	copy(players, s.doc.NHLPlayers)
+	return players
+}
+
+// NHLPlayersByPosition returns only the NHL Players whose Position matches,
+// preserving the seeded order - the one parameterized filter Story 2.6's
+// award-finalist autocomplete scopes its skater/defenseman/goalie
+// suggestions with, rather than three separate per-position methods.
+func (s *Store) NHLPlayersByPosition(position string) []AwardFinalist {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	players := make([]AwardFinalist, 0, len(s.doc.NHLPlayers))
+	for _, p := range s.doc.NHLPlayers {
+		if p.Position == position {
+			players = append(players, p)
+		}
+	}
+	return players
 }
 
 // CreateLoginCode appends a new LoginCode row for playerID and persists it.

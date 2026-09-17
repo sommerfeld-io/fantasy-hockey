@@ -203,6 +203,28 @@ teams:
       name: Vegas Golden Knights
       conference: Western
       division: Pacific
+nhl_players:
+    - slug: mcdavid-connor
+      display_name: Connor McDavid
+      position: skater
+    - slug: mackinnon-nathan
+      display_name: Nathan MacKinnon
+      position: skater
+    - slug: kucherov-nikita
+      display_name: Nikita Kucherov
+      position: skater
+    - slug: hughes-quinn
+      display_name: Quinn Hughes
+      position: defenseman
+    - slug: makar-cale
+      display_name: Cale Makar
+      position: defenseman
+    - slug: hellebuyck-connor
+      display_name: Connor Hellebuyck
+      position: goalie
+    - slug: shesterkin-igor
+      display_name: Igor Shesterkin
+      position: goalie
 predictions:
     - id: 7056d8d8-738e-4605-bc5f-2e379c0323cb
       player_id: sebastian

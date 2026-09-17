@@ -604,6 +604,36 @@ func TestNewTeamOptionsShouldReturnAnEmptySliceForAnEmptyInput(t *testing.T) {
 	}
 }
 
+// TestNewAwardFinalistOptionsShouldConvertEveryFinalistIntoTheSharedEmbedShape
+// covers AD-19: every entry gets exactly {"id": "<slug>", "label":
+// "<display_name>"}, preserving the input order and producing the identical
+// shape newTeamOptions does, so 2.6's embedding site can rely on it.
+func TestNewAwardFinalistOptionsShouldConvertEveryFinalistIntoTheSharedEmbedShape(t *testing.T) {
+	finalists := []store.AwardFinalist{
+		{Slug: "mcdavid-connor", DisplayName: "Connor McDavid", Position: store.PositionSkater},
+		{Slug: "hellebuyck-connor", DisplayName: "Connor Hellebuyck", Position: store.PositionGoalie},
+	}
+
+	options := newAwardFinalistOptions(finalists)
+
+	out, err := json.Marshal(options)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	want := `[{"id":"mcdavid-connor","label":"Connor McDavid"},{"id":"hellebuyck-connor","label":"Connor Hellebuyck"}]`
+	if string(out) != want {
+		t.Errorf("expected JSON %q, got %q", want, string(out))
+	}
+}
+
+func TestNewAwardFinalistOptionsShouldReturnAnEmptySliceForAnEmptyInput(t *testing.T) {
+	options := newAwardFinalistOptions(nil)
+
+	if len(options) != 0 {
+		t.Errorf("expected an empty slice, got %v", options)
+	}
+}
+
 // TestGetPredictSheetShouldRenderTheStubPageForAKnownSet covers a Prediction
 // Set id that isn't one of pickableSheetKinds - every id but "cup"/
 // "presidents"/divisionsSetID keeps rendering the unchanged stub (Boundaries
