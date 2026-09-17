@@ -203,7 +203,7 @@ func predictStatus(upcoming, submitted bool, deadline, now time.Time) (label, pi
 func buildPredictPhases(st *store.Store, playerID string, now time.Time) predictPhases {
 	var phases predictPhases
 	for _, set := range st.PredictionSets() {
-		_, submitted := st.FindPrediction(playerID, set.ID)
+		submitted := setSubmitted(st, set, playerID)
 		view, err := newPredictSetView(set, submitted, now)
 		if err != nil {
 			slog.Error("build predict set view", "prediction_set_id", set.ID, "error", err)
@@ -409,13 +409,21 @@ func handleShell(st *store.Store, tab string) http.HandlerFunc {
 	}
 }
 
-// pickableSheetKinds is the set of Prediction Set ids that get today's real
-// single-team pick-entry sheet (Story 2.3) instead of the static stub -
-// every other id keeps rendering the stub unchanged (Boundaries &
-// Constraints: "Only the 'cup' and 'presidents' ids get this real form").
+// divisionsSetID is the one Prediction Set id that gets Story 2.4's
+// checkbox-chip playoff-teams-and-winners form rather than a single-team
+// dropdown - referenced everywhere this file dispatches on it, so the id
+// literal can't drift between call sites.
+const divisionsSetID = "divisions"
+
+// pickableSheetKinds is the set of Prediction Set ids that get a real
+// pick-entry form instead of the static stub - Story 2.3's single-team
+// dropdown for the "cup" and "presidents" ids, Story 2.4's checkbox-chip
+// form for divisionsSetID. Every other id keeps rendering the stub
+// unchanged.
 var pickableSheetKinds = map[string]bool{
 	store.KindCupChampion:      true,
 	store.KindPresidentsTrophy: true,
+	divisionsSetID:             true,
 }
 
 // teamDivisionOrder is the fixed division display order for the
@@ -448,6 +456,259 @@ func groupTeamsByDivision(teams []store.Team) []teamDivisionGroup {
 	return groups
 }
 
+// divisionConferenceGroup is one of the two Conference sections
+// ("Eastern"/"Western") the divisions sheet renders, each holding its own
+// two teamDivisionGroups.
+type divisionConferenceGroup struct {
+	Conference string
+	Divisions  []teamDivisionGroup
+}
+
+// groupDivisionsByConference splits groups (teamDivisionOrder's fixed
+// division order) into their two Conferences, preserving teamDivisionOrder's
+// own order within each conference. Each conference id is derived from its
+// first group's first team's own Conference field (Never: "never a second
+// hardcoded division->conference map"). groups must come from
+// groupTeamsByDivision, whose own contract guarantees every group has at
+// least one team - never a group with an empty Teams slice.
+func groupDivisionsByConference(groups []teamDivisionGroup) []divisionConferenceGroup {
+	var conferences []divisionConferenceGroup
+	indexByConference := make(map[string]int)
+
+	for _, group := range groups {
+		conference := group.Teams[0].Conference
+
+		i, ok := indexByConference[conference]
+		if !ok {
+			i = len(conferences)
+			indexByConference[conference] = i
+			conferences = append(conferences, divisionConferenceGroup{Conference: conference})
+		}
+		conferences[i].Divisions = append(conferences[i].Divisions, group)
+	}
+	return conferences
+}
+
+// maxTeamsPerDivision is the most playoff teams a player may check within
+// one division (DESIGN.md's Division-picks progress indicator: "a small n/5
+// counter per division").
+const maxTeamsPerDivision = 5
+
+// requiredTeamsPerConference is the exact total of playoff teams a
+// conference's two divisions must sum to (either a 4/4 split or a 5/3 split)
+// before that conference counts as valid.
+const requiredTeamsPerConference = 8
+
+// divisionPlayoffTeamsFieldName is division's checkbox-group form field
+// name for its playoff-teams pick.
+func divisionPlayoffTeamsFieldName(division string) string {
+	return "playoff_teams_" + strings.ToLower(division)
+}
+
+// divisionWinnerFieldName is division's <select> form field name for its
+// winner pick.
+func divisionWinnerFieldName(division string) string {
+	return "winner_" + strings.ToLower(division)
+}
+
+// divisionTeamPick is one team chip in a division's playoff-teams checkbox
+// list: Checked reflects the player's currently-saved (or a rejected
+// resubmission's own retained) pick.
+type divisionTeamPick struct {
+	ID      string
+	Name    string
+	Checked bool
+}
+
+// divisionGroupPick is one division's rendered chip group and winner
+// select: Teams are the division's full roster as checkbox chips;
+// WinnerTeams is the same roster again for the winner <select> - never
+// filtered to the checked playoff-team picks (Design Notes: matches the
+// reference App.jsx's own unfiltered winner Select). PlayoffTeamsField/
+// WinnerField are this division's two submitted form field names.
+// SelectedCount is the division's live n/5 counter.
+type divisionGroupPick struct {
+	Division          string
+	PlayoffTeamsField string
+	WinnerField       string
+	Teams             []divisionTeamPick
+	SelectedCount     int
+	Winner            string
+	WinnerTeams       []store.Team
+}
+
+// divisionConferencePick is one conference's rendered section: two division
+// groups, the live n/8 Total across both, and whether Total is exactly
+// requiredTeamsPerConference.
+type divisionConferencePick struct {
+	Conference string
+	Divisions  []divisionGroupPick
+	Total      int
+	Valid      bool
+}
+
+// divisionPickView is the "divisions" sheet's whole pick-entry state:
+// Conferences holds both rendered sections; Submitted/Error mirror pickView's
+// own fields. AllValid is the AND of every conference's Valid (vacuously
+// true when Conferences is empty - a hand-edit misconfiguration with no
+// teams at all, matching this codebase's own established precedent for
+// rejecting hand-edit-reachable-only findings), gating the submit button's
+// disabled attribute both on initial server render and live via
+// divisions.js's updateSubmitState.
+type divisionPickView struct {
+	Conferences []divisionConferencePick
+	Submitted   bool
+	AllValid    bool
+	Error       string
+}
+
+// selectedDivisionTeams returns the subset of selected that belongs to
+// group's own roster, as a set for O(1) Checked lookups (and to dedup any
+// repeated id). Filtering to the division's own roster first - rather than
+// trusting selected's raw length - means a rejected "wrong division"
+// resubmission's re-rendered SelectedCount/its conference's Total can't be
+// inflated by a team id submitted under a different division's field.
+func selectedDivisionTeams(group teamDivisionGroup, selected []string) map[string]bool {
+	roster := make(map[string]bool, len(group.Teams))
+	for _, team := range group.Teams {
+		roster[team.ID] = true
+	}
+
+	set := make(map[string]bool)
+	for _, id := range selected {
+		if roster[id] {
+			set[id] = true
+		}
+	}
+	return set
+}
+
+// newDivisionPickView builds sheetData's DivisionPick field for playerID:
+// every division group from groupTeamsByDivision(st.Teams()), each chip's
+// Checked state and each division's Winner reflecting either playerID's
+// saved picks, or - when playoffTeamsOverride/winnersOverride are non-nil -
+// a rejected resubmission's own (invalid) values retained for re-rendering
+// (renderRejectedDivisionsPick).
+func newDivisionPickView(st *store.Store, playerID string, submitted bool, playoffTeamsOverride map[string][]string, winnersOverride map[string]string) divisionPickView {
+	groups := groupTeamsByDivision(st.Teams())
+
+	picksByDivision := make(map[string]divisionGroupPick, len(groups))
+	for _, group := range groups {
+		picksByDivision[group.Division] = newDivisionGroupPick(st, playerID, group, playoffTeamsOverride, winnersOverride)
+	}
+
+	conferences := buildDivisionConferencePicks(groupDivisionsByConference(groups), picksByDivision)
+
+	return divisionPickView{Conferences: conferences, Submitted: submitted, AllValid: allConferencesValid(conferences)}
+}
+
+// selectedTeamsForDivision resolves group's currently-selected playoff-team
+// ids: override's own entry when override is non-nil (a rejected
+// resubmission's retained value), otherwise playerID's saved pick.
+func selectedTeamsForDivision(st *store.Store, playerID string, group teamDivisionGroup, override map[string][]string) []string {
+	if override != nil {
+		return override[group.Division]
+	}
+	if prediction, ok := st.FindDivisionPlayoffTeams(playerID, group.Division); ok {
+		return prediction.TeamIDs
+	}
+	return nil
+}
+
+// winnerForDivision resolves division's currently-selected winner the same
+// way selectedTeamsForDivision resolves playoff teams.
+func winnerForDivision(st *store.Store, playerID, division string, override map[string]string) string {
+	if override != nil {
+		return override[division]
+	}
+	if prediction, ok := st.FindDivisionWinner(playerID, division); ok {
+		return prediction.TeamID
+	}
+	return ""
+}
+
+// newDivisionGroupPick builds one division's rendered chip group and winner
+// select - factored out of newDivisionPickView purely to keep its own
+// cyclomatic complexity low (gocyclo).
+func newDivisionGroupPick(st *store.Store, playerID string, group teamDivisionGroup, playoffTeamsOverride map[string][]string, winnersOverride map[string]string) divisionGroupPick {
+	selectedSet := selectedDivisionTeams(group, selectedTeamsForDivision(st, playerID, group, playoffTeamsOverride))
+
+	teams := make([]divisionTeamPick, len(group.Teams))
+	for i, team := range group.Teams {
+		teams[i] = divisionTeamPick{ID: team.ID, Name: team.Name, Checked: selectedSet[team.ID]}
+	}
+
+	return divisionGroupPick{
+		Division:          group.Division,
+		PlayoffTeamsField: divisionPlayoffTeamsFieldName(group.Division),
+		WinnerField:       divisionWinnerFieldName(group.Division),
+		Teams:             teams,
+		SelectedCount:     len(selectedSet),
+		Winner:            winnerForDivision(st, playerID, group.Division, winnersOverride),
+		WinnerTeams:       group.Teams,
+	}
+}
+
+// buildDivisionConferencePicks assembles each conference's rendered section
+// (its two division groups plus their live n/8 Total/Valid) from
+// picksByDivision - factored out of newDivisionPickView purely to keep its
+// own cyclomatic complexity low (gocyclo).
+func buildDivisionConferencePicks(confGroups []divisionConferenceGroup, picksByDivision map[string]divisionGroupPick) []divisionConferencePick {
+	var conferences []divisionConferencePick
+	for _, confGroup := range confGroups {
+		var divisions []divisionGroupPick
+		total := 0
+		for _, group := range confGroup.Divisions {
+			pick := picksByDivision[group.Division]
+			divisions = append(divisions, pick)
+			total += pick.SelectedCount
+		}
+		conferences = append(conferences, divisionConferencePick{
+			Conference: confGroup.Conference,
+			Divisions:  divisions,
+			Total:      total,
+			Valid:      total == requiredTeamsPerConference,
+		})
+	}
+	return conferences
+}
+
+// allConferencesValid is the AND of every conference's Valid - vacuously
+// true when conferences is empty (see divisionPickView.AllValid's own
+// doc comment for why that default is accepted rather than fixed).
+func allConferencesValid(conferences []divisionConferencePick) bool {
+	for _, conference := range conferences {
+		if !conference.Valid {
+			return false
+		}
+	}
+	return true
+}
+
+// setSubmitted reports whether playerID already has a saved pick for set,
+// used both by buildPredictPhases (the Predict list's Submitted status) and
+// newSheetData (the sheet's Update-vs-Submit button text). For every id
+// other than divisionsSetID this is Story 2.1's single (PlayerID, Kind ==
+// set.ID) lookup; divisionsSetID can't use that lookup, since its picks are
+// stored across per-division rows keyed by (PlayerID, Kind, Division) rather
+// than one row keyed by Kind == set.ID (AD-28) - submitted there means "has
+// saved at least one playoff-teams row for any division," matching the
+// reference App.jsx's own single "submitted" flag per set rather than one
+// per division.
+func setSubmitted(st *store.Store, set store.PredictionSet, playerID string) bool {
+	if set.ID == divisionsSetID {
+		for _, division := range teamDivisionOrder {
+			if _, ok := st.FindDivisionPlayoffTeams(playerID, division); ok {
+				return true
+			}
+		}
+		return false
+	}
+
+	_, ok := st.FindPrediction(playerID, set.ID)
+	return ok
+}
+
 // pickView is the cup/presidents sheet's pick-entry state: SelectedTeamID
 // pre-fills the dropdown from a saved Prediction (empty for no prior pick);
 // Submitted controls the action button's "Update predictions" vs. "Submit
@@ -462,10 +723,11 @@ type pickView struct {
 }
 
 // sheetData feeds templates/sheet.html: Title/DeadlineText/Countdown render
-// for every Prediction Set id. Closed and Pick are only populated for the
-// "cup"/"presidents" ids (handleSheet/handleSheetSubmit) - Pick stays nil for
-// every other id, which keeps rendering the static "not available yet." stub
-// (Boundaries & Constraints).
+// for every Prediction Set id. Closed, Pick, and DivisionPick are only
+// populated for pickableSheetKinds ids (handleSheet/handleSheetSubmit) -
+// Pick populates for "cup"/"presidents", DivisionPick for divisionsSetID;
+// both stay nil for every other id, which keeps rendering the static "not
+// available yet." stub (Boundaries & Constraints).
 type sheetData struct {
 	ID           string
 	Title        string
@@ -473,17 +735,22 @@ type sheetData struct {
 	Countdown    string
 	Closed       bool
 	Pick         *pickView
+	DivisionPick *divisionPickView
 }
 
 // newSheetData builds sheetData for set as seen by playerID at now: the
 // common Title/DeadlineText/Countdown/Closed fields every id gets, plus a
-// populated Pick for the "cup"/"presidents" ids. teamIDOverride, when
-// non-nil, replaces the saved pick's team id in the rendered form - used by
-// handleSheetSubmit to re-render the sheet with the rejected submission's
-// (invalid) value instead of the last-saved one. err is non-nil only when
-// set.DeadlineUTC fails to parse, mirroring newPredictSetView.
+// populated Pick for the "cup"/"presidents" ids or a populated DivisionPick
+// for divisionsSetID (built from playerID's saved picks). teamIDOverride,
+// when non-nil, replaces the saved pick's team id in the rendered cup/
+// presidents form - used by renderRejectedPick to re-render the sheet with
+// the rejected submission's (invalid) value instead of the last-saved one;
+// it has no effect for divisionsSetID, whose own rejected-resubmission
+// re-render goes through renderRejectedDivisionsPick and newDivisionPickView
+// directly instead. err is non-nil only when set.DeadlineUTC fails to parse,
+// mirroring newPredictSetView.
 func newSheetData(st *store.Store, set store.PredictionSet, playerID string, now time.Time, teamIDOverride *string) (sheetData, error) {
-	prediction, submitted := st.FindPrediction(playerID, set.ID)
+	submitted := setSubmitted(st, set, playerID)
 
 	view, err := newPredictSetView(set, submitted, now)
 	if err != nil {
@@ -498,7 +765,12 @@ func newSheetData(st *store.Store, set store.PredictionSet, playerID string, now
 		Closed:       view.Status == statusClosed,
 	}
 
-	if pickableSheetKinds[set.ID] {
+	switch {
+	case set.ID == divisionsSetID:
+		divisionView := newDivisionPickView(st, playerID, submitted, nil, nil)
+		data.DivisionPick = &divisionView
+	case pickableSheetKinds[set.ID]:
+		prediction, _ := st.FindPrediction(playerID, set.ID)
 		selectedTeamID := prediction.TeamID
 		if teamIDOverride != nil {
 			selectedTeamID = *teamIDOverride
@@ -582,17 +854,19 @@ const maxSheetFormBytes = 4096
 // caption, and nothing is saved.
 const invalidTeamErrorText = "Pick a team before submitting."
 
-// handleSheetSubmit handles POST /predict/{id}, the cup/presidents pick
-// submission. {id} not being "cup"/"presidents", or matching no Prediction
-// Set, gets a generic http.StatusNotFound - identical to handleSheet's own
-// unknown-id handling, so it can't be used to probe which ids exist. A
-// closed (past-deadline) set rejects the submission outright with
+// handleSheetSubmit handles POST /predict/{id}: the cup/presidents pick
+// submission (single team_id) or, for divisionsSetID, the division
+// playoff-teams-and-winners submission (handleDivisionsSubmit). {id} not
+// being a pickableSheetKinds id, or matching no Prediction Set, gets a
+// generic http.StatusNotFound - identical to handleSheet's own unknown-id
+// handling, so it can't be used to probe which ids exist. A closed
+// (past-deadline) set rejects the submission outright with
 // http.StatusForbidden, no override for anyone (FR-8), and nothing is
-// re-rendered. The submitted team_id is re-validated against st.Teams()
-// regardless of what the client sent (AD-10); an empty, missing, or unknown
-// id re-renders the sheet (200) with an inline error caption and the
-// rejected value retained, saving nothing. A valid id is saved via
-// st.SavePrediction and redirects to /predict (302).
+// re-rendered. For cup/presidents, the submitted team_id is re-validated
+// against st.Teams() regardless of what the client sent (AD-10); an empty,
+// missing, or unknown id re-renders the sheet (200) with an inline error
+// caption and the rejected value retained, saving nothing. A valid id is
+// saved via st.SavePrediction and redirects to /predict (302).
 func handleSheetSubmit(st *store.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
@@ -626,9 +900,14 @@ func handleSheetSubmit(st *store.Store) http.HandlerFunc {
 			return
 		}
 
-		teamID := r.FormValue("team_id")
 		playerID, _ := auth.PlayerIDFromContext(r.Context())
 
+		if id == divisionsSetID {
+			handleDivisionsSubmit(w, r, st, set, playerID, now)
+			return
+		}
+
+		teamID := r.FormValue("team_id")
 		if !isKnownTeamID(st, teamID) {
 			renderRejectedPick(w, r, st, set, playerID, now, teamID)
 			return
@@ -658,6 +937,210 @@ func renderRejectedPick(w http.ResponseWriter, r *http.Request, st *store.Store,
 		return
 	}
 	data.Pick.Error = invalidTeamErrorText
+	renderTemplate(w, "sheet.html", data)
+}
+
+// parseDivisionsSubmission reads every division's checkbox-group and
+// winner-select values off the submitted form, keyed by division name, for
+// every entry in teamDivisionOrder. r.Form must already be populated
+// (r.ParseForm).
+func parseDivisionsSubmission(r *http.Request) (playoffTeams map[string][]string, winners map[string]string) {
+	playoffTeams = make(map[string][]string, len(teamDivisionOrder))
+	winners = make(map[string]string, len(teamDivisionOrder))
+	for _, division := range teamDivisionOrder {
+		playoffTeams[division] = r.Form[divisionPlayoffTeamsFieldName(division)]
+		winners[division] = r.FormValue(divisionWinnerFieldName(division))
+	}
+	return playoffTeams, winners
+}
+
+// dedupTeamIDs returns ids with duplicates removed, preserving first-seen
+// order - a division's submitted checkbox values must never be
+// double-counted against its cap or double-persisted for a repeated id
+// (Design Notes correction, review loop 1).
+func dedupTeamIDs(ids []string) []string {
+	seen := make(map[string]bool, len(ids))
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
+}
+
+// divisionRoster returns the set of team ids belonging to division, per
+// st.Teams() - used to validate a submitted team id actually belongs to the
+// division it was submitted under (AD-10).
+func divisionRoster(st *store.Store, division string) map[string]bool {
+	roster := make(map[string]bool)
+	for _, team := range st.Teams() {
+		if team.Division == division {
+			roster[team.ID] = true
+		}
+	}
+	return roster
+}
+
+// allBelongToRoster reports whether every id in ids is present in roster.
+func allBelongToRoster(ids []string, roster map[string]bool) bool {
+	for _, id := range ids {
+		if !roster[id] {
+			return false
+		}
+	}
+	return true
+}
+
+// divisionsHaveAnInvalidPlayoffTeam reports whether any division in
+// playoffTeams contains a team id foreign to that division's own roster
+// (e.g. submitted under the wrong division's field, or simply unknown).
+func divisionsHaveAnInvalidPlayoffTeam(st *store.Store, playoffTeams map[string][]string) bool {
+	for division, ids := range playoffTeams {
+		if !allBelongToRoster(ids, divisionRoster(st, division)) {
+			return true
+		}
+	}
+	return false
+}
+
+// divisionCountsExceedCap reports whether any division in playoffTeams has
+// more than maxTeamsPerDivision deduped selected teams. AD-10 requires the
+// server to "independently re-validate and enforce every cap on submit
+// regardless of what the client allowed" - this is the per-division half of
+// that; divisionConferenceTotals/conferenceTotalsValid below is the
+// per-conference half.
+func divisionCountsExceedCap(playoffTeams map[string][]string) bool {
+	for _, ids := range playoffTeams {
+		if len(dedupTeamIDs(ids)) > maxTeamsPerDivision {
+			return true
+		}
+	}
+	return false
+}
+
+// divisionConferenceTotals sums, per conference, the deduped selected-team
+// count across that conference's two divisions - groups derives each
+// division's conference the same way newDivisionPickView does (Never: no
+// hardcoded division->conference map).
+func divisionConferenceTotals(groups []teamDivisionGroup, playoffTeams map[string][]string) map[string]int {
+	totals := make(map[string]int)
+	for _, confGroup := range groupDivisionsByConference(groups) {
+		total := 0
+		for _, group := range confGroup.Divisions {
+			total += len(dedupTeamIDs(playoffTeams[group.Division]))
+		}
+		totals[confGroup.Conference] = total
+	}
+	return totals
+}
+
+// conferenceTotalsValid reports whether every conference in totals equals
+// exactly requiredTeamsPerConference - an empty totals map (no conference
+// groups at all) is never valid, matching AD-10's server-side
+// re-validation stance (unlike the view-model's own AllValid, which
+// defaults to valid when there are no conference groups to render at all -
+// see the spec's Review Triage Log for why that divergence is accepted).
+func conferenceTotalsValid(totals map[string]int) bool {
+	if len(totals) == 0 {
+		return false
+	}
+	for _, total := range totals {
+		if total != requiredTeamsPerConference {
+			return false
+		}
+	}
+	return true
+}
+
+// divisionsHaveAnInvalidWinner reports whether any non-empty winner pick in
+// winners doesn't belong to its own division's roster (per st.Teams()) - an
+// empty pick is always valid, since winners are never part of the submit
+// gate (FR-16).
+func divisionsHaveAnInvalidWinner(st *store.Store, winners map[string]string) bool {
+	for division, teamID := range winners {
+		if teamID == "" {
+			continue
+		}
+		if !divisionRoster(st, division)[teamID] {
+			return true
+		}
+	}
+	return false
+}
+
+// divisionsCountErrorText is the inline caption shown when a divisions
+// submission fails the per-division max-5 cap, the per-conference total-8
+// gate, or contains a team id foreign to the division it was submitted
+// under - EXPERIENCE.md's Voice-and-Tone caption wording is authoritative
+// over the click-dummy App.jsx's own placeholder wording (Design Notes).
+const divisionsCountErrorText = "8 teams per conference — either a 4/4 split, or 5 in one division and 3 in the other."
+
+// divisionsWinnerErrorText is the inline caption shown when a non-empty
+// division-winner pick doesn't belong to its own division's roster.
+const divisionsWinnerErrorText = "Pick a valid team for each division winner, or leave it blank."
+
+// handleDivisionsSubmit handles divisionsSetID's branch of POST
+// /predict/{id}: parses every division's playoff-teams checkboxes and
+// winner select (parseDivisionsSubmission), then validates before anything
+// is saved (Boundaries & Constraints: "Submit is all-or-nothing for the
+// whole form"). A team id foreign to the division it was submitted under,
+// any single division's deduped count exceeding maxTeamsPerDivision, or
+// either conference's deduped total not exactly requiredTeamsPerConference
+// all re-render the sheet (200) with divisionsCountErrorText and save
+// nothing. A non-empty winner pick foreign to its own division's roster
+// re-renders (200) with divisionsWinnerErrorText and also saves nothing -
+// winners are otherwise never part of the submit gate (FR-16, no gate on an
+// empty winner pick). A valid submission dedups every division's team ids
+// before persisting them via one st.SaveDivisionPicks call and redirects to
+// /predict (302).
+func handleDivisionsSubmit(w http.ResponseWriter, r *http.Request, st *store.Store, set store.PredictionSet, playerID string, now time.Time) {
+	playoffTeams, winners := parseDivisionsSubmission(r)
+
+	switch {
+	case divisionsHaveAnInvalidPlayoffTeam(st, playoffTeams),
+		divisionCountsExceedCap(playoffTeams),
+		!conferenceTotalsValid(divisionConferenceTotals(groupTeamsByDivision(st.Teams()), playoffTeams)):
+		renderRejectedDivisionsPick(w, r, st, set, playerID, now, playoffTeams, winners, divisionsCountErrorText)
+		return
+	case divisionsHaveAnInvalidWinner(st, winners):
+		renderRejectedDivisionsPick(w, r, st, set, playerID, now, playoffTeams, winners, divisionsWinnerErrorText)
+		return
+	}
+
+	deduped := make(map[string][]string, len(playoffTeams))
+	for division, ids := range playoffTeams {
+		deduped[division] = dedupTeamIDs(ids)
+	}
+
+	if err := st.SaveDivisionPicks(playerID, deduped, winners, now); err != nil {
+		slog.Error("save division picks", "player_id", playerID, "error", err)
+		http.Error(w, genericErrorBody, http.StatusInternalServerError)
+		return
+	}
+
+	http.Redirect(w, r, "/predict", http.StatusFound)
+}
+
+// renderRejectedDivisionsPick re-renders the divisionsSetID sheet (200) with
+// the rejected submission's own playoffTeams/winners retained and errText as
+// the inline caption - nothing is saved. err from newSheetData can only come
+// from set.DeadlineUTC failing to parse, already parsed successfully by
+// handleSheetSubmit moments earlier.
+func renderRejectedDivisionsPick(w http.ResponseWriter, r *http.Request, st *store.Store, set store.PredictionSet, playerID string, now time.Time, playoffTeams map[string][]string, winners map[string]string, errText string) {
+	data, err := newSheetData(st, set, playerID, now, nil)
+	if err != nil {
+		slog.Error("parse deadline_utc for prediction set", "prediction_set_id", set.ID, "error", err)
+		http.NotFound(w, r)
+		return
+	}
+
+	view := newDivisionPickView(st, playerID, data.DivisionPick.Submitted, playoffTeams, winners)
+	view.Error = errText
+	data.DivisionPick = &view
+
 	renderTemplate(w, "sheet.html", data)
 }
 

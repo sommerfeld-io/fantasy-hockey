@@ -43,6 +43,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeBrowsePredictionSetsScenario(ctx)
 			InitializeLoadCanonicalTeamListScenario(ctx)
 			InitializeCupAndPresidentsPicksScenario(ctx)
+			InitializeDivisionPicksScenario(ctx)
 		},
 		Options: &opts,
 	}

@@ -3,6 +3,7 @@ package store
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -791,6 +792,297 @@ func TestSavePredictionShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	}
 	if got.TeamID != "TOR" {
 		t.Errorf("expected the failed update to be rolled back to %q, got %q", "TOR", got.TeamID)
+	}
+}
+
+func TestFindDivisionPlayoffTeamsShouldNotReturnARowOnNoMatch(t *testing.T) {
+	st := newTestStore(t)
+
+	_, ok := st.FindDivisionPlayoffTeams("basti", "Atlantic")
+	if ok {
+		t.Fatal("expected no match when no division rows exist")
+	}
+}
+
+func TestFindDivisionPlayoffTeamsShouldReturnTheSeededRowOnAMatch(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindDivisionPlayoffTeams, Division: "Atlantic", TeamIDs: []string{"TOR", "BOS"}, SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	got, ok := st.FindDivisionPlayoffTeams("basti", "Atlantic")
+	if !ok {
+		t.Fatal("expected a match, got none")
+	}
+	if len(got.TeamIDs) != 2 || got.TeamIDs[0] != "TOR" || got.TeamIDs[1] != "BOS" {
+		t.Errorf("expected team ids %v, got %v", []string{"TOR", "BOS"}, got.TeamIDs)
+	}
+}
+
+func TestFindDivisionPlayoffTeamsShouldNotMatchARowForADifferentDivision(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindDivisionPlayoffTeams, Division: "Atlantic", TeamIDs: []string{"TOR"}, SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindDivisionPlayoffTeams("basti", "Metropolitan")
+	if ok {
+		t.Fatal("expected no match for a different division, even for the same player")
+	}
+}
+
+func TestFindDivisionPlayoffTeamsShouldNotMatchARowForADifferentPlayer(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindDivisionPlayoffTeams, Division: "Atlantic", TeamIDs: []string{"TOR"}, SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindDivisionPlayoffTeams("someone-else", "Atlantic")
+	if ok {
+		t.Fatal("expected no match for a different player, even for the same division")
+	}
+}
+
+func TestFindDivisionPlayoffTeamsShouldNotMatchADivisionWinnerRow(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindDivisionWinner, Division: "Atlantic", TeamID: "TOR", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindDivisionPlayoffTeams("basti", "Atlantic")
+	if ok {
+		t.Fatal("expected no match for a differently-kinded row sharing the same player/division")
+	}
+}
+
+func TestFindDivisionWinnerShouldNotReturnARowOnNoMatch(t *testing.T) {
+	st := newTestStore(t)
+
+	_, ok := st.FindDivisionWinner("basti", "Atlantic")
+	if ok {
+		t.Fatal("expected no match when no division rows exist")
+	}
+}
+
+func TestFindDivisionWinnerShouldReturnTheSeededRowOnAMatch(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindDivisionWinner, Division: "Atlantic", TeamID: "TOR", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	got, ok := st.FindDivisionWinner("basti", "Atlantic")
+	if !ok {
+		t.Fatal("expected a match, got none")
+	}
+	if got.TeamID != "TOR" {
+		t.Errorf("expected team id %q, got %q", "TOR", got.TeamID)
+	}
+}
+
+func TestFindDivisionWinnerShouldNotMatchARowForADifferentDivisionOrPlayer(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindDivisionWinner, Division: "Atlantic", TeamID: "TOR", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	if _, ok := st.FindDivisionWinner("basti", "Metropolitan"); ok {
+		t.Error("expected no match for a different division")
+	}
+	if _, ok := st.FindDivisionWinner("someone-else", "Atlantic"); ok {
+		t.Error("expected no match for a different player")
+	}
+}
+
+func TestSaveDivisionPicksShouldAppendNewRowsForEveryPresentDivision(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	playoffTeams := map[string][]string{
+		"Atlantic":     {"TOR", "BOS"},
+		"Metropolitan": {"WSH"},
+	}
+	winners := map[string]string{
+		"Atlantic": "TOR",
+		// Metropolitan winner intentionally omitted - no row should exist.
+	}
+
+	if err := st.SaveDivisionPicks("basti", playoffTeams, winners, now); err != nil {
+		t.Fatalf("SaveDivisionPicks returned error: %v", err)
+	}
+
+	atlantic, ok := st.FindDivisionPlayoffTeams("basti", "Atlantic")
+	if !ok || len(atlantic.TeamIDs) != 2 {
+		t.Errorf("expected an Atlantic playoff-teams row with 2 team ids, got %+v (ok=%v)", atlantic, ok)
+	}
+	metro, ok := st.FindDivisionPlayoffTeams("basti", "Metropolitan")
+	if !ok || len(metro.TeamIDs) != 1 {
+		t.Errorf("expected a Metropolitan playoff-teams row with 1 team id, got %+v (ok=%v)", metro, ok)
+	}
+	winner, ok := st.FindDivisionWinner("basti", "Atlantic")
+	if !ok || winner.TeamID != "TOR" {
+		t.Errorf("expected the Atlantic winner row %q, got %+v (ok=%v)", "TOR", winner, ok)
+	}
+	if _, ok := st.FindDivisionWinner("basti", "Metropolitan"); ok {
+		t.Error("expected no Metropolitan winner row for an empty winner pick")
+	}
+}
+
+func TestSaveDivisionPicksShouldNotUpsertADivisionAbsentFromTheMap(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, nil, now); err != nil {
+		t.Fatalf("SaveDivisionPicks returned error: %v", err)
+	}
+
+	if _, ok := st.FindDivisionPlayoffTeams("basti", "Metropolitan"); ok {
+		t.Error("expected no row for a division genuinely absent from the map")
+	}
+}
+
+func TestSaveDivisionPicksShouldUpsertAPresentButEmptyDivisionWithAnEmptyPick(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {}}, nil, now); err != nil {
+		t.Fatalf("SaveDivisionPicks returned error: %v", err)
+	}
+
+	got, ok := st.FindDivisionPlayoffTeams("basti", "Atlantic")
+	if !ok {
+		t.Fatal("expected a row to be upserted for a present-but-empty division")
+	}
+	if len(got.TeamIDs) != 0 {
+		t.Errorf("expected an empty pick, got %v", got.TeamIDs)
+	}
+}
+
+func TestSaveDivisionPicksShouldUpdateExistingRowsInPlaceOnResubmission(t *testing.T) {
+	st := newTestStore(t)
+	first := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	second := first.Add(time.Hour)
+
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, first); err != nil {
+		t.Fatalf("first SaveDivisionPicks returned error: %v", err)
+	}
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"BOS", "TBL"}}, map[string]string{"Atlantic": "BOS"}, second); err != nil {
+		t.Fatalf("second SaveDivisionPicks returned error: %v", err)
+	}
+
+	st.mu.RLock()
+	rows := len(st.doc.Predictions)
+	st.mu.RUnlock()
+	if rows != 2 {
+		t.Fatalf("expected the resubmission to update the existing 2 rows rather than append, got %d rows", rows)
+	}
+
+	teams, ok := st.FindDivisionPlayoffTeams("basti", "Atlantic")
+	if !ok || len(teams.TeamIDs) != 2 || teams.TeamIDs[0] != "BOS" || teams.TeamIDs[1] != "TBL" {
+		t.Errorf("expected the updated team ids %v, got %+v (ok=%v)", []string{"BOS", "TBL"}, teams, ok)
+	}
+	winner, ok := st.FindDivisionWinner("basti", "Atlantic")
+	if !ok || winner.TeamID != "BOS" {
+		t.Errorf("expected the updated winner %q, got %+v (ok=%v)", "BOS", winner, ok)
+	}
+}
+
+// assertSavedDivisionPlayoffTeams checks st's saved (playerID, division)
+// playoff-teams row matches want exactly - factored out of its callers
+// purely to keep their own cyclomatic complexity low (gocyclo).
+func assertSavedDivisionPlayoffTeams(t *testing.T, st *Store, playerID, division string, want []string) {
+	t.Helper()
+	got, ok := st.FindDivisionPlayoffTeams(playerID, division)
+	if !ok {
+		t.Errorf("expected a playoff-teams row for %q/%q, found none", playerID, division)
+		return
+	}
+	if !slices.Equal(got.TeamIDs, want) {
+		t.Errorf("expected %v for %q/%q, got %v", want, playerID, division, got.TeamIDs)
+	}
+}
+
+func TestSaveDivisionPicksShouldNotTouchARowForADifferentDivisionOrPlayer(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, nil, now); err != nil {
+		t.Fatalf("SaveDivisionPicks returned error: %v", err)
+	}
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Metropolitan": {"WSH"}}, nil, now); err != nil {
+		t.Fatalf("SaveDivisionPicks returned error: %v", err)
+	}
+	if err := st.SaveDivisionPicks("other-player", map[string][]string{"Atlantic": {"COL"}}, nil, now); err != nil {
+		t.Fatalf("SaveDivisionPicks returned error: %v", err)
+	}
+
+	assertSavedDivisionPlayoffTeams(t, st, "basti", "Atlantic", []string{"TOR"})
+	assertSavedDivisionPlayoffTeams(t, st, "basti", "Metropolitan", []string{"WSH"})
+	assertSavedDivisionPlayoffTeams(t, st, "other-player", "Atlantic", []string{"COL"})
+}
+
+func TestSaveDivisionPicksShouldPersistToDisk(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("SaveDivisionPicks returned error: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	var doc document
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal file: %v", err)
+	}
+	if len(doc.Predictions) != 2 {
+		t.Fatalf("expected 2 persisted rows, got %+v", doc.Predictions)
+	}
+}
+
+func TestSaveDivisionPicksShouldRollBackTheAppendsWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Now().UTC()); err == nil {
+		t.Fatal("expected SaveDivisionPicks to return an error when the write fails")
+	}
+
+	if _, ok := st.FindDivisionPlayoffTeams("basti", "Atlantic"); ok {
+		t.Error("expected the failed append to be rolled back, but a playoff-teams row was found")
+	}
+	if _, ok := st.FindDivisionWinner("basti", "Atlantic"); ok {
+		t.Error("expected the failed append to be rolled back, but a winner row was found")
+	}
+}
+
+func TestSaveDivisionPicksShouldRollBackTheUpdatesWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Now().UTC()); err != nil {
+		t.Fatalf("seed SaveDivisionPicks returned error: %v", err)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"BOS"}}, map[string]string{"Atlantic": "BOS"}, time.Now().UTC()); err == nil {
+		t.Fatal("expected SaveDivisionPicks to return an error when the write fails")
+	}
+
+	teams, ok := st.FindDivisionPlayoffTeams("basti", "Atlantic")
+	if !ok || len(teams.TeamIDs) != 1 || teams.TeamIDs[0] != "TOR" {
+		t.Errorf("expected the failed update to be rolled back to %v, got %+v (ok=%v)", []string{"TOR"}, teams, ok)
+	}
+	winner, ok := st.FindDivisionWinner("basti", "Atlantic")
+	if !ok || winner.TeamID != "TOR" {
+		t.Errorf("expected the failed update to be rolled back to %q, got %+v (ok=%v)", "TOR", winner, ok)
 	}
 }
 

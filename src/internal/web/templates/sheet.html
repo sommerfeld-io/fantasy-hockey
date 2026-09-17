@@ -1,11 +1,13 @@
 {{/*
   Per-Prediction-Set sheet page: a back arrow to /predict, the set's title,
-  its formatted deadline+countdown, and either the static "not available
-  yet" stub body (every id but "cup"/"presidents", Story 2.1), or - when
-  .Pick is set (Story 2.3) - a real single-team dropdown grouped by
-  division, sourced from Store.Teams(). Submitting POSTs to /predict/{id};
-  the button reads "Update predictions" once .Pick.Submitted is true. Once
-  .Closed, the select renders disabled and the action bar (button + hint)
+  its formatted deadline+countdown, and one of three bodies - the static
+  "not available yet" stub (every id but the pickable ones, Story 2.1);
+  when .Pick is set (Story 2.3), a real single-team dropdown grouped by
+  division, sourced from Store.Teams(); or, when .DivisionPick is set
+  (Story 2.4), the checkbox-chip playoff-teams form plus four division-
+  winner selects. Submitting POSTs to /predict/{id}; the button reads
+  "Update predictions" once .Pick.Submitted/.DivisionPick.Submitted is true.
+  Once .Closed, the inputs render disabled and the action bar (button + hint)
   is replaced by a read-only banner - no override for anyone, even the
   player who made the pick.
 */}}
@@ -45,6 +47,64 @@
       <p class="hint">Editable until the deadline.</p>
       {{end}}
     </form>
+    {{else if .DivisionPick}}
+    <form class="pick-form divisions-form" method="post" action="/predict/{{.ID}}" id="divisions-form" {{if .Closed}}data-closed{{end}}>
+      {{range .DivisionPick.Conferences}}
+      {{$conf := .}}
+      <fieldset class="conference-group" data-conference="{{.Conference}}">
+        <legend class="conference-title">{{.Conference}} playoff teams</legend>
+        {{range .Divisions}}
+        {{$div := .}}
+        <div class="division-group" data-division="{{.Division}}">
+          <div class="division-header">
+            <span class="division-name">{{.Division}}</span>
+            <span class="count-indicator" data-role="division-count">{{.SelectedCount}}/5</span>
+          </div>
+          <div class="chip-group">
+            {{range .Teams}}
+            <label class="chip">
+              <input type="checkbox" class="chip-input" name="{{$div.PlayoffTeamsField}}" value="{{.ID}}" {{if .Checked}}checked{{end}} {{if $.Closed}}disabled{{end}}>
+              <span class="chip-label">{{.Name}}</span>
+            </label>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
+        <div class="count-indicator count-indicator--conference {{if $conf.Valid}}count-indicator--valid{{else}}count-indicator--invalid{{end}}" data-role="conference-count">
+          <svg class="count-icon icon-valid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 6L9 17l-5-5"/></svg>
+          <svg class="count-icon icon-invalid" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/></svg>
+          <span>{{$conf.Total}}/8 selected</span>
+        </div>
+      </fieldset>
+      {{end}}
+
+      <fieldset class="winners-group">
+        <legend class="conference-title">Division winners</legend>
+        {{range .DivisionPick.Conferences}}
+        {{range .Divisions}}
+        {{$div := .}}
+        <div class="winner-field">
+          <label for="winner-{{.Division}}" class="division-name">{{.Division}}</label>
+          <select id="winner-{{.Division}}" name="{{.WinnerField}}" aria-label="{{.Division}} winner" {{if $.Closed}}disabled{{end}}>
+            <option value="" {{if eq $div.Winner ""}}selected{{end}}>Pick a team</option>
+            {{range .WinnerTeams}}
+            <option value="{{.ID}}" {{if eq $div.Winner .ID}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+        </div>
+        {{end}}
+        {{end}}
+      </fieldset>
+
+      {{if .DivisionPick.Error}}<p class="error-text">{{.DivisionPick.Error}}</p>{{end}}
+      {{if .Closed}}
+      <p class="closed-banner">This Prediction Set is closed. No changes can be made.</p>
+      {{else}}
+      <button type="submit" id="divisions-submit" {{if not .DivisionPick.AllValid}}disabled{{end}}>{{if .DivisionPick.Submitted}}Update predictions{{else}}Submit predictions{{end}}</button>
+      <p class="hint">8 teams per conference — either a 4/4 split, or 5 in one division and 3 in the other.</p>
+      {{end}}
+    </form>
+    <script src="/static/divisions.js" defer></script>
     {{else}}
     <p class="sheet-placeholder">Not available yet.</p>
     {{end}}

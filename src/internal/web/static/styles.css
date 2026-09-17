@@ -21,6 +21,7 @@
   --gold: #d29922;
   --green: #3fb950; /* semantic accent (e.g. "Submitted" status) - never for buttons; see --green-btn */
   --sel: #30363d;
+  --cap-dim-opacity: 0.4; /* DESIGN.md's components.division-progress.capDimOpacity */
 }
 
 * {
@@ -523,4 +524,153 @@ select:disabled option {
   text-align: center;
   font-size: 12px;
   color: var(--muted);
+}
+
+/*
+  Division picks (Story 2.4): DESIGN.md's Chip component (sel fill + ice
+  border + primary text when selected, raised fill + muted text otherwise)
+  and its Division-picks progress indicator (n/5 per-division and n/8
+  per-conference counters, a check paired with the count when valid, a dot
+  when not, capped chips dimmed to capDimOpacity and non-tappable).
+*/
+
+.divisions-form {
+  gap: 20px;
+}
+
+.conference-group,
+.winners-group {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.conference-title {
+  padding: 0;
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.division-group {
+  margin-bottom: 14px;
+}
+
+.division-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.division-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.count-indicator {
+  font-size: 11px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.count-indicator--conference {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.count-indicator--valid {
+  color: var(--green);
+}
+
+.count-indicator--invalid {
+  color: var(--goal);
+}
+
+.count-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/*
+  Both the valid (check) and invalid (dot) icons render server-side, and
+  only one shows at a time via these class pairs - the same
+  count-indicator--valid/--invalid classes divisions.js already toggles on
+  interaction (applyCaps), so the icon stays in sync without any JS DOM
+  swap of its own.
+*/
+.count-indicator--valid .icon-invalid,
+.count-indicator--invalid .icon-valid {
+  display: none;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/*
+  The checkbox itself renders visually hidden (position/opacity), and the
+  label - not the literal `.chip:checked` selector - carries the visible
+  chip styling via :has(input:checked), since a checkbox can't contain its
+  own visible label text as a child.
+*/
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.chip input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+
+.chip:has(input:checked) {
+  background: var(--sel);
+  border-color: var(--ice);
+  color: var(--text);
+}
+
+.chip:has(input:disabled) {
+  cursor: default;
+}
+
+.chip--capped {
+  opacity: var(--cap-dim-opacity);
+}
+
+.winners-group {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.winner-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }

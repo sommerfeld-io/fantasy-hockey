@@ -78,21 +78,37 @@ type PredictionSet struct {
 const (
 	KindCupChampion      = "cup"
 	KindPresidentsTrophy = "presidents"
+
+	// KindDivisionPlayoffTeams and KindDivisionWinner are Story 2.4's two
+	// division-scoped Kind values: unlike KindCupChampion/
+	// KindPresidentsTrophy, neither matches a Prediction Set id directly
+	// (both belong to the single "divisions" set) - a row of either kind is
+	// instead keyed by (PlayerID, Kind, Division), never by Kind alone.
+	KindDivisionPlayoffTeams = "division_playoff_teams"
+	KindDivisionWinner       = "division_winner"
 )
 
 // Prediction is one player's saved pick for one Prediction Set kind (e.g.
 // their Stanley Cup champion pick). It's an application-created row (AD-17):
-// FindPrediction/SavePrediction are the only ways to read or write it, and a
-// resubmission updates the existing (PlayerID, Kind) row in place rather
-// than appending a duplicate (FR-9). TeamID is a Team.ID (e.g. "TOR"), the
-// value scoring later compares on. SubmittedAt is RFC3339 in UTC, matching
-// PredictionSet.DeadlineUTC's convention.
+// FindPrediction/SavePrediction are the only ways to read or write a
+// KindCupChampion/KindPresidentsTrophy row, and a resubmission updates the
+// existing (PlayerID, Kind) row in place rather than appending a duplicate
+// (FR-9). TeamID is a Team.ID (e.g. "TOR"), the value scoring later compares
+// on. SubmittedAt is RFC3339 in UTC, matching PredictionSet.DeadlineUTC's
+// convention. Division is set on both a KindDivisionPlayoffTeams and a
+// KindDivisionWinner row (FindDivisionPlayoffTeams/FindDivisionWinner/
+// SaveDivisionPicks); TeamIDs is set only on a KindDivisionPlayoffTeams row -
+// a KindDivisionWinner row instead uses TeamID, the same field the cup/
+// presidents rows use. Division and TeamIDs both stay zero-valued/omitted on
+// every cup/presidents row, where a row is keyed by (PlayerID, Kind) alone.
 type Prediction struct {
-	ID          string `yaml:"id"`
-	PlayerID    string `yaml:"player_id"`
-	Kind        string `yaml:"kind"`
-	TeamID      string `yaml:"team_id"`
-	SubmittedAt string `yaml:"submitted_at"`
+	ID          string   `yaml:"id"`
+	PlayerID    string   `yaml:"player_id"`
+	Kind        string   `yaml:"kind"`
+	TeamID      string   `yaml:"team_id"`
+	SubmittedAt string   `yaml:"submitted_at"`
+	Division    string   `yaml:"division,omitempty"`
+	TeamIDs     []string `yaml:"team_ids,omitempty"`
 }
 
 // Team is one of the season's 32 NHL teams. Like Player and PredictionSet,
@@ -345,6 +361,103 @@ func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) err
 		return fmt.Errorf("store: persist prediction: %w", err)
 	}
 	return nil
+}
+
+// FindDivisionPlayoffTeams returns playerID's saved playoff-teams pick for
+// division, if any (Kind == KindDivisionPlayoffTeams).
+func (s *Store) FindDivisionPlayoffTeams(playerID, division string) (Prediction, bool) {
+	return s.findDivisionPrediction(playerID, KindDivisionPlayoffTeams, division)
+}
+
+// FindDivisionWinner returns playerID's saved division-winner pick for
+// division, if any (Kind == KindDivisionWinner).
+func (s *Store) FindDivisionWinner(playerID, division string) (Prediction, bool) {
+	return s.findDivisionPrediction(playerID, KindDivisionWinner, division)
+}
+
+// findDivisionPrediction returns playerID's row matching kind and division,
+// if any - shared by FindDivisionPlayoffTeams/FindDivisionWinner so the
+// (PlayerID, Kind, Division) match can't drift between the two.
+func (s *Store) findDivisionPrediction(playerID, kind, division string) (Prediction, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.doc.Predictions {
+		if p.PlayerID == playerID && p.Kind == kind && p.Division == division {
+			return p, true
+		}
+	}
+	return Prediction{}, false
+}
+
+// SaveDivisionPicks saves every division present in playoffTeams and winners
+// for playerID, persisting all of it through exactly one atomic write
+// (epic-2-context.md's "a save triggers exactly one atomic write-and-
+// rename"). Each division present in playoffTeams gets one
+// KindDivisionPlayoffTeams row carrying that division's TeamIDs, whether or
+// not the slice itself is empty - a division genuinely absent from the map
+// gets no upsert at all. Each division present in winners with a non-empty
+// TeamID gets one KindDivisionWinner row; an empty or absent winner leaves
+// that division's winner row untouched rather than force-creating or
+// clearing it (FR-11 - no row is force-created for an empty pick). An
+// existing (playerID, Kind, Division) row is updated in place, mirroring
+// SavePrediction's own upsert shape, generalized to a batch. If the single
+// write fails, every row touched by this call is rolled back by restoring a
+// snapshot of the whole Predictions slice taken before any mutation - a
+// whole-document snapshot rather than per-row pointer restoration (which
+// SavePrediction uses for its one row), since holding row pointers across
+// this call's own interleaved appends could invalidate them once the
+// underlying slice reallocates.
+func (s *Store) SaveDivisionPicks(playerID string, playoffTeams map[string][]string, winners map[string]string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	snapshot := make([]Prediction, len(s.doc.Predictions))
+	copy(snapshot, s.doc.Predictions)
+
+	submittedAt := now.UTC().Format(time.RFC3339)
+
+	for division, teamIDs := range playoffTeams {
+		s.upsertDivisionPredictionLocked(playerID, KindDivisionPlayoffTeams, division, teamIDs, "", submittedAt)
+	}
+	for division, teamID := range winners {
+		if teamID == "" {
+			continue
+		}
+		s.upsertDivisionPredictionLocked(playerID, KindDivisionWinner, division, nil, teamID, submittedAt)
+	}
+
+	if err := s.writeLocked(); err != nil {
+		s.doc.Predictions = snapshot
+		return fmt.Errorf("store: persist division picks: %w", err)
+	}
+	return nil
+}
+
+// upsertDivisionPredictionLocked updates the existing (playerID, kind,
+// division) row's TeamIDs/TeamID/SubmittedAt in place, or appends a new row
+// with a generated id - shared by SaveDivisionPicks' two upsert loops.
+// Callers must hold s.mu for writing.
+func (s *Store) upsertDivisionPredictionLocked(playerID, kind, division string, teamIDs []string, teamID, submittedAt string) {
+	for i := range s.doc.Predictions {
+		row := &s.doc.Predictions[i]
+		if row.PlayerID == playerID && row.Kind == kind && row.Division == division {
+			row.TeamIDs = teamIDs
+			row.TeamID = teamID
+			row.SubmittedAt = submittedAt
+			return
+		}
+	}
+
+	s.doc.Predictions = append(s.doc.Predictions, Prediction{
+		ID:          uuid.NewString(),
+		PlayerID:    playerID,
+		Kind:        kind,
+		Division:    division,
+		TeamIDs:     teamIDs,
+		TeamID:      teamID,
+		SubmittedAt: submittedAt,
+	})
 }
 
 // writeLocked serializes the in-memory document and atomically replaces the

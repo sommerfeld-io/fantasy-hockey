@@ -64,9 +64,9 @@ Feature: Cup Champion and Presidents' Trophy Picks
     And the pick sheet shows the team "TOR" preselected
     And the pick sheet shows no submit button
 
-  Scenario: A Prediction Set id that isn't cup or presidents still shows the static stub
-    Given a stub Prediction Set "divisions" titled "Division picks" with a deadline "in 5 days"
-    When the player opens the cup-picks Prediction Set "divisions"
+  Scenario: A Prediction Set id that isn't cup, presidents, or divisions still shows the static stub
+    Given a stub Prediction Set "awards" titled "Player awards" with a deadline "in 5 days"
+    When the player opens the cup-picks Prediction Set "awards"
     Then the pick sheet shows "Not available yet."
     And the pick sheet shows no team dropdown
 
