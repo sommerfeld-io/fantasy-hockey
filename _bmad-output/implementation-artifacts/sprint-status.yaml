@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-17-2026 18:54
+last_updated: 09-18-2026 07:35
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -47,10 +47,10 @@ development_status:
   2-1-browse-prediction-sets-by-phase-and-status: done
   2-2-load-season-s-canonical-team-list: done
   2-3-cup-champion-and-presidents-trophy-picks: done
-  2-4-division-picks-playoff-teams-and-division-winners: review
-  2-5-load-season-s-canonical-nhl-player-list: review
-  2-6-player-awards-finalists: review
-  epic-2-retrospective: optional
+  2-4-division-picks-playoff-teams-and-division-winners: done
+  2-5-load-season-s-canonical-nhl-player-list: done
+  2-6-player-awards-finalists: done
+  epic-2-retrospective: done
 
   epic-3: backlog
   3-1-playoffs-cup-pick: backlog
@@ -117,17 +117,99 @@ action_items:
   - id: "epic-1-retro-item-6-decide-whether-the-post-login-redirect-s"
     epic: 1
     action: "Decide whether the post-login redirect should preserve the originally-requested
-      destination -- RESOLVED 2026-09-16: always redirect to the default landing
-      page; matches current handleLoginCodeSubmit behavior, no code change needed"
+      destination -- RESOLVED 2026-09-16: always redirect to the default landing page;
+      matches current handleLoginCodeSubmit behavior, no code change needed"
     owner: "John (PM) / Sally (UX)"
     status: done
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
   - id: "epic-1-retro-item-7-decide-whether-sessions-need-an-absolute"
     epic: 1
     action: "Decide whether sessions need an absolute maximum lifetime in addition
-      to the sliding idle timeout -- RESOLVED 2026-09-16: no absolute lifetime;
-      sliding idle timeout only, matches current implementation, no code change
-      needed"
+      to the sliding idle timeout -- RESOLVED 2026-09-16: no absolute lifetime; sliding
+      idle timeout only, matches current implementation, no code change needed"
     owner: "Winston (Architect)"
     status: done
     ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-2-retro-item-8-enforce-upcoming-server-side-in-handlesh"
+    epic: 2
+    action: "Enforce Upcoming server-side in handleSheet/handleSheetSubmit (or design
+      and document an explicit alternative unlock mechanism) before Story 3.2 ships
+      any pickable set that starts upcoming: true"
+    owner: "Epic 3 / Story 3.2 owner"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-9-factor-the-3-4-independent-roster-member"
+    epic: 2
+    action: "Factor the 3-4 independent roster-membership-check helpers (isKnownTeamID,
+      divisionRoster/allBelongToRoster, nhlPlayerBySlug/isValidAwardFinalist) into
+      one shared shape before adding a 4th/5th pickable sheet kind"
+    owner: "Epic 3 first-playoff-picks-story owner"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-10-split-internal-web-web-go-along-sheet-ki"
+    epic: 2
+    action: "Split internal/web/web.go along sheet-kind boundaries (same package,
+      multiple files) before Epic 3 adds more pickable kinds on top of it"
+    owner: "next contributor touching internal/web"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-11-correct-two-stale-doc-comments-newteamop"
+    epic: 2
+    action: "Correct two stale doc comments: newTeamOptions (web.go, claims reserved
+      for 2.3/2.4 but only ever consumed by 2.6) and load_canonical_team_list_steps_test.go
+      (claims no UI reads Store.Teams() yet, contradicted by Story 2.3 in the same
+      diff)"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-12-hoist-the-duplicated-setrowfragment-acce"
+    epic: 2
+    action: "Hoist the duplicated setRowFragment acceptance-test helper (browse_prediction_sets_steps_test.go
+      and cup_and_presidents_picks_steps_test.go) into one shared helper"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-13-standardize-thefixtureplayeris-theseeded"
+    epic: 2
+    action: "Standardize theFixturePlayerIs/theSeededPlayerHasAValidSession on exact-case
+      player-name comparison"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-14-add-and-the-shell-shows-the-predict-cont"
+    epic: 2
+    action: "Add \"And the shell shows the Predict content\" to app-shell.feature's
+      \"The Predict destination shows the shell with Predict active\" scenario"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-15-fix-testpredictshouldshowaclosedpillandc"
+    epic: 2
+    action: "Fix TestPredictShouldShowAClosedPillAndCountdownForASetPastItsDeadline's
+      vacuous closed-substring assertion to scope to the countdown span specifically"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-16-add-a-regression-test-locking-in-the-del"
+    epic: 2
+    action: "Add a regression test locking in the deliberate Closed+Submitted accent-vs-pill
+      rendering (behavior stays as-is, only test coverage is added)"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-17-factor-the-duplicated-acceptance-test-fi"
+    epic: 2
+    action: "Factor the duplicated acceptance-test fixture-builder pattern (newLoadCanonicalTeamListStore/newLoadCanonicalNHLPlayerListStore,
+      and the repeated lazy-fixture+ensureReady scenario-state pattern across 4 step
+      files) into a shared helper before Epic 3 adds more"
+    owner: "Epic 3 owner"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-18-decide-whether-internal-store-should-own"
+    epic: 2
+    action: "Decide whether internal/store should own the division-name vocabulary
+      (teamDivisionOrder) rather than leaving it as an unlinked literal in internal/web,
+      ahead of Epic 6's season rollover"
+    owner: "John (PM) / Winston (Architect)"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"

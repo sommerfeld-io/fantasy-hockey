@@ -66,6 +66,19 @@ context: []
 
 **Acceptance Criteria:** matches epics.md Story 2.4's four Given/When/Then scenarios verbatim (tap toggles chip + live counters; cap dims remaining chips in-scope; invalid submit stays blocked with a red caption; valid submit + winners saves all picks and sets Submitted).
 
+### Review Findings
+
+- [x] [Review][Patch] Write-failure test duplicates store-seeding logic instead of extending the helper to return the temp dir [src/internal/web/web_test.go:1577]
+- [x] [Review][Patch] Live n/5 and n/8 counter assertions check substring presence once, not per-division/conference correctness [src/internal/web/web_test.go]
+- [x] [Review][Patch] `divisionTeamsByDivision` fixture map has no guard against `teamDivisionOrder` containing a division absent from it [src/internal/web/web_test.go:154,176]
+- [x] [Review][Patch] All-or-nothing rejection tests never verify winner rows stay unsaved alongside the rejected playoff-teams rows [src/internal/web/web_test.go:1382,1406,1459]
+- [x] [Review][Patch] Closed-sheet test spot-checks one chip/winner-select instead of all 4 divisions [src/internal/web/web_test.go:1263]
+
+**Rejected:**
+- `low` — No boundary test for a zero-winners-submitted case [src/internal/web/web_test.go] — not worth fixing: no distinct code path from the already-tested single-blank-winner case; would be pure test-count padding with no new bug-catching power.
+- `false` — No 0/8 division-split boundary test [src/internal/web/web_test.go] — refuted: mathematically unreachable given the already-enforced, already-tested per-division max-5 cap (a division holding 8 already fails `divisionCountsExceedCap`).
+- `low` — `postDivisionsForm`/`postAwardsForm`/`getXSheet` hand-roll `url.Values` in a third distinct style vs the pre-existing `postSheet` helper [src/internal/web/web_test.go] — not worth fixing: the fix (restructuring 3 test helpers to share request-building logic) is more than a direct correction for uncertain benefit.
+
 ## Implementation Notes
 
 - Implemented via a fresh subagent (full store/web/template/JS/CSS/test surface), then verified against the diff during step-03's own audit. The audit caught one real gap against epics.md Story 2.4's AC #3: the submit button never rendered/toggled `disabled` while both conferences weren't yet at 8/8 -- only the server-side reject-with-caption path (AC #3's other half) was implemented and tested. Fixed directly (TDD: two new tests written red first, confirmed failing, then made to pass): added `divisionPickView.AllValid` (AND of every conference's `Valid`, computed in `newDivisionPickView`), the template's submit button now renders `disabled` when `!.DivisionPick.AllValid`, and `divisions.js` gained `updateSubmitState` to keep the button's disabled state in sync client-side as chips are toggled (cosmetic-immediacy only, per AD-10 -- `handleDivisionsSubmit` still re-validates and rejects server-side regardless).

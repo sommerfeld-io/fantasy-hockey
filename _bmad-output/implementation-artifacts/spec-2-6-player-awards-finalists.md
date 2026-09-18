@@ -66,6 +66,20 @@ context: []
 
 **Acceptance Criteria:** matches epics.md Story 2.6's four Given/When/Then scenarios verbatim (position-scoped autocomplete suggestions; a non-matching name rejected with a `goal` border + caption, never silently accepted; a fully-filled award group shows a green check; submitting with all 5 awards filled saves every finalist by slug and sets Submitted).
 
+### Review Findings
+
+- [x] [Review][Patch] Write-failure test duplicates store-seeding logic instead of extending the helper to return the temp dir [src/internal/web/web_test.go]
+- [x] [Review][Patch] No test proves HTML-escaping of user-typed finalist text on a rejected award re-render [src/internal/web/templates/sheet.html]
+- [x] [Review][Patch] No test covers a partially-filled (1-2 of 3) award finalist submission [src/internal/web/web_test.go]
+- [x] [Review][Patch] Empty-value assertion checks substring presence once, not all 15 text/slug pairs [src/internal/web/web_test.go:1779]
+- [x] [Review][Patch] All-or-nothing rejection tests only check 2 of 5 sibling awards stay unsaved [src/internal/web/web_test.go]
+- [x] [Review][Patch] Missing test for awards' pre-save Open status on /predict, asymmetric with divisions' own equivalent fix [src/internal/web/web_test.go]
+- [x] [Review][Patch] Closed-sheet test spot-checks one trophy group/slot instead of all 5 awards [src/internal/web/web_test.go:1503]
+
+**Rejected:**
+- `false` — No positive test confirming the same NHL Player can be a finalist for two different awards [src/internal/web/web_test.go] — refuted: already covered — `validAwardFinalistsForm()`'s own shared `skaters` fixture is reused verbatim across Hart/Art Ross/Rocket Richard, so every happy-path test using it (e.g. `TestPostAwardsSheetShouldSaveAllFiveAwardsAndRedirectToPredict`) already proves cross-award reuse succeeds; a regression rejecting it would break those tests.
+- `low` — `postDivisionsForm`/`postAwardsForm`/`getXSheet` hand-roll `url.Values` in a third distinct style vs the pre-existing `postSheet` helper [src/internal/web/web_test.go] — not worth fixing: the fix (restructuring 3 test helpers to share request-building logic) is more than a direct correction for uncertain benefit.
+
 ## Implementation Notes
 
 - Implemented via a fresh subagent (full store/web/template/new-JS-widget/CSS/test surface), then independently verified by reading the diff directly rather than trusting the report - the whole-form validation chain (`awardSlotInvalid`/`awardsSubmissionHasAnInvalidSlot`/`awardFinalistSlugsToSave`), `SaveAwardPicks`'s batched-write/rollback shape, and `awards.js`'s closed-sheet guard (`!awardsForm.hasAttribute("data-closed")` - proactively applying the exact lesson learned from Story 2.4's own review-caught bug) all read correctly on inspection, and the JSON-embedding via `template.JS` correctly relies on `encoding/json`'s default HTML-escaping for safe embedding inside `<script type="application/json">`.

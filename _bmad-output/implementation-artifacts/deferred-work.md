@@ -19,3 +19,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-1-browse-prediction-sets-by-phase-and-status.md`
   summary: `epic-2-context.md` (a new file this story added) states the set-row accent stripe follows "blue/green/red/faint by state," but neither the code nor DESIGN.md's own token map gives Closed a distinct red stripe.
   evidence: Verified real (acceptance-auditor): DESIGN.md's `set-row` component only lists `open`/`submitted`/`upcoming` accent colors (no `closed`), and `newPredictSetView` in `src/internal/web/web.go` only special-cases `Upcoming`, leaving Closed to reuse Open's blue class — matching the UX click-dummy's actual behavior. The prose in `epic-2-context.md` is factually imprecise, not the application behavior; best fixed by regenerating or hand-editing that compiled planning doc outside an ad hoc code review.
+
+## Deferred from: code review of story-2-5-load-season-s-canonical-nhl-player-list (2026-09-18)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-load-season-s-canonical-nhl-player-list.md`
+  summary: No automated test (unit or acceptance) ever loads and parses the real, shipped `src/fantasy-hockey.yml` directly — every test builds its own temp-dir fixture instead, so a typo'd key in the real file (e.g. `postion:`) would silently parse to a zero-valued field with no automated signal.
+  evidence: Verified real (verification-gap): confirmed via `grep` that `store_test.go`, every `acceptance-tests/*_steps_test.go`, and `main_test.go` all build hand-typed YAML fixtures rather than reading the real file. Pre-existing pattern already true for `teams:`/`players:`/`predictions:` before this diff (not introduced by Story 2.5) — `yaml.Unmarshal`'s non-strict parsing means this class of error is currently only caught by the manual `task go:run`/`task docker:build` verification step this repo already relies on.

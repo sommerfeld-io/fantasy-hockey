@@ -219,11 +219,17 @@ nhl_players:
     - slug: makar-cale
       display_name: Cale Makar
       position: defenseman
+    - slug: fox-adam
+      display_name: Adam Fox
+      position: defenseman
     - slug: hellebuyck-connor
       display_name: Connor Hellebuyck
       position: goalie
     - slug: shesterkin-igor
       display_name: Igor Shesterkin
+      position: goalie
+    - slug: vasilevskiy-andrei
+      display_name: Andrei Vasilevskiy
       position: goalie
 predictions:
     - id: 7056d8d8-738e-4605-bc5f-2e379c0323cb

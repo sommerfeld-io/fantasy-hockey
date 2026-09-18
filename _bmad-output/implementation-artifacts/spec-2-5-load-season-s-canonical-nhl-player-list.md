@@ -50,6 +50,18 @@ context: []
 - Given the seeded list spans all three positions, when `Store.NHLPlayersByPosition("goalie")` (or skater/defenseman) is called, then only that position's entries come back.
 - Given a `Team` and an `AwardFinalist`, when each is converted via `newTeamOptions`/`newAwardFinalistOptions`, then both produce the identical `embedOption{"id","label"}` JSON shape.
 
+### Review Findings
+
+- [x] [Review][Patch] Seeded `nhl_players:` has only 2 defensemen and 2 goalies, but Story 2.6 (already shipped) requires 3 *distinct* finalists per award - Norris (defensemen) and Vezina (goalies) are currently impossible to complete in the real, running app [src/fantasy-hockey.yml]
+
+**Rejected:**
+- `false` — The Given step verifying the seed "holds a sample of skaters, defensemen, and goalies" is a no-op that never checks this [src/acceptance-tests/load_canonical_nhl_player_list_steps_test.go] — refuted: already litigated during this story's own build review — the seed's well-formedness is enforced by construction (`store.New` panics on a malformed seed before any step runs), matching `load-canonical-team-list.feature`'s own already-accepted pattern.
+- `false` — No malformed/invalid `nhl_players:` entry scenario proves startup tolerates it [src/acceptance-tests/features/load-canonical-nhl-player-list.feature] — refuted: already litigated during this story's own build review — matches Story 2.2's established scope (a single well-formed-doesn't-break-startup smoke scenario only), and a missing YAML field wouldn't even error at parse time (`yaml.Unmarshal` just zero-values it).
+- `false` — `Position` is compared as a raw string with no validation against the three constants [src/internal/store/store.go] — refuted: already litigated during this story's own build review — matches the established, already-accepted convention of never validating hand-maintained enum-like data (`Team.Conference`/`Division` have identical exposure).
+- `false` — No uniqueness check exists for `Slug` [src/internal/store/store.go] — refuted: same established convention - a duplicate slug is a hand-edit mistake in hand-maintained data, not a code defect, matching the same class of already-accepted risk as `Team`/`PredictionSet` field typos.
+- `false` — No `NHLPlayerBySlug`-style lookup accessor was added for Story 2.6 to use [src/internal/store/store.go] — refuted: Story 2.6 (already implemented and shipped on this branch) added its own equivalent (`nhlPlayerBySlug` in `internal/web/web.go`) - nothing is left unaddressed.
+- `false` — `store.New()` given a malformed `nhl_players:` entry has no test proving a clear error [src/internal/store/store_test.go] — refuted: same grounds as the malformed-entry finding above.
+
 ## Implementation Notes
 
 - Implemented via a fresh subagent; verified independently against the diff (read every file changed rather than trusting the report). All four Code Map items match exactly: `AwardFinalist{Slug, DisplayName, Position}` + `Position` consts, `Store.NHLPlayers()`/`NHLPlayersByPosition` mirroring `Teams()`'s pattern, `teamOption`→`embedOption` rename with `newAwardFinalistOptions` alongside `newTeamOptions`, and a small real-player seed (McDavid, MacKinnon, Kucherov, Hughes, Makar, Hellebuyck, Shesterkin) spanning all three positions.

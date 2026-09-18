@@ -165,6 +165,17 @@ var divisionTeamsByDivision = map[string][]string{
 // per-division sample used by the cup/presidents sheet.
 func newTestStoreWithDivisionTeams(t *testing.T, predictionSetsYAML string) *store.Store {
 	t.Helper()
+	st, _ := newTestStoreWithDivisionTeamsAndDir(t, predictionSetsYAML)
+	return st
+}
+
+// newTestStoreWithDivisionTeamsAndDir is newTestStoreWithDivisionTeams' own
+// variant that also returns the seeded temp directory, for tests that need
+// to remove it out from under the store (e.g. to force a write failure) -
+// this is the only place that seed-building logic lives, so a
+// write-failure test never has to duplicate it just to keep the dir.
+func newTestStoreWithDivisionTeamsAndDir(t *testing.T, predictionSetsYAML string) (*store.Store, string) {
+	t.Helper()
 	dir := t.TempDir()
 
 	var yamlTeams strings.Builder
@@ -173,7 +184,11 @@ func newTestStoreWithDivisionTeams(t *testing.T, predictionSetsYAML string) *sto
 		if division == "Central" || division == "Pacific" {
 			conference = "Western"
 		}
-		for _, id := range divisionTeamsByDivision[division] {
+		teams, ok := divisionTeamsByDivision[division]
+		if !ok {
+			t.Fatalf("no fixture teams for division %q - divisionTeamsByDivision has drifted from teamDivisionOrder", division)
+		}
+		for _, id := range teams {
 			fmt.Fprintf(&yamlTeams, "    - id: %s\n      name: %s Team\n      conference: %s\n      division: %s\n", id, id, conference, division)
 		}
 	}
@@ -194,7 +209,7 @@ prediction_sets:
 	if err != nil {
 		t.Fatalf("store.New: %v", err)
 	}
-	return st
+	return st, dir
 }
 
 // divisionsPredictionSetSeed is the "divisions" Prediction Set's raw
@@ -1211,11 +1226,11 @@ func TestGetDivisionsSheetShouldRenderFourChipGroupsAndWinnerSelectsWithNothingC
 	if strings.Contains(body, "checked") {
 		t.Errorf("expected no chip preselected, got %q", body)
 	}
-	if !strings.Contains(body, `0/5`) {
-		t.Errorf("expected the live n/5 counters to start at 0, got %q", body)
+	if got := strings.Count(body, `0/5`); got != 4 {
+		t.Errorf("expected all 4 divisions' live n/5 counters to start at 0, got %d occurrences in %q", got, body)
 	}
-	if !strings.Contains(body, `0/8 selected`) {
-		t.Errorf("expected the live n/8 indicators to start at 0, got %q", body)
+	if got := strings.Count(body, `0/8 selected`); got != 2 {
+		t.Errorf("expected both conferences' live n/8 indicators to start at 0, got %d occurrences in %q", got, body)
 	}
 	if !strings.Contains(body, `>Submit predictions</button>`) {
 		t.Errorf("expected the button to read \"Submit predictions\", got %q", body)
@@ -1246,11 +1261,11 @@ func TestGetDivisionsSheetShouldPreselectSavedPicksAndReadUpdatePredictions(t *t
 	if !strings.Contains(body, `value="BOS" selected>`) {
 		t.Errorf("expected the saved Atlantic winner preselected, got %q", body)
 	}
-	if !strings.Contains(body, `4/5`) {
-		t.Errorf("expected the live n/5 counter to reflect the saved picks, got %q", body)
+	if got := strings.Count(body, `4/5`); got != 4 {
+		t.Errorf("expected all 4 divisions' live n/5 counters to reflect the saved 4-team picks, got %d occurrences in %q", got, body)
 	}
-	if !strings.Contains(body, `8/8 selected`) {
-		t.Errorf("expected the live n/8 indicator to read 8/8, got %q", body)
+	if got := strings.Count(body, `8/8 selected`); got != 2 {
+		t.Errorf("expected both conferences' live n/8 indicators to read 8/8, got %d occurrences in %q", got, body)
 	}
 	if !strings.Contains(body, `>Update predictions</button>`) {
 		t.Errorf("expected the button to read \"Update predictions\", got %q", body)
@@ -1271,11 +1286,22 @@ func TestGetDivisionsSheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed
 	rec := getDivisionsSheet(t, handler)
 
 	body := rec.Body.String()
-	if !strings.Contains(body, `value="BOS" checked disabled>`) {
-		t.Errorf("expected a preselected chip to render disabled, got %q", body)
+	// One representative preselected chip and winner select per division -
+	// not just Atlantic - so a per-division template bug wouldn't slip past
+	// this test undetected.
+	wantDisabled := map[string]string{
+		"Atlantic":     "BOS",
+		"Metropolitan": "CAR",
+		"Central":      "CHI",
+		"Pacific":      "ANA",
 	}
-	if !strings.Contains(body, `id="winner-Atlantic" name="winner_atlantic" aria-label="Atlantic winner" disabled>`) {
-		t.Errorf("expected the division-winner select to render disabled, got %q", body)
+	for division, teamID := range wantDisabled {
+		if !strings.Contains(body, `value="`+teamID+`" checked disabled>`) {
+			t.Errorf("expected %s's preselected chip %q to render disabled, got %q", division, teamID, body)
+		}
+		if !strings.Contains(body, `id="winner-`+division+`" name="winner_`+strings.ToLower(division)+`" aria-label="`+division+` winner" disabled>`) {
+			t.Errorf("expected %s's winner select to render disabled, got %q", division, body)
+		}
 	}
 	if !strings.Contains(body, "closed-banner") {
 		t.Errorf("expected the read-only banner, got %q", body)
@@ -1401,6 +1427,9 @@ func TestPostDivisionsSheetShouldRejectWhenAConferenceTotalIsNotEightAndSaveNoth
 	if _, ok := st.FindDivisionPlayoffTeams("basti", "Central"); ok {
 		t.Error("expected the whole submission to be all-or-nothing: a valid sibling conference must not be saved either")
 	}
+	if _, ok := st.FindDivisionWinner("basti", "Atlantic"); ok {
+		t.Error("expected the whole submission to be all-or-nothing: the valid winner picks must not be saved either")
+	}
 }
 
 func TestPostDivisionsSheetShouldRejectADivisionExceedingFiveEvenWhenItsConferenceTotalsEight(t *testing.T) {
@@ -1426,6 +1455,9 @@ func TestPostDivisionsSheetShouldRejectADivisionExceedingFiveEvenWhenItsConferen
 	}
 	if _, ok := st.FindDivisionPlayoffTeams("basti", "Atlantic"); ok {
 		t.Error("expected nothing to be saved when a division exceeds its 5-team cap")
+	}
+	if _, ok := st.FindDivisionWinner("basti", "Atlantic"); ok {
+		t.Error("expected the whole submission to be all-or-nothing: the valid winner picks must not be saved either")
 	}
 }
 
@@ -1479,6 +1511,9 @@ func TestPostDivisionsSheetShouldRejectAForeignDivisionTeamIDAndNotInflateTheRen
 	// own 4 valid teams belong to Atlantic's roster, not the WSH intruder.
 	if !strings.Contains(rec.Body.String(), `4/5`) {
 		t.Errorf("expected Atlantic's re-rendered count to stay 4/5, not counting the foreign id, got %q", rec.Body.String())
+	}
+	if _, ok := st.FindDivisionWinner("basti", "Atlantic"); ok {
+		t.Error("expected the whole submission to be all-or-nothing: the valid winner picks must not be saved either")
 	}
 }
 
@@ -1576,34 +1611,7 @@ func TestPostDivisionsSheetShouldUpdateExistingPicksInPlaceOnResubmission(t *tes
 
 func TestPostDivisionsSheetShouldReturn500WhenTheStoreWriteFails(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	dir := t.TempDir()
-
-	var yamlTeams strings.Builder
-	for _, division := range teamDivisionOrder {
-		conference := "Eastern"
-		if division == "Central" || division == "Pacific" {
-			conference = "Western"
-		}
-		for _, id := range divisionTeamsByDivision[division] {
-			fmt.Fprintf(&yamlTeams, "    - id: %s\n      name: %s Team\n      conference: %s\n      division: %s\n", id, id, conference, division)
-		}
-	}
-	seed := `season: "2026-27"
-players:
-    - id: basti
-      name: Basti
-      email: basti@example.com
-prediction_sets:
-` + divisionsPredictionSetSeed(deadline) + `teams:
-` + yamlTeams.String()
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
+	st, dir := newTestStoreWithDivisionTeamsAndDir(t, divisionsPredictionSetSeed(deadline))
 	handler := NewServer(st, noopSender, testSecret)
 
 	// Remove the directory out from under the store so SaveDivisionPicks'
@@ -1673,6 +1681,16 @@ const awardsNHLPlayersYAML = `nhl_players:
 // fixture, mirroring newTestStoreWithDivisionTeams' own precedent.
 func newTestStoreWithAwardsRoster(t *testing.T, predictionSetsYAML string) *store.Store {
 	t.Helper()
+	st, _ := newTestStoreWithAwardsRosterAndDir(t, predictionSetsYAML)
+	return st
+}
+
+// newTestStoreWithAwardsRosterAndDir is newTestStoreWithAwardsRoster's own
+// variant that also returns the seeded temp directory, for tests that need
+// to remove it out from under the store (e.g. to force a write failure) -
+// mirrors newTestStoreWithDivisionTeamsAndDir's own reason for existing.
+func newTestStoreWithAwardsRosterAndDir(t *testing.T, predictionSetsYAML string) (*store.Store, string) {
+	t.Helper()
 	dir := t.TempDir()
 	seed := `season: "2026-27"
 players:
@@ -1689,13 +1707,26 @@ prediction_sets:
 	if err != nil {
 		t.Fatalf("store.New: %v", err)
 	}
-	return st
+	return st, dir
 }
 
 // awardSlot is a small constructor for awardSlotSubmission, for tests that
 // build a full 5-award submission by hand.
 func awardSlot(text, slug string) awardSlotSubmission {
 	return awardSlotSubmission{Text: text, Slug: slug}
+}
+
+// assertNoAwardFinalistsSaved fails t unless none of awardOrder's 5 awards
+// have a saved FindAwardFinalists row for "basti" - a rejected submission's
+// all-or-nothing guarantee applies across every sibling award, not just the
+// one or two an individual test happens to spot-check.
+func assertNoAwardFinalistsSaved(t *testing.T, st *store.Store) {
+	t.Helper()
+	for _, award := range awardOrder {
+		if _, ok := st.FindAwardFinalists("basti", award); ok {
+			t.Errorf("expected the whole submission to be all-or-nothing: %q must not be saved either", award)
+		}
+	}
 }
 
 // validAwardFinalistsForm is one valid, fully-resolved submission across
@@ -1776,7 +1807,6 @@ func TestGetAwardsSheetShouldRenderFiveEmptyTrophyGroupsWithNoGreenChecks(t *tes
 	wantPresent := []string{
 		`data-award="hart"`, `data-award="norris"`, `data-award="vezina"`, `data-award="art_ross"`, `data-award="rocket_richard"`,
 		"Hart Trophy finalists", "Norris Trophy finalists", "Vezina Trophy finalists", "Art Ross finalists", "Rocket Richard finalists",
-		`value=""`,
 		`>Submit predictions</button>`,
 		`<script type="application/json" id="award-options-skater">`, `"mcdavid-connor"`,
 		`<script type="application/json" id="award-options-defenseman">`, `"makar-cale"`,
@@ -1794,6 +1824,13 @@ func TestGetAwardsSheetShouldRenderFiveEmptyTrophyGroupsWithNoGreenChecks(t *tes
 		if strings.Contains(body, unwanted) {
 			t.Errorf("expected the awards sheet not to contain %q, got %q", unwanted, body)
 		}
+	}
+
+	// A bare Contains(body, `value=""`) would pass even if only one of the
+	// 15 finalist text/hidden-slug pairs actually started empty - count
+	// every occurrence instead: 5 awards * 3 slots * 2 fields (text + slug).
+	if got := strings.Count(body, `value=""`); got != 30 {
+		t.Errorf("expected all 15 finalist text/slug pairs to start empty (30 occurrences of value=\"\"), got %d in %q", got, body)
 	}
 }
 
@@ -1843,6 +1880,20 @@ func TestGetAwardsSheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed(t 
 	if !strings.Contains(body, `value="Connor McDavid" placeholder="Player name" aria-label="Hart Trophy finalists, slot 1" autocomplete="off" disabled>`) {
 		t.Errorf("expected a preselected finalist input to render disabled, got %q", body)
 	}
+	// One slot-1 input per remaining (blank, unseeded) award - not just
+	// Hart's own seeded one - so a per-award template bug wouldn't slip
+	// past this test undetected.
+	wantBlankDisabled := map[string]string{
+		"Norris Trophy finalists":  "Defenseman name",
+		"Vezina Trophy finalists":  "Goalie name",
+		"Art Ross finalists":       "Player name",
+		"Rocket Richard finalists": "Player name",
+	}
+	for award, placeholder := range wantBlankDisabled {
+		if !strings.Contains(body, `value="" placeholder="`+placeholder+`" aria-label="`+award+`, slot 1" autocomplete="off" disabled>`) {
+			t.Errorf("expected %s's blank slot 1 input to render disabled, got %q", award, body)
+		}
+	}
 	if !strings.Contains(body, "closed-banner") {
 		t.Errorf("expected the read-only banner, got %q", body)
 	}
@@ -1860,6 +1911,24 @@ func TestGetAwardsSheetShouldNeverCreateARowMerelyByOpeningTheSheet(t *testing.T
 
 	if _, ok := st.FindAwardFinalists("basti", store.AwardHart); ok {
 		t.Error("expected no Prediction row to be force-created merely by opening the sheet")
+	}
+}
+
+// TestPredictShouldShowOpenStatusForAwardsBeforeAnyPickIsSaved mirrors
+// TestPredictShouldShowOpenStatusForDivisionsBeforeAnyPickIsSaved: spec-2-6's
+// own Intent says awards' Submitted-state logic mirrors Divisions' "at least
+// one part saved" convention, so the same pre-save verification applies.
+func TestPredictShouldShowOpenStatusForAwardsBeforeAnyPickIsSaved(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
+
+	req := httptest.NewRequest("GET", "/predict", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+
+	if !strings.Contains(rec.Body.String(), `<a id="predict-row-awards" href="/predict/awards" class="set-row set-row--open">`) {
+		t.Errorf("expected the awards row to show Open before any pick is saved, got %q", rec.Body.String())
 	}
 }
 
@@ -1919,6 +1988,34 @@ func TestPostAwardsSheetShouldSaveOnlyTheCompleteAwardsAndLeaveOthersUnsaved(t *
 	}
 }
 
+// TestPostAwardsSheetShouldAcceptAndSkipAPartiallyFilledAward covers the
+// spec's own boundary: "an award left partially or fully blank simply isn't
+// saved this submission" - a 2-of-3-filled award must be treated exactly
+// like a fully-blank one (accepted, not saved, no error), never rejected as
+// incomplete and never partially persisted.
+func TestPostAwardsSheetShouldAcceptAndSkipAPartiallyFilledAward(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
+	handler := NewServer(st, noopSender, testSecret)
+
+	slots := validAwardFinalistsForm()
+	hart := slots[store.AwardHart]
+	hart[2] = awardSlot("", "") // slot 2 left truly blank - 2 of 3 filled.
+	slots[store.AwardHart] = hart
+
+	rec := postAwardsForm(t, handler, slots)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status %d (a partially-filled award must not block the rest of the submission), got %d: %s", http.StatusFound, rec.Code, rec.Body.String())
+	}
+	if _, ok := st.FindAwardFinalists("basti", store.AwardHart); ok {
+		t.Error("expected the 2-of-3-filled Hart award to stay unsaved, same as a fully-blank award")
+	}
+	if _, ok := st.FindAwardFinalists("basti", store.AwardNorris); !ok {
+		t.Error("expected the complete Norris award to still be saved")
+	}
+}
+
 func TestPostAwardsSheetShouldRejectATypedButUnresolvedNameAndSaveNothing(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
@@ -1940,11 +2037,39 @@ func TestPostAwardsSheetShouldRejectATypedButUnresolvedNameAndSaveNothing(t *tes
 	if !strings.Contains(rec.Body.String(), `class="finalist-text error"`) {
 		t.Errorf("expected the offending slot's goal-border class, got %q", rec.Body.String())
 	}
-	if _, ok := st.FindAwardFinalists("basti", store.AwardHart); ok {
-		t.Error("expected the whole submission to be rejected (all-or-nothing): the offending award must not be saved")
+	assertNoAwardFinalistsSaved(t, st)
+}
+
+// TestPostAwardsSheetShouldEscapeRejectedFinalistTextInTheRerenderedHTML
+// covers the first place in this codebase a genuinely free-typed, arbitrary
+// string (not a value drawn from a closed set like a team id) gets echoed
+// straight back into a rendered HTML attribute (sheet.html's
+// value="{{.Text}}"). html/template auto-escapes this by default, but
+// nothing proved it before this test - a future refactor casting .Text to
+// template.HTML (as this same diff already does deliberately for the JSON
+// option blocks, via template.JS) could silently reintroduce an XSS path.
+func TestPostAwardsSheetShouldEscapeRejectedFinalistTextInTheRerenderedHTML(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
+	handler := NewServer(st, noopSender, testSecret)
+
+	const malicious = `"><script>alert(1)</script>`
+	slots := validAwardFinalistsForm()
+	hart := slots[store.AwardHart]
+	hart[1] = awardSlot(malicious, "") // typed text, no resolved slug - rejected and echoed back.
+	slots[store.AwardHart] = hart
+
+	rec := postAwardsForm(t, handler, slots)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
-	if _, ok := st.FindAwardFinalists("basti", store.AwardNorris); ok {
-		t.Error("expected the whole submission to be rejected (all-or-nothing): a valid sibling award must not be saved either")
+	body := rec.Body.String()
+	if strings.Contains(body, malicious) {
+		t.Errorf("expected the rejected finalist text to be HTML-escaped, found it raw/unescaped in %q", body)
+	}
+	if !strings.Contains(body, html.EscapeString(malicious)) {
+		t.Errorf("expected the rejected finalist text to appear HTML-escaped, got %q", body)
 	}
 }
 
@@ -1966,12 +2091,7 @@ func TestPostAwardsSheetShouldRejectASlugBelongingToTheWrongPositionAndSaveNothi
 	if !strings.Contains(rec.Body.String(), invalidFinalistErrorText) {
 		t.Errorf("expected the inline error caption, got %q", rec.Body.String())
 	}
-	if _, ok := st.FindAwardFinalists("basti", store.AwardNorris); ok {
-		t.Error("expected nothing to be saved for a wrong-position slug")
-	}
-	if _, ok := st.FindAwardFinalists("basti", store.AwardHart); ok {
-		t.Error("expected the whole submission to be rejected (all-or-nothing), including a valid sibling award")
-	}
+	assertNoAwardFinalistsSaved(t, st)
 }
 
 // TestPostAwardsSheetShouldRejectADuplicateSlugWithinOneAwardAndSaveNothing
@@ -1997,12 +2117,7 @@ func TestPostAwardsSheetShouldRejectADuplicateSlugWithinOneAwardAndSaveNothing(t
 	if !strings.Contains(rec.Body.String(), invalidFinalistErrorText) {
 		t.Errorf("expected the inline error caption, got %q", rec.Body.String())
 	}
-	if _, ok := st.FindAwardFinalists("basti", store.AwardHart); ok {
-		t.Error("expected nothing to be saved when the same NHL Player is picked twice for one award")
-	}
-	if _, ok := st.FindAwardFinalists("basti", store.AwardNorris); ok {
-		t.Error("expected the whole submission to be rejected (all-or-nothing), including a valid sibling award")
-	}
+	assertNoAwardFinalistsSaved(t, st)
 }
 
 // TestPostAwardsSheetShouldNotShowTheGreenCheckForAnAwardWithADuplicateSlug
@@ -2097,22 +2212,7 @@ func TestPostAwardsSheetShouldUpdateAnExistingAwardInPlaceOnResubmission(t *test
 
 func TestPostAwardsSheetShouldReturn500WhenTheStoreWriteFails(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	dir := t.TempDir()
-	seed := `season: "2026-27"
-players:
-    - id: basti
-      name: Basti
-      email: basti@example.com
-prediction_sets:
-` + awardsPredictionSetSeed(deadline) + awardsNHLPlayersYAML
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
+	st, dir := newTestStoreWithAwardsRosterAndDir(t, awardsPredictionSetSeed(deadline))
 	handler := NewServer(st, noopSender, testSecret)
 
 	// Remove the directory out from under the store so SaveAwardPicks'
