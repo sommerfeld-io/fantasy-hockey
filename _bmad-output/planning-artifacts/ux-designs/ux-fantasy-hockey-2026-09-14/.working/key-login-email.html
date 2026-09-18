@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Key screen — Login (email)</title>
+<style>
+/*
+  Governs: EXPERIENCE.md "Information Architecture" (Login — email row),
+  "Component Patterns" (Login — email field row), "Key Flows" Flow 1 step 1-2,
+  DESIGN.md Colors / Typography / Shapes / Components.
+  Canonical state only (empty field, ready to submit).
+*/
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #05070a; /* neutral surrounding, not part of the product surface */
+  display: flex;
+  justify-content: center;
+  padding: 40px 16px;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.device {
+  width: 390px;
+  height: 780px;
+  background: #0d1117; /* colors.bg */
+  border: 1px solid #30363d; /* colors.border */
+  border-radius: 28px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px;
+  gap: 24px;
+}
+.brand {
+  text-align: center;
+  margin-bottom: 8px;
+}
+.brand .title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e6edf3; /* colors.text */
+}
+.brand .subtitle {
+  font-size: 12px;
+  color: #8b949e; /* colors.muted */
+  margin-top: 4px;
+}
+.card {
+  background: #161b22; /* colors.surface */
+  border: 1px solid #30363d;
+  border-radius: 12px; /* rounded.xl */
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #e6edf3;
+}
+input {
+  background: #21262d; /* colors.raised */
+  border: 1px solid #30363d;
+  border-radius: 10px; /* rounded.lg */
+  padding: 12px;
+  font-size: 14px;
+  color: #e6edf3;
+  font-family: inherit;
+}
+input::placeholder { color: #6e7681; } /* colors.faint */
+button {
+  width: 100%;
+  background: #238636; /* colors.green-btn */
+  border: 1px solid #2ea043; /* colors.green-btn-border */
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e6edf3;
+  font-family: inherit;
+}
+.hint {
+  text-align: center;
+  font-size: 12px;
+  color: #6e7681;
+}
+</style>
+</head>
+<body>
+  <div class="device">
+    <div class="screen">
+      <div class="brand">
+        <div class="title">Face-Off Pool</div>
+        <div class="subtitle">NHL 2026–27</div>
+      </div>
+      <div class="card">
+        <label for="email">Email address</label>
+        <input id="email" type="email" placeholder="you@example.com">
+        <button type="button">Send code</button>
+      </div>
+      <div class="hint">We'll email you a 6-digit code if you're part of this pool.</div>
+    </div>
+  </div>
+</body>
+</html>

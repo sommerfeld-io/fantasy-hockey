@@ -15,8 +15,6 @@ volumes:
       device: .
       o: bind
 
-  pgdata:
-
 services:
 
   lint-yaml:
@@ -80,33 +78,48 @@ services:
     working_dir: *default-workdir
     entrypoint: hadolint Dockerfile
 
-  postgres:
-    image: postgres:18.6
+  # Local-dev-only SMTP sink: catches every mail the app sends (e.g. login
+  # codes) instead of delivering it, so nothing ever reaches a real inbox.
+  # Web UI at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:latest
     restart: unless-stopped
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    env_file:
-      - path: .env.secrets
-        required: false
     ports:
-      - 5432:5432
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      - 8025:8025
+      - 1025:1025
 
   fantasy-hockey:
     image: ${COMPOSE_PROJECT_NAME}-app:${DEV_TAG}
     restart: unless-stopped
+    depends_on:
+      - mailpit
     build:
       context: .
       dockerfile: Dockerfile
-    env_file:
-      - path: .env.secrets
-        required: false
+    # Overrides the Dockerfile's non-root USER for local dev only: the
+    # bind-mounted data file below is owned by whatever UID runs on the
+    # host, which won't generally match the image's baked-in fantasy-hockey
+    # UID, so reading it as that user can fail even when its permission
+    # bits look fine. Root sidesteps the mismatch; the Dockerfile's
+    # production image still drops to the unprivileged user by default.
+    # Side effect: every write goes through root, so src/fantasy-hockey.yml
+    # ends up root-owned on the host afterward - chown it back (e.g. `sudo
+    # chown $USER:$USER src/fantasy-hockey.yml`) before editing it locally
+    # or running `task go:run` again.
+    user: root
     ports:
       - 8080:8080
-    depends_on:
-      postgres:
-        condition: service_healthy
+    volumes:
+      # Bind-mounts src/ (the same directory `task go:run` reads
+      # fantasy-hockey.yml from locally) rather than the single file: the
+      # store persists via an atomic write-and-rename, and rename(2) can't
+      # replace a path that is itself a bind-mount point, only a plain file
+      # inside one.
+      - ./src:/data
+    environment:
+      - SESSION_SECRET=${SESSION_SECRET}
+      - DATA_FILE=${DATA_FILE:-/data/fantasy-hockey.yml}
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_APP_PASSWORD=${SMTP_APP_PASSWORD:-}

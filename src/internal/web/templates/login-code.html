@@ -1,0 +1,34 @@
+{{/*
+  Login - code step. Per mockups/login-code.html and EXPERIENCE.md's Login
+  (code) row: rendered identically whether or not the just-submitted email
+  matched a Player (FR-1) - nothing on this page ever reveals a match.
+  A wrong/expired/used code re-renders this same screen with the identical
+  generic .Error and the submitted .Code retained (Story 1.2).
+*/}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fantasy Hockey - Enter code</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<main class="screen">
+  <div class="brand">
+    <div class="title">Fantasy Hockey</div>
+    <div class="subtitle">Check your email</div>
+  </div>
+  <form class="card" method="post" action="/login/code">
+    <label for="code">6-digit code</label>
+    <input id="code" name="code" type="text" class="code-input{{if .Error}} error{{end}}" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" value="{{.Code}}">
+    <button type="submit">Log in</button>
+  </form>
+  {{if .Error}}
+  <p class="error-text">{{.Error}}</p>
+  {{else}}
+  <p class="hint">Sent to your email. Valid for 10 minutes.</p>
+  {{end}}
+</main>
+</body>
+</html>

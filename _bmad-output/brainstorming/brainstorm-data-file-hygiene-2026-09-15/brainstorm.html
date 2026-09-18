@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Scorekeeper's Ledger — Data-File Hygiene Brainstorm</title>
+<style>
+  /* ============ THEME TOKENS ============ */
+  :root{
+    color-scheme: light dark;
+    --bg-desk:#3a2a1a;
+    --paper:#f4ecd6;
+    --paper-line:rgba(110,80,45,0.09);
+    --ink:#1e2a38;
+    --ink-soft:#54626f;
+    --red:#a3272f;
+    --gold:#a5760f;
+    --panel:#fffcf3;
+    --panel-2:#fff7e6;
+    --shadow:rgba(30,20,10,0.28);
+    --story-a:#0f6e6e;    --story-a-bg:#e2f4f1;   --story-a-ink:#04302f;
+    --story-b:#b7460e;    --story-b-bg:#fbe8dd;   --story-b-ink:#4a1c05;
+    --story-c:#26313a;    --story-c-bg:#eef0f1;   --story-c-ink:#141a1f;
+    --won:#7a7264;
+    --stitch: rgba(163,39,47,0.5);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg-desk:#04070a;
+      --paper:#101b26;
+      --paper-line:rgba(255,255,255,0.05);
+      --ink:#dce6ee;
+      --ink-soft:#93a5b5;
+      --red:#ff7a68;
+      --gold:#f2c14e;
+      --panel:#152230;
+      --panel-2:#182838;
+      --shadow:rgba(0,0,0,0.65);
+      --story-a:#5fd3c4;    --story-a-bg:#0f2b2a;   --story-a-ink:#c9f3ec;
+      --story-b:#ff9a5a;    --story-b-bg:#332012;   --story-b-ink:#ffdcc0;
+      --story-c:#c9d3db;    --story-c-bg:#1c2731;   --story-c-ink:#eef2f5;
+      --won:#6f7784;
+      --stitch: rgba(255,122,104,0.45);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg-desk:#04070a;
+    --paper:#101b26;
+    --paper-line:rgba(255,255,255,0.05);
+    --ink:#dce6ee;
+    --ink-soft:#93a5b5;
+    --red:#ff7a68;
+    --gold:#f2c14e;
+    --panel:#152230;
+    --panel-2:#182838;
+    --shadow:rgba(0,0,0,0.65);
+    --story-a:#5fd3c4;    --story-a-bg:#0f2b2a;   --story-a-ink:#c9f3ec;
+    --story-b:#ff9a5a;    --story-b-bg:#332012;   --story-b-ink:#ffdcc0;
+    --story-c:#c9d3db;    --story-c-bg:#1c2731;   --story-c-ink:#eef2f5;
+    --won:#6f7784;
+    --stitch: rgba(255,122,104,0.45);
+  }
+
+  /* ============ BASE ============ */
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:
+      radial-gradient(ellipse at 20% -10%, rgba(255,255,255,0.06), transparent 60%),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.02) 0 2px, transparent 2px 46px),
+      var(--bg-desk);
+    color:var(--ink);
+    font-family: Georgia, "Times New Roman", serif;
+    line-height:1.5;
+    padding: env(safe-area-inset-top,0px) max(16px, env(safe-area-inset-left,0px)) env(safe-area-inset-bottom,0px) max(16px, env(safe-area-inset-right,0px));
+    -webkit-text-size-adjust:100%;
+  }
+  img{max-width:100%;}
+  [hidden]{display:none!important;}
+  .mono{ font-family: "Courier New", Courier, monospace; }
+
+  a{ color:var(--red); }
+
+  /* ============ LEDGER SHELL ============ */
+  .ledger{
+    max-width: 920px;
+    margin: 28px auto 60px;
+    background:
+      repeating-linear-gradient(var(--paper) 0 27px, var(--paper-line) 27px 28px);
+    background-color: var(--paper);
+    border-radius: 6px;
+    box-shadow: 0 18px 45px var(--shadow), 0 2px 0 rgba(0,0,0,0.15);
+    position:relative;
+    overflow:hidden;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+  .ledger::before{ /* red margin rule, classic ledger book */
+    content:"";
+    position:absolute; top:0; bottom:0; left:54px;
+    width:2px; background: var(--red); opacity:0.55;
+  }
+  @media (max-width:560px){
+    .ledger::before{ left:34px; }
+  }
+  .sheet{
+    position:relative;
+    padding: 22px 26px 22px 76px;
+  }
+  @media (max-width:560px){
+    .sheet{ padding: 16px 14px 16px 48px; }
+  }
+
+  /* ============ THEME TOGGLE ============ */
+  #themeToggle{
+    position: fixed; top: max(12px, env(safe-area-inset-top,0px)); right: max(12px, env(safe-area-inset-right,0px));
+    z-index: 50;
+    font-family:"Courier New", monospace;
+    font-size:12px; letter-spacing:0.05em;
+    background: var(--panel); color:var(--ink);
+    border:1px solid var(--ink-soft);
+    border-radius:20px;
+    padding:7px 12px;
+    cursor:pointer;
+    box-shadow:0 3px 10px var(--shadow);
+  }
+  #themeToggle:hover{ filter:brightness(1.06); }
+
+  /* ============ COVER / GAME SHEET HEADER ============ */
+  .cover{
+    padding: 30px 26px 26px 76px;
+    border-bottom: 3px double var(--red);
+    position:relative;
+  }
+  @media (max-width:560px){ .cover{ padding: 22px 14px 20px 48px; } }
+  .cover .kicker{
+    font-family:"Courier New", monospace;
+    letter-spacing:0.22em;
+    font-size:11px;
+    color:var(--red);
+    text-transform:uppercase;
+  }
+  .cover h1{
+    margin: 6px 0 4px;
+    font-size: clamp(1.5rem, 5vw, 2.35rem);
+    line-height:1.15;
+    color:var(--ink);
+  }
+  .cover .subtitle{ color:var(--ink-soft); font-style:italic; margin-bottom:16px; }
+  .stamp{
+    position:absolute;
+    top: 22px; right: 22px;
+    width: 108px; height:108px;
+    border: 4px solid var(--red);
+    border-radius:50%;
+    color: var(--red);
+    display:flex; align-items:center; justify-content:center;
+    text-align:center;
+    font-family:"Courier New", monospace;
+    font-weight:bold;
+    font-size:13px;
+    letter-spacing:0.05em;
+    transform: rotate(-14deg);
+    opacity:0.8;
+    line-height:1.2;
+  }
+  @media (max-width:640px){ .stamp{ display:none; } }
+  .gamesheet{
+    display:grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px 22px;
+    margin-top: 10px;
+    font-family:"Courier New", monospace;
+    font-size: 13px;
+  }
+  @media (max-width:520px){ .gamesheet{ grid-template-columns: 1fr; } }
+  .gamesheet dt{ color:var(--red); text-transform:uppercase; font-size:10.5px; letter-spacing:0.08em; }
+  .gamesheet dd{ margin:0 0 8px; border-bottom:1px dotted var(--ink-soft); padding-bottom:6px; }
+
+  /* ============ PERIOD BANNERS ============ */
+  .period{ padding: 30px 26px 34px 76px; border-bottom: 1px solid var(--paper-line); }
+  @media (max-width:560px){ .period{ padding: 22px 14px 26px 48px; } }
+  .period-banner{
+    display:inline-flex;
+    align-items:baseline;
+    gap:10px;
+    background: var(--panel-2);
+    border:1px solid var(--ink-soft);
+    border-radius:4px;
+    padding: 6px 14px;
+    font-family:"Courier New", monospace;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+    margin-bottom: 6px;
+    flex-wrap:wrap;
+  }
+  .period-banner .clock{
+    font-weight:bold; font-size: 1.05rem; letter-spacing:0.06em;
+    color: var(--gold);
+    text-shadow: 0 0 6px rgba(165,118,15,0.25);
+  }
+  .period-banner .label{ text-transform:uppercase; font-size:0.85rem; letter-spacing:0.08em; color:var(--ink-soft); }
+  .period h2{
+    margin: 10px 0 6px;
+    font-size: clamp(1.15rem, 3.4vw, 1.6rem);
+  }
+  .period .deck{ color:var(--ink-soft); font-style:italic; max-width:62ch; margin-bottom:18px; }
+
+  /* ============ FAILURE ANALYSIS: INCIDENT SLIPS ============ */
+  .incidents{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .slip{
+    background: var(--panel);
+    border: 1px dashed var(--stitch);
+    border-radius: 3px;
+    padding: 12px 14px 14px;
+    box-shadow: 2px 3px 8px var(--shadow);
+    font-size: 0.92rem;
+    position: relative;
+  }
+  .slip:nth-child(odd){ transform: rotate(-0.6deg); }
+  .slip:nth-child(even){ transform: rotate(0.5deg); }
+  .slip .tag{
+    font-family:"Courier New", monospace;
+    font-size: 10.5px;
+    letter-spacing:0.06em;
+    color: var(--red);
+    display:block;
+    margin-bottom:6px;
+    text-transform:uppercase;
+  }
+  .slip.real .tag::before{ content:"⛔ INCIDENT NO. "; }
+  .slip p{ margin:0; }
+
+  /* ============ CONSTRAINT MAPPING: THE BOARDS ============ */
+  .rink{
+    display:grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 18px;
+  }
+  @media (max-width:680px){ .rink{ grid-template-columns: 1fr; } }
+  .boards, .open-ice{
+    border-radius: 6px;
+    padding: 16px 16px 18px;
+  }
+  .boards{
+    background: var(--panel);
+    border: 4px solid var(--ink);
+    box-shadow: inset 0 0 0 3px var(--paper), 3px 4px 10px var(--shadow);
+  }
+  .open-ice{
+    background: repeating-linear-gradient(135deg, var(--panel-2) 0 10px, transparent 10px 20px);
+    border: 2px dashed var(--ink-soft);
+  }
+  .rink h3{ margin-top:0; font-family:"Courier New", monospace; font-size:0.95rem; letter-spacing:0.04em; text-transform:uppercase;}
+  .boards h3{ color:var(--red); }
+  .open-ice h3{ color:var(--ink-soft); }
+  .rink ul{ margin:0; padding-left: 1.1em; }
+  .rink li{ margin-bottom:10px; font-size:0.93rem; }
+  .ruling{
+    margin-top:16px;
+    background: var(--panel-2);
+    border-left: 4px solid var(--gold);
+    padding: 10px 14px;
+    font-size:0.92rem;
+  }
+  .ruling .who{ font-family:"Courier New", monospace; font-size:10.5px; color:var(--gold); text-transform:uppercase; letter-spacing:0.08em; display:block; margin-bottom:4px;}
+
+  /* ============ SCAMPER: THE BENCH ============ */
+  .bench{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px,1fr));
+    gap: 14px;
+  }
+  .player{
+    background: var(--panel);
+    border-radius: 8px;
+    padding: 14px;
+    border-top: 6px solid var(--story-a);
+    box-shadow: 2px 4px 10px var(--shadow);
+  }
+  .player .num{
+    font-family:"Courier New", monospace;
+    font-size: 2rem;
+    font-weight:bold;
+    color: var(--story-a);
+    line-height:1;
+  }
+  .player .role{
+    font-size: 0.72rem;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color: var(--ink-soft);
+    margin: 2px 0 8px;
+  }
+  .player ul{ margin:0; padding-left:1.05em; font-size:0.9rem; }
+  .player li{ margin-bottom:6px; }
+  .player li.benched{ text-decoration: line-through; opacity:0.7; }
+  .player li .why{ display:block; font-size:0.78rem; font-style:italic; color:var(--ink-soft); text-decoration:none; }
+
+  /* ============ MORPHOLOGICAL ANALYSIS: LINE COMBOS ============ */
+  .combo-block{ margin-bottom: 20px; }
+  .combo-block h3{
+    font-family:"Courier New", monospace;
+    font-size:0.85rem; text-transform:uppercase; letter-spacing:0.06em;
+    color: var(--gold);
+    margin: 0 0 8px;
+  }
+  .table-wrap{ overflow-x:auto; border-radius:6px; box-shadow: 1px 2px 6px var(--shadow); }
+  table.combo{
+    width:100%; border-collapse:collapse; min-width: 460px;
+    background: var(--panel);
+    font-size:0.88rem;
+  }
+  table.combo th, table.combo td{
+    padding: 8px 10px;
+    border: 1px solid var(--paper-line);
+    text-align:left;
+    vertical-align:top;
+  }
+  table.combo th{
+    background: var(--panel-2);
+    font-family:"Courier New", monospace;
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    color: var(--ink-soft);
+  }
+  .lineups{
+    display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:18px;
+  }
+  @media (max-width:640px){ .lineups{ grid-template-columns:1fr; } }
+  .lineup-card{
+    border-radius:8px; padding:16px;
+    background: var(--panel);
+    border: 2px solid var(--ink-soft);
+  }
+  .lineup-card.bundle-a{ border-color: var(--story-a); }
+  .lineup-card.bundle-b{ border-color: var(--story-b); }
+  .lineup-card h4{
+    margin:0 0 4px; font-size:1.02rem;
+  }
+  .lineup-card .sub{ font-size:0.78rem; color:var(--ink-soft); margin-bottom:10px; font-style:italic; }
+  .lineup-card ul{ margin:0; padding-left:1.1em; font-size:0.9rem; }
+  .lineup-card li{ margin-bottom:6px; }
+
+  /* ============ QUESTION STORMING: CHALLENGE BOOTH ============ */
+  .challenges{ display:flex; flex-direction:column; gap:10px; }
+  .challenge{
+    display:grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px;
+    align-items:start;
+    background: var(--panel);
+    border-radius: 6px;
+    padding: 10px 14px;
+    box-shadow: 1px 2px 6px var(--shadow);
+  }
+  .flag{
+    width: 20px; height:20px; margin-top:2px;
+    background: var(--red);
+    clip-path: polygon(0 0, 100% 15%, 0 30%);
+    flex-shrink:0;
+  }
+  .challenge .q{ font-size:0.95rem; }
+  .challenge .badges{ margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; }
+  .badge{
+    font-family:"Courier New", monospace;
+    font-size:10px; font-weight:bold;
+    padding: 2px 7px; border-radius: 10px;
+    letter-spacing:0.04em;
+  }
+  .badge.a{ background: var(--story-a-bg); color: var(--story-a-ink); }
+  .badge.b{ background: var(--story-b-bg); color: var(--story-b-ink); }
+  .badge.c{ background: var(--story-c-bg); color: var(--story-c-ink); }
+  .under-review{
+    font-family:"Courier New", monospace;
+    font-size: 9.5px;
+    letter-spacing:0.12em;
+    color: var(--red);
+    text-transform:uppercase;
+  }
+
+  /* ============ FINAL SCORE / SYNTHESIS ============ */
+  .final{
+    padding: 34px 26px 40px 76px;
+  }
+  @media (max-width:560px){ .final{ padding: 24px 14px 30px 48px; } }
+  .scoreboard-title{
+    text-align:center;
+    margin-bottom: 22px;
+  }
+  .scoreboard-title .big{
+    font-family:"Courier New", monospace;
+    font-weight:bold;
+    font-size: clamp(1.6rem, 6vw, 2.6rem);
+    letter-spacing:0.06em;
+    color: var(--gold);
+    text-shadow: 0 0 10px rgba(165,118,15,0.3);
+  }
+  .cross-cutting{
+    background: var(--panel-2);
+    border: 2px solid var(--gold);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 22px;
+    font-size:0.93rem;
+  }
+  .cross-cutting .who{
+    font-family:"Courier New", monospace; font-size:10.5px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--gold); display:block; margin-bottom:4px;
+  }
+  .story-cards{ display:flex; flex-direction:column; gap:22px; }
+  .story-card{
+    border-radius: 10px;
+    overflow:hidden;
+    border: 1px solid var(--ink-soft);
+    box-shadow: 2px 6px 16px var(--shadow);
+  }
+  .story-head{
+    padding: 12px 18px;
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  }
+  .story-head h3{ margin:0; font-size:1.1rem; }
+  .story-head .jersey{
+    font-family:"Courier New", monospace; font-weight:bold; font-size:1.4rem;
+  }
+  .story-card.a .story-head{ background: var(--story-a-bg); color: var(--story-a-ink); }
+  .story-card.b .story-head{ background: var(--story-b-bg); color: var(--story-b-ink); }
+  .story-card.c .story-head{
+    background: repeating-linear-gradient(45deg, var(--story-c-bg) 0 10px, var(--panel) 10px 20px);
+    color: var(--story-c-ink);
+  }
+  table.moscow{ width:100%; border-collapse:collapse; background: var(--panel); min-width:420px; }
+  table.moscow td, table.moscow th{ padding:10px 14px; border-top:1px solid var(--paper-line); font-size:0.9rem; text-align:left; vertical-align:top;}
+  table.moscow th{
+    width: 108px;
+    font-family:"Courier New", monospace;
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color: var(--ink-soft);
+    white-space:nowrap;
+  }
+  table.moscow tr.must th{ color: var(--red); }
+  table.moscow tr.wont td, table.moscow tr.wont th{ color: var(--won); }
+  table.moscow tr.wont td{ font-style:italic; }
+  table.moscow ul{ margin:0; padding-left:1.1em; }
+  table.moscow li{ margin-bottom:4px; }
+  .empty-cell{ color: var(--ink-soft); font-style:italic; }
+
+  .horn{
+    margin-top: 30px;
+    text-align:center;
+    padding: 22px 18px;
+    background: var(--panel-2);
+    border-radius: 10px;
+    border: 1px dashed var(--gold);
+  }
+  .horn .siren{
+    font-family:"Courier New", monospace;
+    color: var(--red);
+    letter-spacing:0.2em;
+    font-size:0.8rem;
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  .horn blockquote{
+    margin:0 auto; max-width: 62ch;
+    font-size: 1.02rem;
+    font-style:italic;
+    color: var(--ink);
+  }
+
+  footer.colophon{
+    padding: 18px 26px 26px 76px;
+    font-family:"Courier New", monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+  @media (max-width:560px){ footer.colophon{ padding: 16px 14px 20px 48px; } }
+</style>
+</head>
+<body>
+<button id="themeToggle" type="button" aria-label="Toggle light/dark ice">🌗 toggle ice</button>
+
+<div class="ledger">
+
+  <header class="cover">
+    <div class="stamp">SESSION<br>COMPLETE<br>11:40</div>
+    <span class="kicker">Official Scorekeeper's Ledger · Brainstorm Log</span>
+    <h1>Data-File Lifecycle Hygiene<br>for fantasy-hockey.yml</h1>
+    <p class="subtitle">Five techniques run on the bench, one small YAML file put through the wringer.</p>
+    <dl class="gamesheet">
+      <dt>Topic</dt>
+      <dd>Write-audit logging, expired login-code cleanup, and yamllint compliance for the app's single YAML data file</dd>
+      <dt>Goal</dt>
+      <dd>Generate enough explored ideas in these three areas to turn into solid backlog stories</dd>
+      <dt>Mode</dt>
+      <dd>Autonomous</dd>
+      <dt>Date / Final Whistle</dt>
+      <dd>2026-09-15, updated 11:40 — status: complete</dd>
+      <dt>Roster (Three Stories)</dt>
+      <dd>A — Write-Action Logging · B — Expired Login-Code Cleanup · C — Yamllint Compliance</dd>
+      <dt>Venue</dt>
+      <dd>store.go, the only ice sheet allowed to touch the file</dd>
+    </dl>
+  </header>
+
+  <!-- ================= FAILURE ANALYSIS ================= -->
+  <section class="period" id="failure">
+    <div class="period-banner"><span class="clock">1ST PERIOD</span><span class="label">Game Film Review — Failure Analysis</span></div>
+    <h2>Incident Reports from the Penalty Box</h2>
+    <p class="deck">Before drawing up any new plays, the coach rewound the tape: real incidents already on record, plus the near-misses a small hand-maintained file is one bad night away from. Fifteen slips filed to the board.</p>
+    <div class="incidents">
+      <div class="slip real"><span class="tag">01</span><p>Past real incident: the old spreadsheet pool had an uncorrected scoring error nobody could see happen — logging every yaml mutation prevents a repeat by making changes visible as they happen.</p></div>
+      <div class="slip real"><span class="tag">02</span><p>Runtime yaml corruption risk: yamllint catches bad indentation/line length in CI, but nothing catches it if a runtime write ever produces lint-hostile output — only a runtime check closes that gap.</p></div>
+      <div class="slip real"><span class="tag">03</span><p>A hand-edit that violates yamllint (tabs, trailing whitespace) can silently persist forever once the app re-writes the file, since nothing validates on load — only the committed baseline in CI.</p></div>
+      <div class="slip real"><span class="tag">04</span><p>If a future bug in ConsumeLoginCode's expiry check ever misjudges an old row, removing expired rows entirely eliminates the blast radius of that whole bug class instead of just patching the symptom.</p></div>
+      <div class="slip real"><span class="tag">05</span><p>An active season accumulates many login attempts, making the hand-maintained file diff-noisy over time for the human running the pool — cleanup keeps the file lean and readable.</p></div>
+      <div class="slip real"><span class="tag">06</span><p>The atomic write-and-rename (AD-27) is solid, but nothing today guards against yaml.Marshal regenerating technically-valid-but-lint-hostile output if a Player field ever contains an unusual string.</p></div>
+      <div class="slip real"><span class="tag">07</span><p>Without action logging, the human maintainer has no way to answer "did anyone request a code this week" without grepping raw code hashes in the yaml file — stdout logs fill that gap with zero schema change.</p></div>
+      <div class="slip real"><span class="tag">08</span><p>Real incident from <em>this project's own history</em>: a docker bind-mount root-write left the file root-owned — any future cleanup job must reuse the same writeLocked path so it inherits the same atomic-write safety net.</p></div>
+      <div class="slip real"><span class="tag">09</span><p>Per FR-2 (Story 1.2), wrong/expired/used codes must render identically to the player — cleanup must preserve that: a deleted expired row must reject a resubmitted code exactly the same as before it was deleted.</p></div>
+      <div class="slip real"><span class="tag">10</span><p>A cleanup routine running on a hot path (e.g. every FindPlayerByEmail call) risks new lock contention with concurrent RequestLoginCode/ConsumeLoginCode calls on store.mu — needs a deliberate, infrequent trigger point.</p></div>
+      <div class="slip real"><span class="tag">11</span><p>"Yamllint compliance" at app runtime can't literally mean invoking the yamllint Python tool without a story-level decision — need to scope whether the app enforces a Go-native subset of rules or shells out to the real tool.</p></div>
+      <div class="slip real"><span class="tag">12</span><p>Retention question: deleting a code the instant it's used destroys any ability to answer "I never got a code" support questions later — used-and-consumed rows may need a different retention rule than expired-and-unused ones.</p></div>
+      <div class="slip real"><span class="tag">13</span><p>This session's own docker-compose debugging showed how fragile "human reads the file directly" already is — a small, lint-clean file is what makes that hand-editing workflow trustworthy at all.</p></div>
+      <div class="slip real"><span class="tag">14</span><p>A careless new log line could leak a raw login code or email if it doesn't follow the existing hashCode-never-logged convention — the new logging story needs that same explicit rule stated up front.</p></div>
+      <div class="slip real"><span class="tag">15</span><p>Cleanup must compare against clock.NowTime(), the same clock already used by ConsumeLoginCode, or tests (and behavior right at the loginCodeValidity boundary) become inconsistent between the two code paths.</p></div>
+    </div>
+  </section>
+
+  <!-- ================= CONSTRAINT MAPPING ================= -->
+  <section class="period" id="constraints">
+    <div class="period-banner"><span class="clock">2ND PERIOD</span><span class="label">Constraint Mapping</span></div>
+    <h2>The Boards vs. the Open Ice</h2>
+    <p class="deck">Every rink has real boards you cannot skate through, and phantom "rules" players assume are there but aren't. Sorting the two kept the brainstorm from designing around walls that don't exist — and from ignoring the ones that do.</p>
+    <div class="rink">
+      <div class="boards">
+        <h3>The Boards — real, must respect</h3>
+        <ul>
+          <li><strong>AD-29:</strong> store is the only package allowed to touch the file, single mutex — any new logging/cleanup logic must live inside or be invoked through store.go, never bypass it.</li>
+          <li>"Log to the default output" already means routing through slog.Info the same way the recent auth logging story did — reuse that convention rather than inventing a second logging path.</li>
+          <li><strong>AD-23:</strong> the file is hand-edited by a human out of band — automatic cleanup must not silently clobber a concurrent manual edit; atomic write-and-rename handles last-writer-wins but doesn't prevent surprise.</li>
+          <li>loginCodeValidity (10 minutes) is already a named constant in store.go — cleanup's definition of "expired" must reuse that exact constant, never a second, driftable TTL.</li>
+          <li>The actual yamllint ruleset already lives in the repo's .yamllint config — the compliance story should target that same config, not invent a parallel rule set that could disagree with CI.</li>
+          <li>go.yaml.in/yaml/v3's own marshal defaults (indent width, quoting style) may or may not already satisfy .yamllint's config — needs a concrete check before assuming a gap exists at all.</li>
+          <li>CLAUDE.md's BDD rule applies — any of these three stories that changes observable behavior needs Gherkin acceptance coverage unless the human explicitly waives it as infra-only.</li>
+          <li>None of these three stories should need to touch Dockerfile or .github/workflows — a new binary dependency (e.g. real yamllint at runtime) is a flag-for-discussion, not a silent decision.</li>
+          <li>LoginCodes is a single slice in one document struct — removing rows changes indices/length, so any test asserting doc.LoginCodes[i] by position needs re-checking for the cleanup story.</li>
+          <li>Concurrent readers already take s.mu.RLock (FindPlayerByEmail, FindPlayerByID) — a cleanup pass that deletes rows must take the writer lock exactly like CreateLoginCode/ConsumeLoginCode already do.</li>
+        </ul>
+      </div>
+      <div class="open-ice">
+        <h3>Open Ice — assumed limits, actually skatable</h3>
+        <ul>
+          <li>Cleanup does not need a cron/background goroutine just because "cleanup" sounds scheduled — cleanup-on-write or cleanup-on-startup is simpler for a small single-binary pool tool.</li>
+          <li>"Log all actions that change data" doesn't require a new persisted audit trail inside the yaml itself — the simplest real reading is server-side stdout logs only, consistent with what already shipped.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="ruling">
+      <span class="who">Referee's scope note</span>
+      "Only available codes should remain" likely means <strong>unused AND unexpired</strong> — i.e. cleanup removes both expired rows and already-used rows, leaving exactly the redeemable set.
+    </div>
+  </section>
+
+  <!-- ================= SCAMPER ================= -->
+  <section class="period" id="scamper">
+    <div class="period-banner"><span class="clock">3RD PERIOD</span><span class="label">Line Changes — SCAMPER</span></div>
+    <h2>Substitutions Off the Bench</h2>
+    <p class="deck">Seven players, seven letters, sent over the boards one at a time to see what each substitution pattern does to the same three problems.</p>
+    <div class="bench">
+      <div class="player">
+        <span class="num">S</span><div class="role">Substitute</div>
+        <ul>
+          <li>Instead of a standalone cleanup operation, have ConsumeLoginCode's existing write also prune other expired rows as a side effect of a write that's already happening.</li>
+          <li>Swap plain slog text lines for consistent structured key=value fields (action=, player_id=, rows_removed=) so the new logs stay grep/awk-friendly for whoever runs the pool.</li>
+        </ul>
+      </div>
+      <div class="player">
+        <span class="num">C</span><div class="role">Combine</div>
+        <ul>
+          <li>Merge the cleanup and logging stories — log a distinct line only when a sweep actually deletes something ("removed 3 expired login codes"), giving free visibility into the new behavior.</li>
+          <li>Merge the yamllint-compliance story into the existing <code class="mono">task lint</code> pipeline — an acceptance test that runs the real yamllint binary against a file the app just wrote, instead of reimplementing its rules in Go.</li>
+        </ul>
+      </div>
+      <div class="player">
+        <span class="num">A</span><div class="role">Adapt</div>
+        <ul>
+          <li>Adapt the atomic write-and-rename pattern to run a cheap self-check post-marshal (e.g. reject/log if the fresh YAML has trailing whitespace) before the rename ever happens.</li>
+          <li>Adapt AD-30's season-suffixed-file convention for a pre-cleanup safety snapshot, instead of inventing a new backup mechanism from scratch.</li>
+        </ul>
+      </div>
+      <div class="player">
+        <span class="num">M</span><div class="role">Modify</div>
+        <ul>
+          <li>Change CreateLoginCode/ConsumeLoginCode to return how many stale rows they just swept, making cleanup an observable, directly testable side effect rather than an invisible background action.</li>
+          <li>Split retention into two classes — expired-and-unused rows drop immediately, used rows survive a short grace window — rather than one blanket "delete everything not currently valid" rule.</li>
+        </ul>
+      </div>
+      <div class="player">
+        <span class="num">P</span><div class="role">Put to Other Use</div>
+        <ul>
+          <li>The same "data changed" log line doubles as a lightweight activity signal ("last login was 3 days ago") for the human running the pool, with no dashboard needed.</li>
+          <li>Yamllint-on-load doubles as an early warning for hand-edit typos — the app refusing to boot (or warning loudly) on a lint-violating hand edit catches mistakes before they cause a confusing runtime bug.</li>
+        </ul>
+      </div>
+      <div class="player">
+        <span class="num">E</span><div class="role">Eliminate</div>
+        <ul>
+          <li class="benched">Never persist login codes past use at all.<span class="why">Benched for good reason: breaks FR-2's identical-outcome guarantee and any future ability to investigate a disputed login — recorded as a discarded direction.</span></li>
+          <li>Skip a runtime yamllint check entirely and trust yaml.Marshal's deterministic output, verifying only at CI time against the committed baseline file — a cheaper variant to weigh against the stricter one.</li>
+        </ul>
+      </div>
+      <div class="player">
+        <span class="num">R</span><div class="role">Reverse</div>
+        <ul>
+          <li>Instead of cleaning up expired codes after the fact, cap outstanding unused codes per player so a new request invalidates the player's older unused ones — shrinks the cleanup problem at its source.</li>
+          <li>Instead of the app enforcing yamllint on itself, give the human maintainer a task command that lints AND normalizes their hand-edits after the fact, closing the loop from the human side too.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MORPHOLOGICAL ANALYSIS ================= -->
+  <section class="period" id="morph">
+    <div class="period-banner"><span class="clock">INTERMISSION</span><span class="label">Building the Lines — Morphological Analysis</span></div>
+    <h2>Line Combination Charts</h2>
+    <p class="deck">Every coach's whiteboard has a line combo chart. Here, the "positions" are the parameters of each problem — mix and match them, then skate out two full lineups and see how they compare.</p>
+
+    <div class="combo-block">
+      <h3>Cleanup — WHEN × WHAT × HOW visible</h3>
+      <div class="table-wrap">
+        <table class="combo">
+          <thead><tr><th>Parameter</th><th>Configurations mapped</th></tr></thead>
+          <tbody>
+            <tr><td>WHEN</td><td>on write / periodic goroutine / on startup / on-demand CLI flag</td></tr>
+            <tr><td>Config: startup-only</td><td>Cleanup on app startup only (store.New time) — simplest slice, sweeps once when the binary boots, avoids any hot-path lock contention concern entirely.</td></tr>
+            <tr><td>Config: CLI flag</td><td>Cleanup via a new explicit CLI flag/subcommand the human runs by hand, mirroring the existing --data-file flag pattern — zero new automatic behavior, safest first slice.</td></tr>
+            <tr><td>Config: every write</td><td>Cleanup on every writeLocked call generically at the store layer, not auth-specific — becomes a durable store-wide guarantee that also covers any future non-login data type.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="combo-block">
+      <h3>Logging — WHAT triggers a line × CONTENT</h3>
+      <div class="table-wrap">
+        <table class="combo">
+          <thead><tr><th>Parameter</th><th>Configurations mapped</th></tr></thead>
+          <tbody>
+            <tr><td>WHAT</td><td>every writeLocked call generically / only specific auth actions</td></tr>
+            <tr><td>Config: generic write line</td><td>A single generic "store write" log line (path, byte size, row counts per collection) at store.go level, replacing/augmenting today's per-action auth.go lines — more future-proof as new data types are added.</td></tr>
+            <tr><td>Config: row-count delta</td><td>Include a row-count delta in every write's log line ("login_codes: 7 → 4"), generically at the store layer — serves logging and gives cleanup visibility for free.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="combo-block">
+      <h3>Yamllint — WHERE × HOW enforced × FAILURE mode</h3>
+      <div class="table-wrap">
+        <table class="combo">
+          <thead><tr><th>Parameter</th><th>Configurations mapped</th></tr></thead>
+          <tbody>
+            <tr><td>WHERE / HOW / FAILURE</td><td>on load / on write / both  ×  shell out to real yamllint / hand-roll rules in Go  ×  reject / log-and-continue</td></tr>
+            <tr><td>Config: load-only</td><td>Yamllint enforced only on load, warning/rejecting a hand-edited file that already violates the rules, trusting the app's own marshal output on write — cheapest variant, still catches human-error typos.</td></tr>
+            <tr><td>Config: write-time, real binary</td><td>Yamllint enforced only on write via exec.Command piping the marshaled bytes through the real yamllint binary before the atomic rename, failing loudly if it doesn't pass — strongest guarantee, but adds a new runtime dependency inside the container image (Dockerfile is protected, needs explicit sign-off).</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="lineups">
+      <div class="lineup-card bundle-a">
+        <h4>Bundle A — The Safe Line</h4>
+        <div class="sub">minimal / low-risk</div>
+        <ul>
+          <li>Startup-only cleanup</li>
+          <li>Generic store-level write logging</li>
+          <li>Load-time-only yamllint check</li>
+        </ul>
+        <p style="font-size:0.85rem;color:var(--ink-soft);">Avoids the hot request path, avoids new CLI surface, avoids a new container dependency.</p>
+      </div>
+      <div class="lineup-card bundle-b">
+        <h4>Bundle B — The Power-Play Unit</h4>
+        <div class="sub">maximum visibility / safety</div>
+        <ul>
+          <li>On-demand CLI cleanup flag</li>
+          <li>Today's per-auth-action logging, extended</li>
+          <li>Write-time yamllint via the real binary</li>
+        </ul>
+        <p style="font-size:0.85rem;color:var(--ink-soft);">Most thorough — costs a container dependency and a slightly bigger CLI surface.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= QUESTION STORMING ================= -->
+  <section class="period" id="questions">
+    <div class="period-banner"><span class="clock">OVERTIME</span><span class="label">Coach's Challenge — Question Storming</span></div>
+    <h2>Under Review at the Booth</h2>
+    <p class="deck">Twelve challenge flags thrown before anyone called a final answer. Some were settled by the ruling below; most are still open questions for the human maintainer.</p>
+    <div class="challenges">
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">Does "expired" for cleanup mean loginCodeValidity-elapsed-since-issued_at only, or does a used code (regardless of age) also count as no-longer-available and thus removable?</div><div class="badges"><span class="badge b">STORY B</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">Should cleanup run automatically at all, or should the human decide when the file gets pruned via an explicit action?</div><div class="badges"><span class="badge b">STORY B</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">Does "log all actions that change data" include the one-time bootstrap write in store.New, or only mutations after the file already exists?</div><div class="badges"><span class="badge a">STORY A</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">Should a write that changes nothing (e.g. a no-op RequestLoginCode on no email match) ever produce a log line, or only writes that actually touch disk?</div><div class="badges"><span class="badge a">STORY A</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">Is "yamllint compliance" a claim about the file's content shape (indentation, quoting) or literally about running the yamllint binary successfully against it?</div><div class="badges"><span class="badge c">STORY C</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">If the real yamllint tool becomes a runtime dependency, does it belong in the existing Alpine run-stage image, and who signs off on that Dockerfile change?</div><div class="badges"><span class="badge c">STORY C</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">Should the cleanup story ship as its own independent story, or as an amendment to the existing login-code stories (1.1/1.2) that already define issuance and validation?</div><div class="badges"><span class="badge b">STORY B</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">What should happen if cleanup removes the very row a concurrent in-flight request is about to consume — is that race even reachable given the store's single mutex?</div><div class="badges"><span class="badge b">STORY B</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">Does the acceptance criteria for "only available codes remain" need to specify an exact file shape (e.g. a Gherkin scenario reading the yaml after a scripted wait), or is a unit test on store.ConsumeLoginCode/CreateLoginCode sufficient?</div><div class="badges"><span class="badge b">STORY B</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">Should the new write-audit log line distinguish a bootstrap-time write from a normal login-code write, given they have very different operational meaning to whoever is watching stdout?</div><div class="badges"><span class="badge a">STORY A</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">Is there a maximum number of login-code rows worth tolerating before cleanup becomes worth the complexity at all, given the pool is small and fixed-size (a handful of friends)?</div><div class="badges"><span class="badge b">STORY B</span></div></div></div>
+      <div class="challenge"><div class="flag"></div><div><div class="under-review">Under review</div><div class="q">Does yamllint compliance apply only to top-level document formatting, or also to values the app writes verbatim, like a hand-typed player name containing something lint-unfriendly?</div><div class="badges"><span class="badge c">STORY C</span></div></div></div>
+    </div>
+  </section>
+
+  <!-- ================= SYNTHESIS / MOSCOW CLIMAX ================= -->
+  <section class="final" id="synthesis">
+    <div class="scoreboard-title">
+      <div class="period-banner" style="margin:0 auto 10px;display:inline-flex;"><span class="clock">FINAL BUZZER</span><span class="label">Affinity Clustering → MoSCoW</span></div>
+      <div class="big">FINAL SCORE: 3 STORIES SCOPED</div>
+      <p style="color:var(--ink-soft); font-style:italic; margin-top:6px;">Converging: affinity-clustered into the three requested stories (logging / cleanup / yamllint) plus a cross-cutting constraints cluster, then MoSCoW within each to scope a v1 slice.</p>
+    </div>
+
+    <div class="cross-cutting">
+      <span class="who">League-wide rule — applies to all three stories</span>
+      Explicitly ask the human whether a Gherkin acceptance test is required or can be skipped as infra-only, per this repo's own BDD convention — do not decide silently either way.
+    </div>
+
+    <div class="story-cards">
+
+      <div class="story-card a">
+        <div class="story-head"><h3>Story A — Log Data-Changing Actions</h3><span class="jersey">#A</span></div>
+        <div class="table-wrap">
+          <table class="moscow">
+            <tbody>
+              <tr class="must"><th>Must</th><td>One generic store-level slog.Info line on every writeLocked call, reusing the existing logging convention. Never logging raw codes or emails.</td></tr>
+              <tr><th>Should</th><td>Distinguish a bootstrap-time write (store.New creating a fresh file) from a normal in-life write in the log line's wording.</td></tr>
+              <tr><th>Could</th><td>Include a row-count delta per collection (e.g. login_codes: 7 → 4) in the same line.</td></tr>
+              <tr class="wont"><th>Won't <span style="font-style:normal;">(this time)</span></th><td>A separate persisted audit trail inside the yaml file itself — stdout logging only.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="story-card b">
+        <div class="story-head"><h3>Story B — Cleanup Expired Login Codes</h3><span class="jersey">#B</span></div>
+        <div class="table-wrap">
+          <table class="moscow">
+            <tbody>
+              <tr class="must"><th>Must</th><td>
+                <ul>
+                  <li>"Available" = unused AND unexpired; delete both expired-unused rows and already-used rows, reusing loginCodeValidity and clock.NowTime() as the single source of truth for expiry.</li>
+                  <li>Cleanup goes through the existing mutex-guarded writeLocked path — no second write mechanism, no new lock.</li>
+                </ul>
+              </td></tr>
+              <tr><th>Should</th><td>Trigger cleanup opportunistically (on store.New / on the next write) rather than adding a background goroutine or cron.</td></tr>
+              <tr><th>Could</th><td><span class="empty-cell">— none raised this round; nothing was benched here, the round simply didn't produce one.</span></td></tr>
+              <tr class="wont"><th>Won't <span style="font-style:normal;">(this time)</span></th><td>An on-demand CLI cleanup flag — parked as a fallback if opportunistic cleanup proves insufficient later.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="story-card c">
+        <div class="story-head"><h3>Story C — Yamllint Compliance</h3><span class="jersey">#C</span></div>
+        <div class="table-wrap">
+          <table class="moscow">
+            <tbody>
+              <tr class="must"><th>Must</th><td>An acceptance/integration test runs the real yamllint binary against a file the app just wrote, verified against the repo's existing .yamllint config — not a hand-rolled reimplementation of its rules in Go.</td></tr>
+              <tr><th>Should</th><td>Also check on load, warning or rejecting a hand-edited file that already violates the rules, catching human-typo drift before it causes a confusing runtime bug.</td></tr>
+              <tr><th>Could <span style="font-style:normal;">(flag for human sign-off)</span></th><td>Shelling out to the real yamllint binary before every write for the strongest guarantee — this adds a new runtime dependency to the Alpine run-stage image, which touches the protected Dockerfile and needs explicit approval, not a silent default.</td></tr>
+              <tr class="wont"><th>Won't <span style="font-style:normal;">(this time)</span></th><td>Reimplementing yamllint's ruleset natively in Go.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="horn">
+      <div class="siren">◤◢ final horn ◣◥</div>
+      <blockquote>
+        The three stories share one root fix: route cleanup, logging, and lint-verification all through the existing <strong>writeLocked</strong> path rather than adding parallel mechanisms. Chosen v1 scope — generic store-level write logging (never raw codes/emails), opportunistic cleanup on write reusing loginCodeValidity + clock.NowTime (unused + unexpired = available), and a yamllint-binary-based acceptance test verifying writeLocked output against the repo's own .yamllint config — with a real-binary-on-every-write variant flagged for explicit Dockerfile sign-off rather than decided silently. BDD acceptance-test scoping to be asked of the human per repo convention, for each story.
+      </blockquote>
+    </div>
+  </section>
+
+  <footer class="colophon">
+    Logged in the scorekeeper's ledger — brainstorm session archived 2026-09-15, status: complete.<br>
+    Techniques run: Failure Analysis → Constraint Mapping → SCAMPER → Morphological Analysis → Question Storming → Affinity Clustering + MoSCoW.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  var root = document.documentElement;
+  var btn = document.getElementById('themeToggle');
+  var KEY = 'ledger-theme';
+  function apply(t){
+    if(t === 'dark' || t === 'light'){ root.setAttribute('data-theme', t); }
+    else { root.removeAttribute('data-theme'); }
+  }
+  var saved = null;
+  try{ saved = localStorage.getItem(KEY); }catch(e){}
+  if(saved){ apply(saved); }
+  btn.addEventListener('click', function(){
+    var current = root.getAttribute('data-theme');
+    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var effectiveIsDark = current ? current === 'dark' : prefersDark;
+    var next = effectiveIsDark ? 'light' : 'dark';
+    apply(next);
+    try{ localStorage.setItem(KEY, next); }catch(e){}
+  });
+})();
+</script>
+</body>
+</html>

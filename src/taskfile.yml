@@ -8,10 +8,17 @@ vars:
 tasks:
 
   cleanup:
-    desc: Clean Go build artifacts
+    desc: Clean Go build artifacts and fix file permissions + ownership
     dir: &dir '{{.TASKFILE_DIR}}'
+    vars:
+      GAME_DATA_FILE: fantasy-hockey.yml
     cmds:
       - rm -rf {{ .BINARY_NAME }}
+      - |
+        if [ -f {{ .GAME_DATA_FILE }} ]; then
+          sudo chown $(id -u):$(id -g) {{ .GAME_DATA_FILE }}
+          sudo chmod ugo+rw {{ .GAME_DATA_FILE }}
+        fi
 
   lint:
     desc: Run golangci-lint to check code quality

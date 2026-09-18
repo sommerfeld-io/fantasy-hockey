@@ -1,19 +1,18 @@
 # Package: `web`
 
-The presentation layer: renders the Login page, handles login-code requests and validation, and gates authenticated routes behind a session cookie - all over the standard library's `net/http` and `html/template`, no third-party router or template engine.
+The presentation layer: serves the home page and the full login/session flow over the standard library's `net/http`, rendering server-side `html/template` views. No third-party router or template engine.
 
 ## Responsibilities
 
-- `NewServer(auth *auth.Service)` wires every route and returns an `http.Handler`.
-- `GET /login` renders the email-entry form.
-- `POST /login` calls `auth.Service.RequestLoginCode` and always renders the same generic confirmation message ("Check the entered email address.") alongside the code-entry step, regardless of whether the submitted email matched a Participant - this is what makes FR-1's no-enumeration guarantee hold end to end.
-- `POST /login/code` calls `auth.Service.ValidateLoginCode`. On success it sets the signed session cookie and redirects to `/`; on failure (wrong, expired, or already-used code) it re-renders the code step with the generic "Invalid code." message, never distinguishing the reason.
-- `GET /` is wrapped in `requireSession`: a valid session cookie re-issues the cookie with a fresh issued-at (the sliding 30-minute timeout) and serves the minimal authenticated home placeholder; a missing, malformed, or expired cookie instead renders the Login page - showing "Session expired." only when a cookie was present and had genuinely timed out.
-- `GET /static/*` serves the embedded Steel Ice stylesheet.
+- `NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler` wires every route and returns an `http.Handler` ready to be served. `GET /{$}` is registered on its own inner `ServeMux`, wrapped by `requireSession` before being mounted on the outer mux, so a future protected route joins it the same way without touching how public routes are wired.
+- `GET /{$}` (authenticated) renders the application name ("Fantasy Hockey") and the current date and time, sourced from `internal/clock`.
+- `GET /login` renders the email-entry step of the login flow.
+- `POST /login` matches the submitted email against `st` via `internal/auth` and renders the code-entry step. The response is identical whether or not the email matched - only a failure to persist the new login code surfaces as a 500; a failure to email it is handled entirely inside `internal/auth` and never reaches this layer.
+- `POST /login/code` validates the submitted code via `internal/auth`. A match sets a signed session cookie and redirects to `/`; a wrong, expired, or already-used code all re-render the same code screen with an identical generic error and the submitted value retained.
+- `POST /logout` clears the session cookie and redirects to `/login`, unconditionally - it is deliberately not wrapped by `requireSession`, so logout still works with a missing, expired, or tampered cookie.
+- `GET /static/` serves the embedded `static/` assets (e.g. `styles.css`) via `http.FileServerFS`.
 
 ## Design notes
 
-- Any error from `RequestLoginCode`/`ValidateLoginCode` that isn't the expected `auth.ErrInvalidCode` is logged server-side (`slog`) but never changes the HTTP response - the visitor-facing behavior must never differ based on infrastructure failures any more than it differs based on a match/non-match.
-- The session cookie carries an HMAC-SHA256-signed token (see `internal/auth`) - this package never inspects or trusts its contents beyond calling `auth.Service.DecodeSession`.
-- Templates and static assets are embedded (`//go:embed`) so the compiled binary has no runtime dependency on the filesystem layout.
-- This package is exercised primarily by the GoDog acceptance tests in `src/acceptance-tests/`, run against in-memory fakes of `internal/auth`'s `Store`/`Mailer` interfaces, per this story's testing strategy.
+- `requireSession` (used only for `GET /{$}` today) is this package's session-guarding middleware: a valid, unexpired cookie (`auth.ValidateSession`) is re-issued with a fresh `issued_at` before the request proceeds, sliding the idle timeout forward; anything else redirects (302) to `/login` with no distinguishing message. Every response it lets through also carries `Cache-Control: no-store`, since a shared cache in front of the app could otherwise serve one player's authenticated page to another.
+- This package is exercised primarily by the GoDog acceptance tests in `src/acceptance-tests/`.

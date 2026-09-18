@@ -7,3 +7,7 @@ docs
 tests/inspec
 
 src/go/fantasy-hockey
+
+# Runtime data file: docker-compose.yml bind-mounts src/ into the container
+# so the app reads/writes it live. It's never needed to build the binary.
+src/fantasy-hockey.yml

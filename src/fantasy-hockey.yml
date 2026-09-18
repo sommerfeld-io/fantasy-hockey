@@ -1,0 +1,317 @@
+season: 2026-27
+players:
+    - id: sebastian
+      name: Sebastian
+      email: sebastian@sommerfeld.io
+login_codes:
+    - id: ea8e4e54-cb95-4227-a47f-a6cafb590b3d
+      player_id: sebastian
+      code_hash: 3f2165ae576b1a1277f4f15d59b88ba386f4c9abdfe483208283f90fb53cd9ad
+      issued_at: "2026-09-16T18:59:11Z"
+      used_at: "2026-09-16T18:59:19Z"
+    - id: a9346d62-7786-4cbf-8537-bc60426e82c2
+      player_id: sebastian
+      code_hash: fa3388ffe5c31642cb6c5b8cbbc46b2a07e2c70b4f5f51d751a49e836f37ed25
+      issued_at: "2026-09-16T19:00:11Z"
+      used_at: "2026-09-16T19:00:29Z"
+    - id: 418e03ce-e923-4270-906a-5f57e8526b22
+      player_id: sebastian
+      code_hash: 0af5414f0548e23b541291aa6d7aa796eb724511ccd9f7deb3c1471ed089d40e
+      issued_at: "2026-09-16T19:43:56Z"
+      used_at: "2026-09-16T19:44:01Z"
+    - id: 9d6c69e2-030b-4c93-86cb-bf8627473ce8
+      player_id: sebastian
+      code_hash: a9840ac833469d8cf9726f4cf2437e5bbdaa694f6b86650efbd2403245ab1cd0
+      issued_at: "2026-09-18T08:04:01Z"
+      used_at: "2026-09-18T08:04:30Z"
+prediction_sets:
+    - id: cup
+      title: Cup champion
+      subtitle: Your Stanley Cup winner
+      deadline_utc: "2026-10-06T17:00:00Z"
+      phase: before_season
+      upcoming: false
+    - id: presidents
+      title: Presidents' Trophy
+      subtitle: Best regular-season record
+      deadline_utc: "2026-10-06T17:00:00Z"
+      phase: before_season
+      upcoming: false
+    - id: divisions
+      title: Division picks
+      subtitle: Playoff teams & division winners
+      deadline_utc: "2026-10-06T17:00:00Z"
+      phase: before_season
+      upcoming: false
+    - id: awards
+      title: Player awards
+      subtitle: Hart, Norris, Vezina, Art Ross, Rocket
+      deadline_utc: "2026-10-06T17:00:00Z"
+      phase: before_season
+      upcoming: false
+    - id: playoffcup
+      title: Playoffs Cup pick
+      subtitle: Re-pick the Stanley Cup winner
+      deadline_utc: "2027-04-15T16:00:00Z"
+      phase: playoffs
+      upcoming: false
+    - id: r1
+      title: Playoff round 1
+      subtitle: 8 series — winner & length
+      deadline_utc: "2027-04-18T16:00:00Z"
+      phase: playoffs
+      upcoming: false
+    - id: r2
+      title: Playoff round 2
+      subtitle: Set once round 1 ends
+      deadline_utc: "2027-04-30T16:00:00Z"
+      phase: playoffs
+      upcoming: true
+    - id: cf
+      title: Conference finals
+      subtitle: Set once round 2 ends
+      deadline_utc: "2027-05-14T16:00:00Z"
+      phase: playoffs
+      upcoming: true
+    - id: scf
+      title: Stanley Cup final
+      subtitle: Set once the finalists are known
+      deadline_utc: "2027-05-28T16:00:00Z"
+      phase: playoffs
+      upcoming: true
+teams:
+    - id: BOS
+      name: Boston Bruins
+      conference: Eastern
+      division: Atlantic
+    - id: BUF
+      name: Buffalo Sabres
+      conference: Eastern
+      division: Atlantic
+    - id: DET
+      name: Detroit Red Wings
+      conference: Eastern
+      division: Atlantic
+    - id: FLA
+      name: Florida Panthers
+      conference: Eastern
+      division: Atlantic
+    - id: MTL
+      name: Montréal Canadiens
+      conference: Eastern
+      division: Atlantic
+    - id: OTT
+      name: Ottawa Senators
+      conference: Eastern
+      division: Atlantic
+    - id: TBL
+      name: Tampa Bay Lightning
+      conference: Eastern
+      division: Atlantic
+    - id: TOR
+      name: Toronto Maple Leafs
+      conference: Eastern
+      division: Atlantic
+    - id: CAR
+      name: Carolina Hurricanes
+      conference: Eastern
+      division: Metropolitan
+    - id: CBJ
+      name: Columbus Blue Jackets
+      conference: Eastern
+      division: Metropolitan
+    - id: NJD
+      name: New Jersey Devils
+      conference: Eastern
+      division: Metropolitan
+    - id: NYI
+      name: New York Islanders
+      conference: Eastern
+      division: Metropolitan
+    - id: NYR
+      name: New York Rangers
+      conference: Eastern
+      division: Metropolitan
+    - id: PHI
+      name: Philadelphia Flyers
+      conference: Eastern
+      division: Metropolitan
+    - id: PIT
+      name: Pittsburgh Penguins
+      conference: Eastern
+      division: Metropolitan
+    - id: WSH
+      name: Washington Capitals
+      conference: Eastern
+      division: Metropolitan
+    - id: CHI
+      name: Chicago Blackhawks
+      conference: Western
+      division: Central
+    - id: COL
+      name: Colorado Avalanche
+      conference: Western
+      division: Central
+    - id: DAL
+      name: Dallas Stars
+      conference: Western
+      division: Central
+    - id: MIN
+      name: Minnesota Wild
+      conference: Western
+      division: Central
+    - id: NSH
+      name: Nashville Predators
+      conference: Western
+      division: Central
+    - id: STL
+      name: St. Louis Blues
+      conference: Western
+      division: Central
+    - id: UTA
+      name: Utah Mammoth
+      conference: Western
+      division: Central
+    - id: WPG
+      name: Winnipeg Jets
+      conference: Western
+      division: Central
+    - id: ANA
+      name: Anaheim Ducks
+      conference: Western
+      division: Pacific
+    - id: CGY
+      name: Calgary Flames
+      conference: Western
+      division: Pacific
+    - id: EDM
+      name: Edmonton Oilers
+      conference: Western
+      division: Pacific
+    - id: LAK
+      name: Los Angeles Kings
+      conference: Western
+      division: Pacific
+    - id: SJS
+      name: San Jose Sharks
+      conference: Western
+      division: Pacific
+    - id: SEA
+      name: Seattle Kraken
+      conference: Western
+      division: Pacific
+    - id: VAN
+      name: Vancouver Canucks
+      conference: Western
+      division: Pacific
+    - id: VGK
+      name: Vegas Golden Knights
+      conference: Western
+      division: Pacific
+nhl_players:
+    - slug: mcdavid-connor
+      display_name: Connor McDavid
+      position: skater
+    - slug: mackinnon-nathan
+      display_name: Nathan MacKinnon
+      position: skater
+    - slug: kucherov-nikita
+      display_name: Nikita Kucherov
+      position: skater
+    - slug: hughes-quinn
+      display_name: Quinn Hughes
+      position: defenseman
+    - slug: makar-cale
+      display_name: Cale Makar
+      position: defenseman
+    - slug: fox-adam
+      display_name: Adam Fox
+      position: defenseman
+    - slug: hellebuyck-connor
+      display_name: Connor Hellebuyck
+      position: goalie
+    - slug: shesterkin-igor
+      display_name: Igor Shesterkin
+      position: goalie
+    - slug: vasilevskiy-andrei
+      display_name: Andrei Vasilevskiy
+      position: goalie
+predictions:
+    - id: 7056d8d8-738e-4605-bc5f-2e379c0323cb
+      player_id: sebastian
+      kind: cup
+      team_id: DET
+      submitted_at: "2026-09-16T18:59:33Z"
+    - id: f843f959-2210-4ebe-8c3b-6e2d083225a9
+      player_id: sebastian
+      kind: presidents
+      team_id: DET
+      submitted_at: "2026-09-16T18:59:53Z"
+    - id: 0e92d597-6f00-4ab9-9ac8-cd38b8e14b5b
+      player_id: sebastian
+      kind: division_playoff_teams
+      team_id: ""
+      submitted_at: "2026-09-18T08:05:30Z"
+      division: Atlantic
+      team_ids:
+          - BUF
+          - DET
+          - FLA
+          - MTL
+          - TOR
+    - id: ef2d1407-ef66-4e7a-9c43-197a40f417f7
+      player_id: sebastian
+      kind: division_playoff_teams
+      team_id: ""
+      submitted_at: "2026-09-18T08:05:30Z"
+      division: Metropolitan
+      team_ids:
+          - CAR
+          - PHI
+          - WSH
+    - id: 11975f61-9cf6-40b0-bf2a-d5b36abac7f2
+      player_id: sebastian
+      kind: division_playoff_teams
+      team_id: ""
+      submitted_at: "2026-09-18T08:05:30Z"
+      division: Central
+      team_ids:
+          - COL
+          - MIN
+          - NSH
+    - id: 9b121845-7a02-4e2e-b74b-3a65568f6954
+      player_id: sebastian
+      kind: division_playoff_teams
+      team_id: ""
+      submitted_at: "2026-09-18T08:05:30Z"
+      division: Pacific
+      team_ids:
+          - ANA
+          - CGY
+          - LAK
+          - SJS
+          - VGK
+    - id: 9c82314e-c0c9-4004-838d-2f6dab6fc34f
+      player_id: sebastian
+      kind: division_winner
+      team_id: CGY
+      submitted_at: "2026-09-18T08:05:30Z"
+      division: Pacific
+    - id: 700769dd-cb0d-42a2-ac16-675b225d3538
+      player_id: sebastian
+      kind: division_winner
+      team_id: DET
+      submitted_at: "2026-09-18T08:05:30Z"
+      division: Atlantic
+    - id: 6b001523-3ec3-4ea7-8356-3fd1ebf47d5c
+      player_id: sebastian
+      kind: division_winner
+      team_id: NYR
+      submitted_at: "2026-09-18T08:05:30Z"
+      division: Metropolitan
+    - id: 4396f7ed-1664-4089-8596-4d86da731796
+      player_id: sebastian
+      kind: division_winner
+      team_id: COL
+      submitted_at: "2026-09-18T08:05:30Z"
+      division: Central

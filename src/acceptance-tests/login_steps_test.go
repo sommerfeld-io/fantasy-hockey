@@ -1,520 +1,456 @@
 package acceptance_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
-	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
-	"regexp"
-	"strconv"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/cucumber/godog"
-	"github.com/google/uuid"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
-// acceptanceSessionSecret signs session tokens for every scenario in this
-// suite - equivalent to the SESSION_SECRET env var required in production.
-const acceptanceSessionSecret = "acceptance-test-session-secret"
+// sendWaitTimeout bounds how long a step waits for internal/auth's
+// send-in-its-own-goroutine to land, since RequestLoginCode returns before
+// that goroutine necessarily runs (matching auth_test.go's waitForSendCalls).
+const sendWaitTimeout = 2 * time.Second
 
-// sessionCookieName mirrors the (unexported) cookie name web.NewServer's
-// handlers actually set on the wire - acceptance tests only observe the
-// HTTP-level contract, never internal package details.
-const sessionCookieName = "session"
-
-// fakeLoginStore is an in-memory implementation of auth.Store. It lets the
-// GoDog scenarios exercise the real auth/web code end-to-end without a
-// PostgreSQL connection, since task go:build's Docker-stage tests have no
-// network path to a sibling database container.
-type fakeLoginStore struct {
-	mu           sync.Mutex
-	participants map[string]store.Participant
-	codes        []store.LoginCode
+// loginDocument mirrors internal/store's on-disk shape closely enough for
+// scenarios to assert on what actually landed in fantasy-hockey.yml.
+type loginDocument struct {
+	Season  string `yaml:"season"`
+	Players []struct {
+		ID    string `yaml:"id"`
+		Name  string `yaml:"name"`
+		Email string `yaml:"email"`
+	} `yaml:"players"`
+	LoginCodes []loginCodeRow `yaml:"login_codes"`
 }
 
-func newFakeLoginStore() *fakeLoginStore {
-	return &fakeLoginStore{participants: map[string]store.Participant{}}
+type loginCodeRow struct {
+	ID       string  `yaml:"id"`
+	PlayerID string  `yaml:"player_id"`
+	CodeHash string  `yaml:"code_hash"`
+	IssuedAt string  `yaml:"issued_at"`
+	UsedAt   *string `yaml:"used_at"`
 }
 
-func (f *fakeLoginStore) seed(name, email string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.participants[email] = store.Participant{ID: uuid.NewString(), Name: name, Email: email}
-}
-
-func (f *fakeLoginStore) ParticipantByEmail(_ context.Context, email string) (store.Participant, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	p, ok := f.participants[email]
-	if !ok {
-		return store.Participant{}, store.ErrParticipantNotFound
+// equal compares two rows field by field. A plain == would compare UsedAt (a
+// *string) by pointer identity, not value, which two independent
+// yaml.Unmarshal calls would never share even for equal content.
+func (r loginCodeRow) equal(other loginCodeRow) bool {
+	if r.ID != other.ID || r.PlayerID != other.PlayerID || r.CodeHash != other.CodeHash || r.IssuedAt != other.IssuedAt {
+		return false
 	}
-	return p, nil
-}
-
-func (f *fakeLoginStore) InsertLoginCode(_ context.Context, code store.LoginCode) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.codes = append(f.codes, code)
-	return nil
-}
-
-func (f *fakeLoginStore) UnusedLoginCodesForParticipant(_ context.Context, participantID string, issuedAfter time.Time) ([]store.LoginCode, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	var out []store.LoginCode
-	for _, c := range f.codes {
-		if c.ParticipantID == participantID && c.UsedAt == nil && c.IssuedAt.After(issuedAfter) {
-			out = append(out, c)
-		}
+	switch {
+	case r.UsedAt == nil && other.UsedAt == nil:
+		return true
+	case r.UsedAt == nil || other.UsedAt == nil:
+		return false
+	default:
+		return *r.UsedAt == *other.UsedAt
 	}
-	return out, nil
 }
 
-func (f *fakeLoginStore) MarkLoginCodeUsed(_ context.Context, id string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for i := range f.codes {
-		if f.codes[i].ID == id {
-			usedAt := time.Now().UTC()
-			f.codes[i].UsedAt = &usedAt
-		}
-	}
-	return nil
-}
-
-func (f *fakeLoginStore) codesFor(participantID string) []store.LoginCode {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	var out []store.LoginCode
-	for _, c := range f.codes {
-		if c.ParticipantID == participantID {
-			out = append(out, c)
-		}
-	}
-	return out
-}
-
-// backdateLatestLoginCode sets the issued_at of the most recently inserted
-// login code for participantID to ago in the past, letting scenarios
-// simulate the 10-minute expiry window without waiting in real time.
-func (f *fakeLoginStore) backdateLatestLoginCode(participantID string, ago time.Duration) bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for i := len(f.codes) - 1; i >= 0; i-- {
-		if f.codes[i].ParticipantID == participantID {
-			f.codes[i].IssuedAt = time.Now().UTC().Add(-ago)
-			return true
-		}
-	}
-	return false
-}
-
-// sixDigitCodePattern extracts the plaintext login code from an emailed
-// message body, mirroring internal/auth's own code shape.
-var sixDigitCodePattern = regexp.MustCompile(`\b\d{6}\b`)
-
-// fakeLoginMailer is an in-memory implementation of auth.Mailer that records
-// every call instead of sending real email. It captures the full body (not
-// just the recipient) so scenarios can extract the emailed code.
-type fakeLoginMailer struct {
-	mu   sync.Mutex
-	sent []sentLoginEmail
-}
-
-type sentLoginEmail struct {
-	to, body string
-}
-
-func (f *fakeLoginMailer) Send(_ context.Context, to, _, body string) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.sent = append(f.sent, sentLoginEmail{to: to, body: body})
-	return nil
-}
-
-func (f *fakeLoginMailer) sentTo(email string) bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for _, s := range f.sent {
-		if s.to == email {
-			return true
-		}
-	}
-	return false
-}
-
-// lastCodeSentTo returns the plaintext code from the most recent email sent
-// to email, so a scenario can submit the exact code a Participant would have
-// received without the test ever touching the store's hashed copy.
-func (f *fakeLoginMailer) lastCodeSentTo(email string) (string, bool) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for i := len(f.sent) - 1; i >= 0; i-- {
-		if f.sent[i].to == email {
-			code := sixDigitCodePattern.FindString(f.sent[i].body)
-			return code, code != ""
-		}
-	}
-	return "", false
-}
-
-// loginScenarioState holds the fixtures and results for one login/session
-// scenario. A fresh instance is created per scenario so state never leaks
-// between runs. The httptest.Client carries a cookie jar so the session
-// cookie set by one request persists to the next, exactly like a browser.
-type loginScenarioState struct {
-	store    *fakeLoginStore
-	mailer   *fakeLoginMailer
-	auth     *auth.Service
-	server   *httptest.Server
-	client   *http.Client
-	response *http.Response
+// loginResponse is one recorded POST /login or GET /login result.
+type loginResponse struct {
+	status   int
 	body     string
+	location string
+}
+
+// loginScenarioState holds the fixtures and results for one request-a-
+// login-code scenario. A fresh instance is created per scenario so state
+// never leaks between runs.
+//
+// mu guards every field the fake mailer.Sender writes, since
+// internal/auth.RequestLoginCode invokes send from its own goroutine
+// (asynchronously, so a match and a no-match return equally fast) - both
+// that goroutine and a step definition's assertion can touch sentTo,
+// sentCodes, and logs concurrently.
+type loginScenarioState struct {
+	dataFile      string
+	server        *httptest.Server
+	mu            sync.Mutex
+	sendFails     bool
+	sentTo        []string
+	sentCodes     []string
+	logs          *bytes.Buffer
+	prevDefault   *slog.Logger // slog.Default() before startServer overrode it, restored in close
+	responses     []loginResponse
+	firstCodeRow  *loginCodeRow // snapshot of doc.LoginCodes[0] right after the first request
+	activeSession *http.Cookie  // set by "the player has an active session", sent by "the player visits the login page"
 }
 
 func newLoginScenarioState() *loginScenarioState {
-	st := newFakeLoginStore()
-	ml := &fakeLoginMailer{}
-	svc := auth.NewService(st, ml, acceptanceSessionSecret)
-	handler := web.NewServer(svc)
-
-	jar, err := cookiejar.New(nil)
+	dir, err := os.MkdirTemp("", "fantasy-hockey-login-*")
 	if err != nil {
-		panic(fmt.Errorf("create cookie jar: %w", err))
+		panic(fmt.Sprintf("create temp dir: %v", err))
 	}
-
 	return &loginScenarioState{
-		store:  st,
-		mailer: ml,
-		auth:   svc,
-		server: httptest.NewServer(handler),
-		client: &http.Client{Jar: jar},
+		dataFile: filepath.Join(dir, store.DataFileName),
+		logs:     &bytes.Buffer{},
 	}
 }
 
 func (s *loginScenarioState) close() {
-	s.server.Close()
+	if s.server != nil {
+		s.server.Close()
+	}
+	if s.prevDefault != nil {
+		slog.SetDefault(s.prevDefault)
+	}
 }
 
-func (s *loginScenarioState) aParticipantIsSeededWithEmail(name, email string) error {
-	s.store.seed(name, email)
+// aPlayerWithEmailIsRegistered seeds the data file with one hand-maintained
+// player before the store is ever opened, so store.New loads it rather than
+// bootstrapping an empty file.
+func (s *loginScenarioState) aPlayerWithEmailIsRegistered(name, email string) error {
+	seed := fmt.Sprintf("season: \"2026-27\"\nplayers:\n    - id: %s\n      name: %s\n      email: %s\n",
+		strings.ToLower(name), name, email)
+	if err := os.WriteFile(s.dataFile, []byte(seed), 0o600); err != nil {
+		return fmt.Errorf("seed data file: %w", err)
+	}
 	return nil
 }
 
-func (s *loginScenarioState) recordResponse(resp *http.Response) error {
+func (s *loginScenarioState) sendingEmailIsConfiguredToFail() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.sendFails = true
+	return nil
+}
+
+// startServer lazily builds the real production web.NewServer handler
+// around a store.Store loaded from s.dataFile and a mailer.Sender under
+// this scenario's control, so every step exercises the actual wiring.
+func (s *loginScenarioState) startServer() error {
+	if s.server != nil {
+		return nil
+	}
+
+	st, err := store.New(s.dataFile)
+	if err != nil {
+		return fmt.Errorf("store.New: %w", err)
+	}
+
+	send := func(to, _, body string) error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.sendFails {
+			return fmt.Errorf("smtp: connection refused")
+		}
+		s.sentTo = append(s.sentTo, to)
+		s.sentCodes = append(s.sentCodes, extractSixDigitCode(body))
+		return nil
+	}
+
+	s.prevDefault = slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&syncWriter{mu: &s.mu, w: s.logs}, nil)))
+	s.server = httptest.NewServer(web.NewServer(st, send, testSessionSecret))
+	return nil
+}
+
+// syncWriter guards writes to w with mu, since the goroutine
+// internal/auth.RequestLoginCode sends from can log an error concurrently
+// with a step definition reading s.logs.
+type syncWriter struct {
+	mu *sync.Mutex
+	w  *bytes.Buffer
+}
+
+func (sw *syncWriter) Write(p []byte) (int, error) {
+	sw.mu.Lock()
+	defer sw.mu.Unlock()
+	return sw.w.Write(p)
+}
+
+// waitUntil polls cond (evaluated under s.mu) until it returns true or
+// sendWaitTimeout elapses, since the fake mailer.Sender's side effects land
+// asynchronously. Returns an error naming what never became true.
+func (s *loginScenarioState) waitUntil(what string, cond func() bool) error {
+	deadline := time.Now().Add(sendWaitTimeout)
+	for {
+		s.mu.Lock()
+		ok := cond()
+		s.mu.Unlock()
+		if ok {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for %s", what)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// extractSixDigitCode pulls the emailed login code out of the mail body
+// produced by internal/auth's body template.
+func extractSixDigitCode(body string) string {
+	const codeLength = 6
+	for i := 0; i+codeLength <= len(body); i++ {
+		candidate := body[i : i+codeLength]
+		allDigits := true
+		for _, r := range candidate {
+			if r < '0' || r > '9' {
+				allDigits = false
+				break
+			}
+		}
+		if allDigits {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func (s *loginScenarioState) aVisitorRequestsALoginCodeFor(email string) error {
+	if err := s.startServer(); err != nil {
+		return err
+	}
+
+	resp, err := http.PostForm(s.server.URL+"/login", url.Values{"email": {email}})
+	if err != nil {
+		return fmt.Errorf("post /login: %w", err)
+	}
 	defer resp.Body.Close()
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("read response body: %w", err)
 	}
-	s.response = resp
-	s.body = string(body)
+	s.responses = append(s.responses, loginResponse{status: resp.StatusCode, body: string(body)})
+
+	if len(s.responses) == 1 {
+		doc, err := s.readDoc()
+		if err != nil {
+			return err
+		}
+		if len(doc.LoginCodes) > 0 {
+			row := doc.LoginCodes[0]
+			s.firstCodeRow = &row
+		}
+	}
 	return nil
 }
 
-func (s *loginScenarioState) aVisitorOpensTheLoginPage() error {
-	resp, err := s.client.Get(s.server.URL + "/login")
+func (s *loginScenarioState) readDoc() (loginDocument, error) {
+	raw, err := os.ReadFile(s.dataFile)
+	if err != nil {
+		return loginDocument{}, fmt.Errorf("read data file: %w", err)
+	}
+	var doc loginDocument
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return loginDocument{}, fmt.Errorf("unmarshal data file: %w", err)
+	}
+	return doc, nil
+}
+
+func (s *loginScenarioState) lastResponse() (loginResponse, error) {
+	if len(s.responses) == 0 {
+		return loginResponse{}, fmt.Errorf("no requests have been made yet")
+	}
+	return s.responses[len(s.responses)-1], nil
+}
+
+func (s *loginScenarioState) theResponseStatusIs(want int) error {
+	got, err := s.lastResponse()
+	if err != nil {
+		return err
+	}
+	if got.status != want {
+		return fmt.Errorf("expected status %d, got %d", want, got.status)
+	}
+	return nil
+}
+
+func (s *loginScenarioState) aLoginCodeIsPersistedWhoseHashMatchesTheEmailedCode() error {
+	doc, err := s.readDoc()
+	if err != nil {
+		return err
+	}
+	if len(doc.LoginCodes) != 1 {
+		return fmt.Errorf("expected 1 persisted login code, got %d", len(doc.LoginCodes))
+	}
+	if doc.LoginCodes[0].UsedAt != nil {
+		return fmt.Errorf("expected used_at to be nil, got %v", doc.LoginCodes[0].UsedAt)
+	}
+	if doc.LoginCodes[0].IssuedAt == "" {
+		return fmt.Errorf("expected issued_at to be set")
+	}
+	if err := s.waitUntil("an emailed code to be captured", func() bool { return len(s.sentCodes) == 1 && s.sentCodes[0] != "" }); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	sentCode := s.sentCodes[0]
+	s.mu.Unlock()
+
+	sum := sha256.Sum256([]byte(sentCode))
+	want := hex.EncodeToString(sum[:])
+	if doc.LoginCodes[0].CodeHash != want {
+		return fmt.Errorf("expected the persisted hash %q to match the emailed code's hash %q", doc.LoginCodes[0].CodeHash, want)
+	}
+	return nil
+}
+
+func (s *loginScenarioState) theEmailIsSentTo(email string) error {
+	err := s.waitUntil(fmt.Sprintf("an email to %q", email), func() bool {
+		for _, to := range s.sentTo {
+			if to == email {
+				return true
+			}
+		}
+		return false
+	})
+	if err != nil {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return fmt.Errorf("expected an email to %q, got calls to %v", email, s.sentTo)
+	}
+	return nil
+}
+
+func (s *loginScenarioState) theTwoResponsesAreIdentical() error {
+	if len(s.responses) != 2 {
+		return fmt.Errorf("expected 2 recorded responses, got %d", len(s.responses))
+	}
+	a, b := s.responses[0], s.responses[1]
+	if a.status != b.status {
+		return fmt.Errorf("expected identical status codes, got %d and %d", a.status, b.status)
+	}
+	if a.body != b.body {
+		return fmt.Errorf("expected identical response bodies, got %q and %q", a.body, b.body)
+	}
+	return nil
+}
+
+func (s *loginScenarioState) onlyNEmailsWereSentInTotal(n int) error {
+	// A non-matching request never calls send, so there's nothing async to
+	// wait for on that side; only wait when more calls could still land.
+	_ = s.waitUntil(fmt.Sprintf("%d total email(s) sent", n), func() bool { return len(s.sentTo) >= n })
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.sentTo) != n {
+		return fmt.Errorf("expected %d email(s) sent in total, got %d: %v", n, len(s.sentTo), s.sentTo)
+	}
+	return nil
+}
+
+func (s *loginScenarioState) nLoginCodesArePersisted(n int) error {
+	doc, err := s.readDoc()
+	if err != nil {
+		return err
+	}
+	if len(doc.LoginCodes) != n {
+		return fmt.Errorf("expected %d persisted login codes, got %d", n, len(doc.LoginCodes))
+	}
+	return nil
+}
+
+func (s *loginScenarioState) theFirstLoginCodeIsUnchanged() error {
+	doc, err := s.readDoc()
+	if err != nil {
+		return err
+	}
+	if len(doc.LoginCodes) == 0 {
+		return fmt.Errorf("expected at least 1 persisted login code, got none")
+	}
+	if s.firstCodeRow == nil {
+		return fmt.Errorf("no snapshot of the first login code was captured")
+	}
+	if !doc.LoginCodes[0].equal(*s.firstCodeRow) {
+		return fmt.Errorf("expected the first login code to stay untouched, got %+v, was %+v", doc.LoginCodes[0], *s.firstCodeRow)
+	}
+	return nil
+}
+
+// thePlayerHasAnActiveSession seeds a validly-signed session cookie for
+// "basti" - the player id the Background's registration step derives from
+// "Basti" - for a later "the player visits the login page" step to send.
+func (s *loginScenarioState) thePlayerHasAnActiveSession() error {
+	if err := s.startServer(); err != nil {
+		return err
+	}
+	s.activeSession = auth.IssueSessionCookie("basti", testSessionSecret)
+	return nil
+}
+
+// thePlayerVisitsTheLoginPage GETs /login, carrying s.activeSession if one
+// was seeded, without following any redirect so a step can inspect a 302
+// and its Location header directly.
+func (s *loginScenarioState) thePlayerVisitsTheLoginPage() error {
+	if err := s.startServer(); err != nil {
+		return err
+	}
+
+	client := &http.Client{
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	}
+	req, err := http.NewRequest(http.MethodGet, s.server.URL+"/login", nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	if s.activeSession != nil {
+		req.AddCookie(s.activeSession)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("get /login: %w", err)
 	}
-	return s.recordResponse(resp)
-}
+	defer resp.Body.Close()
 
-func (s *loginScenarioState) theLoginPageShowsAnEmptyEmailField() error {
-	if s.response == nil {
-		return fmt.Errorf("no login page request has been made yet")
-	}
-	if s.response.StatusCode != http.StatusOK {
-		return fmt.Errorf("expected HTTP 200, got %d", s.response.StatusCode)
-	}
-	if !strings.Contains(s.body, `type="email"`) {
-		return fmt.Errorf("expected the login page to contain an email field, got %q", s.body)
-	}
-	if strings.Contains(s.body, `value=`) {
-		return fmt.Errorf("expected the email field to have no pre-filled value, got %q", s.body)
-	}
-	return nil
-}
-
-func (s *loginScenarioState) theLoginPageShowsACodeFieldInsteadOfAnEmailField() error {
-	if s.response == nil {
-		return fmt.Errorf("no login-code request has been made yet")
-	}
-	if !strings.Contains(s.body, `name="code"`) {
-		return fmt.Errorf("expected the login page to show a code field, got %q", s.body)
-	}
-	if strings.Contains(s.body, `type="email"`) {
-		return fmt.Errorf("expected the email field to no longer be shown, got %q", s.body)
-	}
-	return nil
-}
-
-func (s *loginScenarioState) requestLoginCode(email string) error {
-	resp, err := s.client.PostForm(s.server.URL+"/login", url.Values{"email": {email}})
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("post /login: %w", err)
+		return fmt.Errorf("read response body: %w", err)
 	}
-	return s.recordResponse(resp)
-}
-
-func (s *loginScenarioState) aVisitorHasAlreadyRequestedALoginCodeFor(email string) error {
-	return s.requestLoginCode(email)
-}
-
-func (s *loginScenarioState) aVisitorRequestsALoginCodeFor(email string) error {
-	return s.requestLoginCode(email)
-}
-
-func (s *loginScenarioState) aVisitorRequestsALoginCodeForAgain(email string) error {
-	return s.requestLoginCode(email)
-}
-
-func (s *loginScenarioState) theResponseShows(message string) error {
-	if s.response == nil {
-		return fmt.Errorf("no request has been made yet")
-	}
-	if s.response.StatusCode != http.StatusOK {
-		return fmt.Errorf("expected HTTP 200, got %d", s.response.StatusCode)
-	}
-	if !strings.Contains(s.body, message) {
-		return fmt.Errorf("expected response body to contain %q, got %q", message, s.body)
-	}
+	s.responses = append(s.responses, loginResponse{status: resp.StatusCode, body: string(body), location: resp.Header.Get("Location")})
 	return nil
 }
 
-// theResponseDoesNotShow asserts message is absent from the last recorded
-// response body - used to confirm sessionExpiredMessage is never shown when
-// no session cookie was ever present (as opposed to a present-but-expired
-// one, which does show it).
-func (s *loginScenarioState) theResponseDoesNotShow(message string) error {
-	if s.response == nil {
-		return fmt.Errorf("no request has been made yet")
-	}
-	if strings.Contains(s.body, message) {
-		return fmt.Errorf("expected response body not to contain %q, got %q", message, s.body)
-	}
-	return nil
-}
-
-func (s *loginScenarioState) aLoginCodeIsPersistedFor(email string) error {
-	p, err := s.store.ParticipantByEmail(context.Background(), email)
-	if err != nil {
-		return fmt.Errorf("expected %q to be a seeded participant: %w", email, err)
-	}
-	if len(s.store.codesFor(p.ID)) == 0 {
-		return fmt.Errorf("expected at least one login code for %q", email)
-	}
-	return nil
-}
-
-func (s *loginScenarioState) noLoginCodeIsPersistedFor(email string) error {
-	if _, err := s.store.ParticipantByEmail(context.Background(), email); err == nil {
-		return fmt.Errorf("did not expect %q to be a seeded participant", email)
-	}
-	if len(s.store.codes) != 0 {
-		return fmt.Errorf("expected no login codes to be persisted at all, found %d", len(s.store.codes))
-	}
-	return nil
-}
-
-func (s *loginScenarioState) aLoginCodeEmailIsSentTo(email string) error {
-	if !s.mailer.sentTo(email) {
-		return fmt.Errorf("expected an email to have been sent to %q", email)
-	}
-	return nil
-}
-
-func (s *loginScenarioState) noLoginCodeEmailIsSent() error {
-	if len(s.mailer.sent) != 0 {
-		return fmt.Errorf("expected no emails to be sent, got %d", len(s.mailer.sent))
-	}
-	return nil
-}
-
-func (s *loginScenarioState) nLoginCodesArePersistedFor(n int, email string) error {
-	p, err := s.store.ParticipantByEmail(context.Background(), email)
+func (s *loginScenarioState) theLoginPageResponseRedirectsTo(target string) error {
+	got, err := s.lastResponse()
 	if err != nil {
 		return err
 	}
-	got := len(s.store.codesFor(p.ID))
-	if got != n {
-		return fmt.Errorf("expected %d login codes for %q, got %d", n, email, got)
+	if got.status != http.StatusFound {
+		return fmt.Errorf("expected status %d, got %d", http.StatusFound, got.status)
+	}
+	if got.location != target {
+		return fmt.Errorf("expected a redirect to %q, got %q", target, got.location)
 	}
 	return nil
 }
 
-func (s *loginScenarioState) theFirstLoginCodeForIsStillUnused(email string) error {
-	p, err := s.store.ParticipantByEmail(context.Background(), email)
+func (s *loginScenarioState) anErrorWasLogged() error {
+	err := s.waitUntil("an error to be logged", func() bool { return strings.Contains(s.logs.String(), "ERROR") })
 	if err != nil {
-		return err
-	}
-	codes := s.store.codesFor(p.ID)
-	if len(codes) == 0 {
-		return fmt.Errorf("expected at least one login code for %q", email)
-	}
-	if codes[0].UsedAt != nil {
-		return fmt.Errorf("expected the first login code for %q to still be unused", email)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return fmt.Errorf("expected an error to be logged, got logs: %q", s.logs.String())
 	}
 	return nil
 }
 
-// submitCode posts email/code to /login/code. The client follows a
-// successful 303 redirect to / automatically, so on success s.response/body
-// end up reflecting the authenticated home placeholder rather than the
-// redirect itself.
-func (s *loginScenarioState) submitCode(email, code string) error {
-	resp, err := s.client.PostForm(s.server.URL+"/login/code", url.Values{"email": {email}, "code": {code}})
-	if err != nil {
-		return fmt.Errorf("post /login/code: %w", err)
-	}
-	return s.recordResponse(resp)
-}
-
-func (s *loginScenarioState) theVisitorSubmitsTheEmailedCodeFor(email string) error {
-	code, ok := s.mailer.lastCodeSentTo(email)
-	if !ok {
-		return fmt.Errorf("no login code email was sent to %q", email)
-	}
-	return s.submitCode(email, code)
-}
-
-func (s *loginScenarioState) theVisitorSubmitsTheCodeFor(code, email string) error {
-	return s.submitCode(email, code)
-}
-
-func (s *loginScenarioState) theLoginCodeForWasIssuedMinutesAgo(email string, minutes int) error {
-	p, err := s.store.ParticipantByEmail(context.Background(), email)
-	if err != nil {
-		return fmt.Errorf("expected %q to be a seeded participant: %w", email, err)
-	}
-	if !s.store.backdateLatestLoginCode(p.ID, time.Duration(minutes)*time.Minute) {
-		return fmt.Errorf("expected at least one login code for %q to backdate", email)
-	}
-	return nil
-}
-
-// aVisitorHoldsASessionForIssuedMinutesAgo mints a signed session cookie
-// with an explicit past issued-at directly via auth.Service.EncodeSession,
-// simulating an idle Participant without waiting real minutes.
-func (s *loginScenarioState) aVisitorHoldsASessionForIssuedMinutesAgo(email string, minutesAgo int) error {
-	p, err := s.store.ParticipantByEmail(context.Background(), email)
-	if err != nil {
-		return fmt.Errorf("expected %q to be a seeded participant: %w", email, err)
-	}
-
-	token := s.auth.EncodeSession(auth.Session{
-		ParticipantID: p.ID,
-		IssuedAt:      time.Now().UTC().Add(-time.Duration(minutesAgo) * time.Minute),
-	})
-
-	u, err := url.Parse(s.server.URL)
-	if err != nil {
-		return fmt.Errorf("parse server URL: %w", err)
-	}
-	s.client.Jar.SetCookies(u, []*http.Cookie{{Name: sessionCookieName, Value: token}})
-	return nil
-}
-
-// theVisitorHasNoSessionCookie clears any session cookie held by the client
-// jar - used to isolate a later request from a session established by an
-// earlier, unrelated step in the same scenario (e.g. the successful first
-// use of a code that a later step then attempts to reuse).
-func (s *loginScenarioState) theVisitorHasNoSessionCookie() error {
-	u, err := url.Parse(s.server.URL)
-	if err != nil {
-		return fmt.Errorf("parse server URL: %w", err)
-	}
-	s.client.Jar.SetCookies(u, []*http.Cookie{{Name: sessionCookieName, Value: "", MaxAge: -1}})
-	return nil
-}
-
-func (s *loginScenarioState) theVisitorVisitsTheHomePage() error {
-	resp, err := s.client.Get(s.server.URL + "/")
-	if err != nil {
-		return fmt.Errorf("get /: %w", err)
-	}
-	return s.recordResponse(resp)
-}
-
-func (s *loginScenarioState) theVisitorIsAuthenticated() error {
-	resp, err := s.client.Get(s.server.URL + "/")
-	if err != nil {
-		return fmt.Errorf("get /: %w", err)
-	}
-	if err := s.recordResponse(resp); err != nil {
-		return err
-	}
-	if s.response.StatusCode != http.StatusOK {
-		return fmt.Errorf("expected HTTP 200 from an authenticated request to /, got %d", s.response.StatusCode)
-	}
-	if !strings.Contains(s.body, "Signed in.") {
-		return fmt.Errorf("expected the authenticated home placeholder, got %q", s.body)
-	}
-	return nil
-}
-
-func (s *loginScenarioState) theVisitorIsNotAuthenticated() error {
-	resp, err := s.client.Get(s.server.URL + "/")
-	if err != nil {
-		return fmt.Errorf("get /: %w", err)
-	}
-	if err := s.recordResponse(resp); err != nil {
-		return err
-	}
-	if s.response.StatusCode != http.StatusOK {
-		return fmt.Errorf("expected HTTP 200 from an unauthenticated request to /, got %d", s.response.StatusCode)
-	}
-	if strings.Contains(s.body, "Signed in.") {
-		return fmt.Errorf("expected the visitor not to be authenticated, got %q", s.body)
-	}
-	return nil
-}
-
-func (s *loginScenarioState) theVisitorsSessionForWasReissuedJustNow(email string) error {
-	if s.response == nil {
-		return fmt.Errorf("no request has been made yet")
-	}
-
-	var cookie *http.Cookie
-	for _, c := range s.response.Cookies() {
-		if c.Name == sessionCookieName {
-			cookie = c
-		}
-	}
-	if cookie == nil {
-		return fmt.Errorf("expected the response to set a fresh session cookie")
-	}
-
-	sess, err := s.auth.DecodeSession(cookie.Value)
-	if err != nil {
-		return fmt.Errorf("decode reissued session: %w", err)
-	}
-
-	p, err := s.store.ParticipantByEmail(context.Background(), email)
-	if err != nil {
-		return err
-	}
-	if sess.ParticipantID != p.ID {
-		return fmt.Errorf("expected the reissued session to belong to %q, got participant %q", email, sess.ParticipantID)
-	}
-	if age := time.Since(sess.IssuedAt); age > time.Minute {
-		return fmt.Errorf("expected the reissued session's issued-at to be recent, got %v ago", age)
-	}
-	return nil
-}
-
-// InitializeLoginScenario registers the login-code request/validation and
-// session step definitions with GoDog.
+// InitializeLoginScenario registers the request-a-login-code step
+// definitions with GoDog.
 func InitializeLoginScenario(ctx *godog.ScenarioContext) {
 	s := newLoginScenarioState()
 	ctx.After(func(gctx context.Context, _ *godog.Scenario, _ error) (context.Context, error) {
@@ -522,43 +458,18 @@ func InitializeLoginScenario(ctx *godog.ScenarioContext) {
 		return gctx, nil
 	})
 
-	ctx.Step(`^a Participant "([^"]*)" is seeded with email "([^"]*)"$`, s.aParticipantIsSeededWithEmail)
-	ctx.Step(`^a visitor opens the login page$`, s.aVisitorOpensTheLoginPage)
-	ctx.Step(`^the login page shows an empty email field$`, s.theLoginPageShowsAnEmptyEmailField)
-	ctx.Step(`^the login page shows a code field instead of an email field$`, s.theLoginPageShowsACodeFieldInsteadOfAnEmailField)
-	ctx.Step(`^a visitor has already requested a login code for "([^"]*)"$`, s.aVisitorHasAlreadyRequestedALoginCodeFor)
+	ctx.Step(`^a player "([^"]*)" with email "([^"]*)" is registered$`, s.aPlayerWithEmailIsRegistered)
+	ctx.Step(`^sending email is configured to fail$`, s.sendingEmailIsConfiguredToFail)
 	ctx.Step(`^a visitor requests a login code for "([^"]*)"$`, s.aVisitorRequestsALoginCodeFor)
-	ctx.Step(`^a visitor requests a login code for "([^"]*)" again$`, s.aVisitorRequestsALoginCodeForAgain)
-	ctx.Step(`^the response shows the generic confirmation "([^"]*)"$`, s.theResponseShows)
-	ctx.Step(`^the response shows "([^"]*)"$`, s.theResponseShows)
-	ctx.Step(`^the response does not show "([^"]*)"$`, s.theResponseDoesNotShow)
-	ctx.Step(`^a login code is persisted for "([^"]*)"$`, s.aLoginCodeIsPersistedFor)
-	ctx.Step(`^no login code is persisted for "([^"]*)"$`, s.noLoginCodeIsPersistedFor)
-	ctx.Step(`^a login code email is sent to "([^"]*)"$`, s.aLoginCodeEmailIsSentTo)
-	ctx.Step(`^no login code email is sent$`, s.noLoginCodeEmailIsSent)
-	ctx.Step(`^(\d+) login codes are persisted for "([^"]*)"$`, s.nLoginCodesArePersistedFor)
-	ctx.Step(`^the first login code for "([^"]*)" is still unused$`, s.theFirstLoginCodeForIsStillUnused)
-
-	ctx.Step(`^the visitor submits the emailed code for "([^"]*)" again$`, s.theVisitorSubmitsTheEmailedCodeFor)
-	ctx.Step(`^the visitor submits the emailed code for "([^"]*)"$`, s.theVisitorSubmitsTheEmailedCodeFor)
-	ctx.Step(`^the visitor submits the code "([^"]*)" for "([^"]*)"$`, s.theVisitorSubmitsTheCodeFor)
-	ctx.Step(`^the login code for "([^"]*)" was issued (\d+) minutes? ago$`, func(email, minutes string) error {
-		n, err := strconv.Atoi(minutes)
-		if err != nil {
-			return fmt.Errorf("parse minutes: %w", err)
-		}
-		return s.theLoginCodeForWasIssuedMinutesAgo(email, n)
-	})
-	ctx.Step(`^a visitor holds a session for "([^"]*)" issued (\d+) minutes? ago$`, func(email, minutes string) error {
-		n, err := strconv.Atoi(minutes)
-		if err != nil {
-			return fmt.Errorf("parse minutes: %w", err)
-		}
-		return s.aVisitorHoldsASessionForIssuedMinutesAgo(email, n)
-	})
-	ctx.Step(`^the visitor has no session cookie$`, s.theVisitorHasNoSessionCookie)
-	ctx.Step(`^the visitor visits the home page$`, s.theVisitorVisitsTheHomePage)
-	ctx.Step(`^the visitor is authenticated$`, s.theVisitorIsAuthenticated)
-	ctx.Step(`^the visitor is not authenticated$`, s.theVisitorIsNotAuthenticated)
-	ctx.Step(`^the visitor's session for "([^"]*)" was re-issued just now$`, s.theVisitorsSessionForWasReissuedJustNow)
+	ctx.Step(`^the response status is (\d+)$`, s.theResponseStatusIs)
+	ctx.Step(`^a login code is persisted whose hash matches the emailed code$`, s.aLoginCodeIsPersistedWhoseHashMatchesTheEmailedCode)
+	ctx.Step(`^the email is sent to "([^"]*)"$`, s.theEmailIsSentTo)
+	ctx.Step(`^the two responses are identical$`, s.theTwoResponsesAreIdentical)
+	ctx.Step(`^only (\d+) email was sent in total$`, s.onlyNEmailsWereSentInTotal)
+	ctx.Step(`^(\d+) login codes are persisted$`, s.nLoginCodesArePersisted)
+	ctx.Step(`^the first login code is unchanged$`, s.theFirstLoginCodeIsUnchanged)
+	ctx.Step(`^an error was logged$`, s.anErrorWasLogged)
+	ctx.Step(`^the player has an active session$`, s.thePlayerHasAnActiveSession)
+	ctx.Step(`^the player visits the login page$`, s.thePlayerVisitsTheLoginPage)
+	ctx.Step(`^the login-page response redirects to "([^"]*)"$`, s.theLoginPageResponseRedirectsTo)
 }

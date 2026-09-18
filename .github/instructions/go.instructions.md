@@ -30,6 +30,13 @@ Apply these instructions to all Go code in `src/`.
 - Use short, consistent receiver names.
 - Keep interface names small and idiomatic; define interfaces where they are consumed.
 
+## Magic values
+
+- Never repeat the same literal string, number, or other fixed value across multiple call sites as a "magic value." Give it one home — a package-level `const` or `var` — and reference that everywhere instead, so a future rename or change only requires editing one place.
+- Prefer a global variable or constant when the value itself is fixed and needs no computation (e.g. `store.DataFileName = "fantasy-hockey.yml"`, referenced by every Go file that needs that filename instead of hand-typing the string again).
+- Prefer a small getter function over a bare variable when there is even the slightest need for an automated test around how the value is produced (e.g. it's derived, environment-dependent, or has a fallback/default to verify).
+- Gherkin `.feature` files are a sanctioned exception: they describe behavior in prose, not Go code, so they may still reference a literal value like a filename directly.
+
 ## Functions and methods
 
 - Keep functions small and focused on one responsibility.
