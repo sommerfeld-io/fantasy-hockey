@@ -47,8 +47,8 @@ tasks:
   lint:
     desc: Run all project linters outside of Dockerfile linters
     cmds:
-      - task: cleanup:filesystem
       - task: go:cleanup
+      - task: cleanup:filesystem
       - task: symlinks
       - for: ['yaml', 'workflows', 'filenames', 'folders', 'gherkin', 'markdown-links']
         cmd: docker compose up lint-{{ .ITEM }} --exit-code-from lint-{{ .ITEM }}
@@ -69,3 +69,8 @@ tasks:
     cmds:
       - task: docker:build
       - docker compose up {{ .COMPOSE_SERVICE }}
+
+  docker:down:
+    desc: Stop and remove container {{ .COMPOSE_SERVICE }}
+    cmds:
+      - docker compose down --remove-orphans --volumes
