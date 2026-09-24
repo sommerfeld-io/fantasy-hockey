@@ -867,6 +867,70 @@ func TestGetPredictSheetShouldReturn404ForAnUpcomingStubSet(t *testing.T) {
 	}
 }
 
+// TestGetPredictSheetShouldReturn404ForARoundGatedSetWithNoMatchupsRecorded
+// covers Story 3.2's direct-URL gate: findOpenablePredictionSet must call
+// the same effectiveUpcoming helper the Predict list uses, so "cf" - a
+// roundGatedSetIDs id with no entry under playoff_matchups - answers 404
+// even though its own hand-maintained upcoming flag is false (which would
+// otherwise open it).
+func TestGetPredictSheetShouldReturn404ForARoundGatedSetWithNoMatchupsRecorded(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	seed := fmt.Sprintf(`    - id: cf
+      title: Conference finals
+      subtitle: Set once round 2 ends
+      deadline_utc: %q
+      phase: playoffs
+      upcoming: false
+`, deadline.Format(time.RFC3339))
+
+	rec := getSheet(t, NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret), "cf")
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected status %d for a round-gated set with no recorded matchups, got %d", http.StatusNotFound, rec.Code)
+	}
+	if rec.Body.String() != unknownSheetBody(t) {
+		t.Errorf("expected the generic not-found body, got %q", rec.Body.String())
+	}
+}
+
+// TestGetPredictSheetShouldServeEveryRoundGatedSetOnceAMatchupIsRecorded is
+// the counterpart, exercised for all three roundGatedSetIDs (a typo in
+// round2SetID/conferenceFinalsSetID/stanleyCupFinalSetID's literal value
+// would otherwise go uncaught): once a matchup is recorded, the direct URL
+// opens the set (still just the static stub, since none of these ids are
+// pickableSheetKinds ids), even though its own upcoming flag is true - the
+// state today's real fantasy-hockey.yml actually seeds "r2"/"cf"/"scf" at.
+func TestGetPredictSheetShouldServeEveryRoundGatedSetOnceAMatchupIsRecorded(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	tests := []struct{ id, title string }{
+		{id: round2SetID, title: "Round 2"},
+		{id: conferenceFinalsSetID, title: "Conference finals"},
+		{id: stanleyCupFinalSetID, title: "Stanley Cup final"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.id, func(t *testing.T) {
+			seed := fmt.Sprintf(`    - id: %s
+      title: %s
+      subtitle: Set once the prior round ends
+      deadline_utc: %q
+      phase: playoffs
+      upcoming: true
+`, tc.id, tc.title, deadline.Format(time.RFC3339))
+			matchups := fmt.Sprintf("    %s:\n        - a: FLA\n          b: TOR\n", tc.id)
+
+			rec := getSheet(t, NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret), tc.id)
+
+			if rec.Code != http.StatusOK {
+				t.Errorf("expected status %d for %q with a recorded matchup despite upcoming: true, got %d", http.StatusOK, tc.id, rec.Code)
+			}
+			if !strings.Contains(rec.Body.String(), tc.title) {
+				t.Errorf("expected the sheet title once unlocked, got %q", rec.Body.String())
+			}
+		})
+	}
+}
+
 // TestPostPredictSheetShouldReturn404ForAnUpcomingSetBeforeParsingTheForm
 // proves the Upcoming gate runs before form parsing: an oversized body that
 // would otherwise fail ParseForm (500) still gets the generic 404.

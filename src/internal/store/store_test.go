@@ -492,6 +492,127 @@ nhl_players:
 	}
 }
 
+func TestPlayoffMatchupsShouldReturnTheSeededListForAPresentKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+playoff_matchups:
+    cf:
+        - a: FLA
+          b: TOR
+        - a: EDM
+          b: VGK
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	want := []PlayoffMatchup{
+		{TeamA: "FLA", TeamB: "TOR"},
+		{TeamA: "EDM", TeamB: "VGK"},
+	}
+	got := st.PlayoffMatchups("cf")
+	if len(got) != len(want) {
+		t.Fatalf("expected %d matchups, got %d: %+v", len(want), len(got), got)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("unexpected matchup at index %d: got %+v, want %+v", i, got[i], w)
+		}
+	}
+}
+
+func TestPlayoffMatchupsShouldReturnAnEmptyListForAnAbsentKey(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+playoff_matchups:
+    cf:
+        - a: FLA
+          b: TOR
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	got := st.PlayoffMatchups("scf")
+	if len(got) != 0 {
+		t.Errorf("expected an empty list for an absent key, got %v", got)
+	}
+}
+
+func TestPlayoffMatchupsShouldReturnAnEmptyListWhenNoSectionIsSeeded(t *testing.T) {
+	st := newTestStore(t)
+
+	got := st.PlayoffMatchups("cf")
+	if len(got) != 0 {
+		t.Errorf("expected an empty list when playoff_matchups is absent entirely, got %v", got)
+	}
+}
+
+func TestPlayoffMatchupsShouldReturnAnEmptyListForAnEmptySeededList(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+playoff_matchups:
+    cf: []
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	got := st.PlayoffMatchups("cf")
+	if len(got) != 0 {
+		t.Errorf("expected an empty list for an explicitly empty seeded list, got %v", got)
+	}
+}
+
+func TestPlayoffMatchupsShouldReturnACopyThatCannotMutateTheStore(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+playoff_matchups:
+    cf:
+        - a: FLA
+          b: TOR
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	matchups := st.PlayoffMatchups("cf")
+	matchups[0].TeamA = "Tampered"
+
+	again := st.PlayoffMatchups("cf")
+	if again[0].TeamA != "FLA" {
+		t.Errorf("expected the store's own copy to stay untouched, got team_a %q", again[0].TeamA)
+	}
+}
+
 func TestCreateLoginCodeShouldAppendANewRow(t *testing.T) {
 	st := newTestStore(t)
 

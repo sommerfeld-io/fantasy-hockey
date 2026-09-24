@@ -71,6 +71,34 @@ prediction_sets:
 	return st
 }
 
+// newTestStoreWithPredictionSetsAndMatchups seeds a store with one player,
+// the given raw prediction_sets YAML block, and the given raw
+// playoff_matchups YAML block (indented as a top-level document entry) -
+// Story 3.2's round-unlocking tests, which need to control what
+// st.PlayoffMatchups(setID) returns independently of each set's own
+// hand-maintained upcoming flag.
+func newTestStoreWithPredictionSetsAndMatchups(t *testing.T, predictionSetsYAML, playoffMatchupsYAML string) *store.Store {
+	t.Helper()
+	dir := t.TempDir()
+	seed := `season: "2026-27"
+players:
+    - id: basti
+      name: Basti
+      email: basti@example.com
+prediction_sets:
+` + predictionSetsYAML + `playoff_matchups:
+` + playoffMatchupsYAML
+	path := filepath.Join(dir, store.DataFileName)
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := store.New(path)
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	return st
+}
+
 // newTestStoreWithPredictionSetsAndTeams seeds a store with one player, the
 // given raw prediction_sets YAML block, and a small representative sample of
 // teams spanning all four divisions - for tests exercising the cup/

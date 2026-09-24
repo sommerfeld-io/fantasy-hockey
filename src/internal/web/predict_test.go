@@ -166,6 +166,162 @@ func TestPredictShouldDimAndLockAnUpcomingSetInsteadOfLinkingIt(t *testing.T) {
 	}
 }
 
+// TestPredictShouldShowUpcomingForARoundGatedSetWithNoMatchupsRegardlessOfItsOwnUpcomingFlag
+// covers Story 3.2's core round-unlocking gate: "cf" (a roundGatedSetIDs id)
+// has no entry under playoff_matchups, so it must render Upcoming even
+// though its own hand-maintained upcoming: false would otherwise unlock it.
+func TestPredictShouldShowUpcomingForARoundGatedSetWithNoMatchupsRegardlessOfItsOwnUpcomingFlag(t *testing.T) {
+	seed := fmt.Sprintf(`    - id: cf
+      title: Conference finals
+      subtitle: Set once round 2 ends
+      deadline_utc: %q
+      phase: playoffs
+      upcoming: false
+`, time.Now().UTC().Add(200*24*time.Hour).Format(time.RFC3339))
+
+	req := httptest.NewRequest("GET", "/predict", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `class="status-pill status-pill--upcoming">Upcoming</span>`) {
+		t.Errorf("expected an Upcoming status pill despite upcoming: false, got %q", body)
+	}
+	if !strings.Contains(body, `<div id="predict-row-cf" class="set-row set-row--upcoming">`) {
+		t.Errorf("expected a dimmed, non-link row, got %q", body)
+	}
+	if strings.Contains(body, `<a href="/predict/cf"`) {
+		t.Errorf("expected no link to /predict/cf, got %q", body)
+	}
+}
+
+// TestPredictShouldShowOpenForEveryRoundGatedSetOnceAMatchupIsRecorded
+// covers the counterpart, exercised for all three roundGatedSetIDs (a typo
+// in round2SetID/conferenceFinalsSetID/stanleyCupFinalSetID's literal value
+// would otherwise go uncaught): once a human adds a matchup entry, each set
+// unlocks (Open, actionable) with upcoming: true left untouched - the state
+// today's real fantasy-hockey.yml actually seeds "r2"/"cf"/"scf" at, so the
+// real-world unlock path (not just a hypothetical upcoming: false row) is
+// proven here.
+func TestPredictShouldShowOpenForEveryRoundGatedSetOnceAMatchupIsRecorded(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	tests := []struct{ id, title string }{
+		{id: round2SetID, title: "Round 2"},
+		{id: conferenceFinalsSetID, title: "Conference finals"},
+		{id: stanleyCupFinalSetID, title: "Stanley Cup final"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.id, func(t *testing.T) {
+			seed := fmt.Sprintf(`    - id: %s
+      title: %s
+      subtitle: Set once the prior round ends
+      deadline_utc: %q
+      phase: playoffs
+      upcoming: true
+`, tc.id, tc.title, deadline.Format(time.RFC3339))
+			matchups := fmt.Sprintf("    %s:\n        - a: FLA\n          b: TOR\n", tc.id)
+
+			req := httptest.NewRequest("GET", "/predict", nil)
+			req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+			rec := httptest.NewRecorder()
+
+			NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret).ServeHTTP(rec, req)
+
+			body := rec.Body.String()
+			if !strings.Contains(body, `class="status-pill status-pill--open">Open</span>`) {
+				t.Errorf("expected an Open status pill for %q once a matchup is recorded despite upcoming: true, got %q", tc.id, body)
+			}
+			if !strings.Contains(body, fmt.Sprintf(`<a id="predict-row-%s" href="/predict/%s" class="set-row set-row--open">`, tc.id, tc.id)) {
+				t.Errorf("expected an actionable row linking to /predict/%s, got %q", tc.id, body)
+			}
+		})
+	}
+}
+
+// TestPredictShouldShowClosedForARoundGatedSetWithAMatchupPastItsDeadline
+// proves a recorded matchup only unlocks the set - its own deadline still
+// governs Open vs. Closed exactly as for any other set.
+func TestPredictShouldShowClosedForARoundGatedSetWithAMatchupPastItsDeadline(t *testing.T) {
+	seed := fmt.Sprintf(`    - id: cf
+      title: Conference finals
+      subtitle: Set once round 2 ends
+      deadline_utc: %q
+      phase: playoffs
+      upcoming: false
+`, time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339))
+	matchups := `    cf:
+        - a: FLA
+          b: TOR
+`
+
+	req := httptest.NewRequest("GET", "/predict", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret).ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `class="status-pill status-pill--closed">Closed</span>`) {
+		t.Errorf("expected a Closed status pill for a recorded matchup past its deadline, got %q", body)
+	}
+}
+
+// TestPredictShouldLeaveR1UnaffectedByAbsentPlayoffMatchups covers "r1" -
+// not one of roundGatedSetIDs - staying governed only by its own upcoming
+// flag when playoff_matchups is absent from the data file entirely.
+func TestPredictShouldLeaveR1UnaffectedByAbsentPlayoffMatchups(t *testing.T) {
+	seed := fmt.Sprintf(`    - id: r1
+      title: Playoff round 1
+      subtitle: 8 series — winner & length
+      deadline_utc: %q
+      phase: playoffs
+      upcoming: false
+`, time.Now().UTC().Add(5*24*time.Hour).Format(time.RFC3339))
+
+	req := httptest.NewRequest("GET", "/predict", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `class="status-pill status-pill--open">Open</span>`) {
+		t.Errorf("expected r1 to render Open per its own upcoming: false, got %q", body)
+	}
+}
+
+// TestPredictShouldLeaveANonRoundSetUnaffectedByPresentPlayoffMatchups
+// covers the mirror image: "cup" (not one of roundGatedSetIDs) stays
+// Upcoming per its own flag even when playoff_matchups is present in the
+// data file (for an unrelated id).
+func TestPredictShouldLeaveANonRoundSetUnaffectedByPresentPlayoffMatchups(t *testing.T) {
+	seed := fmt.Sprintf(`    - id: cup
+      title: Cup champion
+      subtitle: Your Stanley Cup winner
+      deadline_utc: %q
+      phase: before_season
+      upcoming: true
+`, time.Now().UTC().Add(5*24*time.Hour).Format(time.RFC3339))
+	matchups := `    cf:
+        - a: FLA
+          b: TOR
+`
+
+	req := httptest.NewRequest("GET", "/predict", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret).ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `class="status-pill status-pill--upcoming">Upcoming</span>`) {
+		t.Errorf("expected cup to stay Upcoming per its own flag, got %q", body)
+	}
+}
+
 func TestPredictShouldReadTodayAndTomorrowForNearDeadlines(t *testing.T) {
 	now := time.Now().UTC()
 	seed := fmt.Sprintf(`    - id: cup

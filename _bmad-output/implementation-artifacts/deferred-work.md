@@ -31,3 +31,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-epic-2-retro-items-8-9-10-17-pre-epic-3-hardening.md`
   summary: Move the Epic 1 acceptance step files (app_shell, login, enter_login_code, log_out, stay_logged_in) and the two eager load_canonical_* servers onto the shared lazyFixture/do recorder in fixture_support_test.go.
   evidence: enter_login_code still has its own ensureReady + store.New + httptest + CheckRedirect. login, log_out and stay_logged_in each build their own no-redirect client. app_shell has its own eager seeded-store builder. Retro item #17 only named the Epic 2 files.
+
+## Deferred from: code review of story-3-2-round-unlocking-based-on-recorded-matchups (2026-09-24)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-round-unlocking-based-on-recorded-matchups.md`
+  summary: The new `playoff_matchups` YAML section has no in-repo documentation of its shape (keys `a`/`b`, grouped by Prediction Set id) outside its Go GoDoc comment and the implementation spec.
+  evidence: Verified real (blind-hunter): confirmed the production `fantasy-hockey.yml` (317 lines) has zero comment lines anywhere - every existing hand-maintained section (players, teams, prediction_sets, etc.) already relies solely on Go GoDoc for schema documentation. Pre-existing repo-wide convention, not worsened by this story specifically.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-round-unlocking-based-on-recorded-matchups.md`
+  summary: Acceptance-test "signed-in player" steps perform no sign-in action - they only validate a name against one hardcoded fixture, which reads as an action to anyone reading the `.feature` file but forecloses ever testing a second player or an unauthenticated request within the feature.
+  evidence: Verified real (blind-hunter): confirmed this exact no-op pattern already exists verbatim in `cup_and_presidents_picks_steps_test.go`'s own `theSignedInPlayerIs`, predating this story; `round_unlocking_steps_test.go` only followed the established convention.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-round-unlocking-based-on-recorded-matchups.md`
+  summary: `roundGatedSetIDs` and its `round2SetID`/`conferenceFinalsSetID`/`stanleyCupFinalSetID` constants duplicate the `r2`/`cf`/`scf` id vocabulary with no cross-check against `fantasy-hockey.yml`'s actual ids, so a silent rename elsewhere would desync with no compiler or test signal.
+  evidence: Verified real (blind-hunter), but the same trade-off every existing special-cased Prediction Set id already accepts (`divisionsSetID`, `awardsSetID`, every `store.Kind*` constant) - none of them cross-validate against the YAML file either. Pre-existing architectural pattern, not introduced by this story.

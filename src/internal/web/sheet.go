@@ -145,7 +145,7 @@ type sheetData struct {
 func newSheetData(st *store.Store, set store.PredictionSet, playerID string, now time.Time, teamIDOverride *string) (sheetData, error) {
 	submitted := setSubmitted(st, set, playerID)
 
-	view, err := newPredictSetView(set, submitted, now)
+	view, err := newPredictSetView(set, effectiveUpcoming(st, set), submitted, now)
 	if err != nil {
 		return sheetData{}, err
 	}
@@ -217,12 +217,16 @@ func handleSheet(st *store.Store) http.HandlerFunc {
 }
 
 // findOpenablePredictionSet is findPredictionSetByID with the server-side
-// Upcoming gate applied: an Upcoming set is reported as not found, so both
-// handlers answer it with the same generic 404 as an unknown id, before any
-// deadline or form handling.
+// Upcoming gate applied: a set whose effectiveUpcoming is true is reported
+// as not found, so both handlers answer it with the same generic 404 as an
+// unknown id, before any deadline or form handling. Calling effectiveUpcoming
+// - the same helper buildPredictPhases resolves the Predict list's rows with
+// - rather than reading set.Upcoming directly means a round-gated id (Story
+// 3.2) can't diverge between what the Predict list shows and what a direct
+// URL allows.
 func findOpenablePredictionSet(st *store.Store, id string) (store.PredictionSet, bool) {
 	set, found := findPredictionSetByID(st, id)
-	if !found || set.Upcoming {
+	if !found || effectiveUpcoming(st, set) {
 		return store.PredictionSet{}, false
 	}
 	return set, true

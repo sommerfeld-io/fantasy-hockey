@@ -60,9 +60,11 @@ type LoginCode struct {
 // writes it. DeadlineUTC is RFC3339 in UTC (Boundaries & Constraints of
 // Story 2.1) - converting it for display is internal/clock's job, not
 // store's. Phase groups sets into the Predict screen's sections ("before
-// the season" or "playoffs"); Upcoming is a human-maintained flag, not
-// computed - a later story may replace it with round-unlocking logic, but
-// this one only reads it.
+// the season" or "playoffs"); Upcoming is a human-maintained flag - for the
+// "r2"/"cf"/"scf" round ids it is no longer read directly (internal/web's
+// effectiveUpcoming computes their effective value from PlayoffMatchups
+// instead, per Story 3.2); for every other id it remains authoritative
+// exactly as before.
 type PredictionSet struct {
 	ID          string `yaml:"id"`
 	Title       string `yaml:"title"`
@@ -181,15 +183,29 @@ type AwardFinalist struct {
 	Position    string `yaml:"position"`
 }
 
+// PlayoffMatchup is one recorded playoff series matchup, keyed by Prediction
+// Set id (e.g. "r2", "cf", "scf") under fantasy-hockey.yml's
+// playoff_matchups: section. Like Team and AwardFinalist, it's
+// hand-maintained directly in the data file; internal/store never writes it
+// (AD-23). Its presence for a round-gated Prediction Set id is what
+// internal/web's effectiveUpcoming treats as "that round's matchups are
+// known" (Story 3.2, FR-20) - TeamA/TeamB's values themselves are never read
+// by this story, only whether at least one matchup entry exists for the id.
+type PlayoffMatchup struct {
+	TeamA string `yaml:"a"`
+	TeamB string `yaml:"b"`
+}
+
 // document mirrors fantasy-hockey.yml's on-disk shape.
 type document struct {
-	Season         string          `yaml:"season"`
-	Players        []Player        `yaml:"players"`
-	LoginCodes     []LoginCode     `yaml:"login_codes"`
-	PredictionSets []PredictionSet `yaml:"prediction_sets"`
-	Teams          []Team          `yaml:"teams"`
-	NHLPlayers     []AwardFinalist `yaml:"nhl_players"`
-	Predictions    []Prediction    `yaml:"predictions"`
+	Season          string                      `yaml:"season"`
+	Players         []Player                    `yaml:"players"`
+	LoginCodes      []LoginCode                 `yaml:"login_codes"`
+	PredictionSets  []PredictionSet             `yaml:"prediction_sets"`
+	Teams           []Team                      `yaml:"teams"`
+	NHLPlayers      []AwardFinalist             `yaml:"nhl_players"`
+	PlayoffMatchups map[string][]PlayoffMatchup `yaml:"playoff_matchups"`
+	Predictions     []Prediction                `yaml:"predictions"`
 }
 
 // Store is the in-memory representation of fantasy-hockey.yml, guarded by a
@@ -329,6 +345,22 @@ func (s *Store) NHLPlayersByPosition(position string) []AwardFinalist {
 		}
 	}
 	return players
+}
+
+// PlayoffMatchups returns every recorded PlayoffMatchup for setID, as
+// hand-maintained in fantasy-hockey.yml's playoff_matchups: section (Teams's
+// own read-only pattern: no write method exists, since this story only ever
+// reads the list). A setID with no key present, or one whose list is empty,
+// both return an empty slice, never nil - Story 3.2's effectiveUpcoming only
+// cares about the length. The returned slice is a copy, so a caller mutating
+// it can't reach back into the store's own state.
+func (s *Store) PlayoffMatchups(setID string) []PlayoffMatchup {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	matchups := make([]PlayoffMatchup, len(s.doc.PlayoffMatchups[setID]))
+	copy(matchups, s.doc.PlayoffMatchups[setID])
+	return matchups
 }
 
 // CreateLoginCode appends a new LoginCode row for playerID and persists it.
