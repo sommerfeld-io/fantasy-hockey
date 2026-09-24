@@ -64,3 +64,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-2-round-unlocking-based-on-recorded-matchups.md`
   summary: Hand edits to `playoff_matchups` made while the app is running are not picked up until a restart, and the app's next whole-file write (any prediction save or login-code issue) overwrites them from memory. AC2 ("when the player next loads Predict") therefore only holds across a restart.
   evidence: Verified real (acceptance-auditor): `PlayoffMatchups` reads `s.doc`, which `New()` loads once, and the store has no reload path. This is the AD-27 trait every hand-maintained section already has; the fix (reload on change, or an operator note to stop the app before editing) is cross-cutting.
+- source_spec: none
+  summary: Hoist the duplicated acceptance-test helpers (`setRowFragment` x4, `theSignedInPlayerIs` variants, team-name fixture maps, series group fragment) into `fixture_support_test.go` before Epic 4 adds step files (epic-3 retro item 22, supersedes epic-2 item 12).
+  evidence: Split from the pre-epic-4 cleanup intent at the multi-goal check - it is a test-only change independently shippable from the items 19 + 18 store-ownership move; the user chose to build it as the next Build right after.
+
+## Deferred from: code review of spec-epic-3-retro-items-18-19-store-owned-playoff-and-division-ids (2026-09-24)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-3-retro-items-18-19-store-owned-playoff-and-division-ids.md`
+  summary: The store now owns the division vocabulary (`store.Divisions()`) but never enforces it - a hand-maintained `Team.Division` typo (e.g. `Metropolitian`) silently drops those teams from every division-grouped dropdown and chip form, and `SaveDivisionPicks` accepts any division key.
+  evidence: Verified real (blind-hunter + edge-case-hunter): `groupTeamsByDivision` only emits divisions listed in `store.Divisions()`, and nothing checks team data on load. Pre-existing behavior, not introduced by this move; it belongs with the already-deferred structured validation of hand-maintained sections (see the `playoff_matchups` validation entry from spec-3-3).

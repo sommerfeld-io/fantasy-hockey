@@ -22,24 +22,17 @@ const divisionsSetID = "divisions"
 // on it, so the id literal can't drift between call sites.
 const awardsSetID = "awards"
 
-// round1SetID is the fourth Prediction Set id Story 3.3 gives a series
-// pick-entry sheet to. Unlike round2SetID/conferenceFinalsSetID/
-// stanleyCupFinalSetID (predict.go's own roundGatedSetIDs trio), it stays
-// outside that map - Story 3.2 deliberately left "r1" gated by its own
-// hand-maintained upcoming flag rather than by playoff_matchups - but it
-// still gets the identical series sheet once unlocked.
-const round1SetID = "r1"
-
 // seriesSetIDs is every Prediction Set id that gets Story 3.3's series
 // pick-entry sheet - one card per recorded playoff_matchups entry, a
 // full-width winner button per team plus a 4/5/6/7 game-count button -
 // rather than a single-team dropdown, the divisions checkbox-chip form, or
-// the awards finalist form.
+// the awards finalist form. Unlike roundGatedSetIDs it includes
+// store.Round1SetID, which gets the identical series sheet once unlocked.
 var seriesSetIDs = map[string]bool{
-	round1SetID:           true,
-	round2SetID:           true,
-	conferenceFinalsSetID: true,
-	stanleyCupFinalSetID:  true,
+	store.Round1SetID:           true,
+	store.Round2SetID:           true,
+	store.ConferenceFinalsSetID: true,
+	store.StanleyCupFinalSetID:  true,
 }
 
 // pickableSheetKinds is the set of Prediction Set ids that get a real
@@ -66,21 +59,17 @@ func withSeriesSetIDs(kinds map[string]bool) map[string]bool {
 	return kinds
 }
 
-// teamDivisionOrder is the fixed division display order for the
-// cup/presidents pick sheet's <optgroup> grouping (DESIGN.md's dropdown
-// component groups by division).
-var teamDivisionOrder = []string{"Atlantic", "Metropolitan", "Central", "Pacific"}
-
-// teamDivisionGroup is one <optgroup> of teamDivisionOrder's dropdown: every
+// teamDivisionGroup is one <optgroup> of the division-grouped dropdown: every
 // team sharing one Division, in st.Teams()'s own order.
 type teamDivisionGroup struct {
 	Division string
 	Teams    []store.Team
 }
 
-// groupTeamsByDivision groups teams into teamDivisionOrder's fixed order,
-// preserving each division's input order. A division with no teams present
-// in teams is simply omitted.
+// groupTeamsByDivision groups teams into store.Divisions()' fixed display
+// order (DESIGN.md's dropdown component groups by division), preserving
+// each division's input order. A division with no teams present in teams is
+// simply omitted.
 func groupTeamsByDivision(teams []store.Team) []teamDivisionGroup {
 	byDivision := make(map[string][]store.Team)
 	for _, team := range teams {
@@ -88,7 +77,7 @@ func groupTeamsByDivision(teams []store.Team) []teamDivisionGroup {
 	}
 
 	var groups []teamDivisionGroup
-	for _, division := range teamDivisionOrder {
+	for _, division := range store.Divisions() {
 		if divisionTeams, ok := byDivision[division]; ok {
 			groups = append(groups, teamDivisionGroup{Division: division, Teams: divisionTeams})
 		}
@@ -111,7 +100,7 @@ func groupTeamsByDivision(teams []store.Team) []teamDivisionGroup {
 func setSubmitted(st *store.Store, set store.PredictionSet, playerID string) bool {
 	switch {
 	case set.ID == divisionsSetID:
-		for _, division := range teamDivisionOrder {
+		for _, division := range store.Divisions() {
 			if _, ok := st.FindDivisionPlayoffTeams(playerID, division); ok {
 				return true
 			}
@@ -126,7 +115,7 @@ func setSubmitted(st *store.Store, set store.PredictionSet, playerID string) boo
 		return false
 	case seriesSetIDs[set.ID]:
 		for _, m := range st.PlayoffMatchups(set.ID) {
-			if _, ok := st.FindSeriesPick(playerID, joinSeriesKey(set.ID, m.Key)); ok {
+			if _, ok := st.FindSeriesPick(playerID, store.JoinSeriesKey(set.ID, m.Key)); ok {
 				return true
 			}
 		}

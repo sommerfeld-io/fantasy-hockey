@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-24-2026 21:32
+last_updated: 09-24-2026 22:15
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -213,7 +213,7 @@ action_items:
       (teamDivisionOrder) rather than leaving it as an unlinked literal in internal/web,
       ahead of Epic 6's season rollover"
     owner: "John (PM) / Winston (Architect)"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-3-retro-item-19-move-the-series-key-format-serieskeysepa"
     epic: 3
@@ -222,7 +222,7 @@ action_items:
       4-1, so internal/scoring can read series picks without importing internal/web;
       settle epic-2 item 18 (division vocabulary) in the same change"
     owner: "Winston (Architect) / dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
   - id: "epic-3-retro-item-20-set-upcoming-true-for-r1-in-src-fantasy"
     epic: 3

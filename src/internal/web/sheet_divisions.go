@@ -17,9 +17,9 @@ type divisionConferenceGroup struct {
 	Divisions  []teamDivisionGroup
 }
 
-// groupDivisionsByConference splits groups (teamDivisionOrder's fixed
-// division order) into their two Conferences, preserving teamDivisionOrder's
-// own order within each conference. Each conference id is derived from its
+// groupDivisionsByConference splits groups (store.Divisions()' fixed
+// division order) into their two Conferences, preserving that order within
+// each conference. Each conference id is derived from its
 // first group's first team's own Conference field (Never: "never a second
 // hardcoded division->conference map"). groups must come from
 // groupTeamsByDivision, whose own contract guarantees every group has at
@@ -237,12 +237,13 @@ func allConferencesValid(conferences []divisionConferencePick) bool {
 
 // parseDivisionsSubmission reads every division's checkbox-group and
 // winner-select values off the submitted form, keyed by division name, for
-// every entry in teamDivisionOrder. r.Form must already be populated
+// every entry in store.Divisions(). r.Form must already be populated
 // (r.ParseForm).
 func parseDivisionsSubmission(r *http.Request) (playoffTeams map[string][]string, winners map[string]string) {
-	playoffTeams = make(map[string][]string, len(teamDivisionOrder))
-	winners = make(map[string]string, len(teamDivisionOrder))
-	for _, division := range teamDivisionOrder {
+	divisions := store.Divisions()
+	playoffTeams = make(map[string][]string, len(divisions))
+	winners = make(map[string]string, len(divisions))
+	for _, division := range divisions {
 		playoffTeams[division] = r.Form[divisionPlayoffTeamsFieldName(division)]
 		winners[division] = r.FormValue(divisionWinnerFieldName(division))
 	}

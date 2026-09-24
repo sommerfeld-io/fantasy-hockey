@@ -18,25 +18,17 @@ const (
 	phasePlayoffs     = "playoffs"
 )
 
-// Round-gated Prediction Set ids, matching fantasy-hockey.yml's
-// prediction_sets[].id values for the three playoff rounds whose Upcoming
-// status Story 3.2 computes from playoff_matchups rather than trusting the
-// set's own hand-maintained upcoming flag (Design Notes: "r1" stays
-// human-gated for this story - Story 3.3's later concern).
-const (
-	round2SetID           = "r2"
-	conferenceFinalsSetID = "cf"
-	stanleyCupFinalSetID  = "scf"
-)
-
 // roundGatedSetIDs is every Prediction Set id effectiveUpcoming computes
-// from playoff_matchups instead of reading Upcoming directly - referenced
-// once here so the round2SetID/conferenceFinalsSetID/stanleyCupFinalSetID
-// trio can't drift out of sync with effectiveUpcoming's own if-check.
+// from playoff_matchups instead of reading Upcoming directly (Story 3.2) -
+// referenced once here so the store.Round2SetID/
+// store.ConferenceFinalsSetID/store.StanleyCupFinalSetID trio can't drift
+// out of sync with effectiveUpcoming's own if-check. store.Round1SetID
+// stays outside it: "r1" is deliberately gated by its own hand-maintained
+// upcoming flag instead.
 var roundGatedSetIDs = map[string]bool{
-	round2SetID:           true,
-	conferenceFinalsSetID: true,
-	stanleyCupFinalSetID:  true,
+	store.Round2SetID:           true,
+	store.ConferenceFinalsSetID: true,
+	store.StanleyCupFinalSetID:  true,
 }
 
 // effectiveUpcoming reports set's effective "Upcoming" state: for a

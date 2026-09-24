@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -61,10 +62,10 @@ type LoginCode struct {
 // Story 2.1) - converting it for display is internal/clock's job, not
 // store's. Phase groups sets into the Predict screen's sections ("before
 // the season" or "playoffs"); Upcoming is a human-maintained flag - for the
-// "r2"/"cf"/"scf" round ids it is no longer read directly (internal/web's
-// effectiveUpcoming computes their effective value from PlayoffMatchups
-// instead, per Story 3.2); for every other id it remains authoritative
-// exactly as before.
+// Round2SetID/ConferenceFinalsSetID/StanleyCupFinalSetID round ids it is no
+// longer read directly (internal/web's effectiveUpcoming computes their
+// effective value from PlayoffMatchups instead, per Story 3.2); for every
+// other id it remains authoritative exactly as before.
 type PredictionSet struct {
 	ID          string `yaml:"id"`
 	Title       string `yaml:"title"`
@@ -102,8 +103,9 @@ const (
 	KindAward = "award"
 
 	// KindSeries is Story 3.3's per-series Kind value, shared by all four
-	// round Prediction Sets ("r1"/"r2"/"cf"/"scf") - like KindAward, it
-	// doesn't match any one of those Prediction Set ids directly. A row of
+	// round Prediction Sets (Round1SetID/Round2SetID/ConferenceFinalsSetID/
+	// StanleyCupFinalSetID) - like KindAward, it doesn't match any one of
+	// those Prediction Set ids directly. A row of
 	// this kind is instead keyed by (PlayerID, Kind, SeriesKey), never by
 	// (PlayerID, Kind) alone - SeriesKey itself already encodes which
 	// Prediction Set the row belongs to.
@@ -121,6 +123,56 @@ const (
 	AwardArtRoss       = "art_ross"
 	AwardRocketRichard = "rocket_richard"
 )
+
+// Playoff round Prediction Set ids, matching fantasy-hockey.yml's
+// prediction_sets[].id values for the four playoff rounds - the Prediction
+// Sets every KindSeries row belongs to (Story 3.3), and the first half of
+// every SeriesKey (see JoinSeriesKey).
+const (
+	// Round1SetID is the first playoff round's Prediction Set id.
+	Round1SetID = "r1"
+	// Round2SetID is the second playoff round's Prediction Set id.
+	Round2SetID = "r2"
+	// ConferenceFinalsSetID is the conference finals' Prediction Set id.
+	ConferenceFinalsSetID = "cf"
+	// StanleyCupFinalSetID is the Stanley Cup Final's Prediction Set id.
+	StanleyCupFinalSetID = "scf"
+)
+
+// seriesKeySeparator joins a Prediction Set id (e.g. "r1") and a
+// PlayoffMatchup's own hand-maintained Key (e.g. "s1") into one
+// Prediction.SeriesKey (e.g. "r1.s1") - the one separator every
+// JoinSeriesKey/SplitSeriesKey call uses, so the persisted series_key
+// format can't drift (magic-value rule).
+const seriesKeySeparator = "."
+
+// JoinSeriesKey builds the full SeriesKey a KindSeries Prediction row is
+// scoped by, from setID (the Prediction Set id, e.g. Round1SetID) and key (a
+// PlayoffMatchup's own hand-maintained Key): "<setID>.<key>", e.g. "r1.s1".
+func JoinSeriesKey(setID, key string) string {
+	return setID + seriesKeySeparator + key
+}
+
+// SplitSeriesKey reverses JoinSeriesKey, returning the Prediction Set id and
+// matchup key it was built from. ok is false when seriesKey doesn't contain
+// the separator at all - never produced by JoinSeriesKey itself, but guards
+// a caller against a hand-edited or otherwise malformed row.
+func SplitSeriesKey(seriesKey string) (setID, key string, ok bool) {
+	return strings.Cut(seriesKey, seriesKeySeparator)
+}
+
+// divisions is the fixed division vocabulary and display order behind
+// Divisions - kept unexported so no importer can mutate the shared slice.
+var divisions = []string{"Atlantic", "Metropolitan", "Central", "Pacific"}
+
+// Divisions returns the four Team.Division values in their fixed display
+// order (Atlantic, Metropolitan, Central, Pacific) - the one vocabulary
+// every division-scoped Prediction row (KindDivisionPlayoffTeams/
+// KindDivisionWinner) and every division grouping is keyed by. Each call
+// returns a fresh copy, so a caller editing it never affects the next call.
+func Divisions() []string {
+	return slices.Clone(divisions)
+}
 
 // Prediction is one player's saved pick for one Prediction Set kind (e.g.
 // their Stanley Cup champion pick). It's an application-created row (AD-17):
@@ -141,9 +193,9 @@ const (
 // FinalistSlugs holds exactly 3 ordered NHL Player (AwardFinalist) slugs -
 // SaveAwardPicks never upserts a row with fewer. SeriesKey and Games are set
 // only on a KindSeries row (FindSeriesPick/SaveSeriesPick): SeriesKey is the
-// full key a PlayoffMatchup is scoped by - the owning Prediction Set id plus
-// a separator plus the matchup's own hand-maintained Key (e.g. "r1.s1") -
-// and Games is one of "4"/"5"/"6"/"7", kept a string for consistency with
+// full key a PlayoffMatchup is scoped by, built by JoinSeriesKey from the
+// owning Prediction Set id and the matchup's own hand-maintained Key - and
+// Games is one of "4"/"5"/"6"/"7", kept a string for consistency with
 // every other Prediction field even though it's numeric. All of Division/
 // TeamIDs/Award/FinalistSlugs/SeriesKey/Games stay zero-valued/omitted on
 // every row they don't apply to.
@@ -200,7 +252,8 @@ type AwardFinalist struct {
 }
 
 // PlayoffMatchup is one recorded playoff series matchup, keyed by Prediction
-// Set id (e.g. "r2", "cf", "scf") under fantasy-hockey.yml's
+// Set id (e.g. Round2SetID, ConferenceFinalsSetID, StanleyCupFinalSetID)
+// under fantasy-hockey.yml's
 // playoff_matchups: section. Like Team and AwardFinalist, it's
 // hand-maintained directly in the data file; internal/store never writes it
 // (AD-23). Its presence for a round-gated Prediction Set id is what

@@ -1876,3 +1876,46 @@ func TestStoreShouldBeSafeForConcurrentCreateLoginCode(t *testing.T) {
 		t.Errorf("expected %d login codes, got %d", n, len(st.doc.LoginCodes))
 	}
 }
+
+// TestJoinSeriesKeyShouldRoundTripThroughSplitSeriesKey proves
+// JoinSeriesKey/SplitSeriesKey are true inverses of one another, guarding
+// the persisted "r1.s1"-shaped series_key format against an accidental
+// separator change ever silently breaking the round trip.
+func TestJoinSeriesKeyShouldRoundTripThroughSplitSeriesKey(t *testing.T) {
+	joined := JoinSeriesKey("r1", "s1")
+	if joined != "r1.s1" {
+		t.Fatalf("expected joined key %q, got %q", "r1.s1", joined)
+	}
+
+	setID, key, ok := SplitSeriesKey(joined)
+	if !ok {
+		t.Fatal("expected SplitSeriesKey to report ok=true for a joined key")
+	}
+	if setID != "r1" || key != "s1" {
+		t.Errorf("expected setID/key %q/%q, got %q/%q", "r1", "s1", setID, key)
+	}
+}
+
+func TestSplitSeriesKeyShouldReportNotOkForAKeyWithNoSeparator(t *testing.T) {
+	_, _, ok := SplitSeriesKey("malformed")
+	if ok {
+		t.Error("expected ok=false for a key with no separator")
+	}
+}
+
+func TestDivisionsShouldReturnTheFixedDisplayOrder(t *testing.T) {
+	want := []string{"Atlantic", "Metropolitan", "Central", "Pacific"}
+	if got := Divisions(); !slices.Equal(got, want) {
+		t.Errorf("expected divisions %v, got %v", want, got)
+	}
+}
+
+func TestDivisionsShouldNotBeMutatedByACaller(t *testing.T) {
+	first := Divisions()
+	first[0] = "Mutated"
+
+	want := []string{"Atlantic", "Metropolitan", "Central", "Pacific"}
+	if got := Divisions(); !slices.Equal(got, want) {
+		t.Errorf("expected divisions %v to survive a caller's mutation, got %v", want, got)
+	}
+}

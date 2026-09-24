@@ -199,8 +199,9 @@ func TestPredictShouldShowUpcomingForARoundGatedSetWithNoMatchupsRegardlessOfIts
 
 // TestPredictShouldShowOpenForEveryRoundGatedSetOnceAMatchupIsRecorded
 // covers the counterpart, exercised for all three roundGatedSetIDs (a typo
-// in round2SetID/conferenceFinalsSetID/stanleyCupFinalSetID's literal value
-// would otherwise go uncaught): once a human adds a matchup entry, each set
+// in store.Round2SetID/store.ConferenceFinalsSetID/store.StanleyCupFinalSetID's
+// literal value would otherwise go uncaught): once a human adds a matchup
+// entry, each set
 // unlocks (Open, actionable) with upcoming: true left untouched - the state
 // today's real fantasy-hockey.yml actually seeds "r2"/"cf"/"scf" at, so the
 // real-world unlock path (not just a hypothetical upcoming: false row) is
@@ -208,9 +209,9 @@ func TestPredictShouldShowUpcomingForARoundGatedSetWithNoMatchupsRegardlessOfIts
 func TestPredictShouldShowOpenForEveryRoundGatedSetOnceAMatchupIsRecorded(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	tests := []struct{ id, title string }{
-		{id: round2SetID, title: "Round 2"},
-		{id: conferenceFinalsSetID, title: "Conference finals"},
-		{id: stanleyCupFinalSetID, title: "Stanley Cup final"},
+		{id: store.Round2SetID, title: "Round 2"},
+		{id: store.ConferenceFinalsSetID, title: "Conference finals"},
+		{id: store.StanleyCupFinalSetID, title: "Stanley Cup final"},
 	}
 
 	for _, tc := range tests {
@@ -331,7 +332,7 @@ func TestPredictShouldLeaveR1UpcomingByItsOwnFlagEvenWithR1MatchupsRecorded(t *t
 // which of them unlock.
 func gatedRoundsSeed(deadline time.Time) string {
 	var b strings.Builder
-	for _, id := range []string{round2SetID, conferenceFinalsSetID, stanleyCupFinalSetID} {
+	for _, id := range []string{store.Round2SetID, store.ConferenceFinalsSetID, store.StanleyCupFinalSetID} {
 		fmt.Fprintf(&b, `    - id: %s
       title: Round %s
       subtitle: Set once the prior round ends
@@ -367,7 +368,7 @@ func TestPredictShouldUnlockOnlyTheRoundWhoseMatchupsAreRecorded(t *testing.T) {
 	if !strings.Contains(body, `<a id="predict-row-r2" href="/predict/r2" class="set-row set-row--open">`) {
 		t.Errorf("expected r2 to unlock once its own matchups are recorded, got %q", body)
 	}
-	for _, id := range []string{conferenceFinalsSetID, stanleyCupFinalSetID} {
+	for _, id := range []string{store.ConferenceFinalsSetID, store.StanleyCupFinalSetID} {
 		if !strings.Contains(body, fmt.Sprintf(`<div id="predict-row-%s" class="set-row set-row--upcoming">`, id)) {
 			t.Errorf("expected %q to stay Upcoming with matchups recorded only under r2, got %q", id, body)
 		}

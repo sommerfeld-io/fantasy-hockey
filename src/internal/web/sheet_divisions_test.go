@@ -50,14 +50,14 @@ func newTestStoreWithDivisionTeamsAndDir(t *testing.T, predictionSetsYAML string
 	dir := t.TempDir()
 
 	var yamlTeams strings.Builder
-	for _, division := range teamDivisionOrder {
+	for _, division := range store.Divisions() {
 		conference := "Eastern"
 		if division == "Central" || division == "Pacific" {
 			conference = "Western"
 		}
 		teams, ok := divisionTeamsByDivision[division]
 		if !ok {
-			t.Fatalf("no fixture teams for division %q - divisionTeamsByDivision has drifted from teamDivisionOrder", division)
+			t.Fatalf("no fixture teams for division %q - divisionTeamsByDivision has drifted from store.Divisions()", division)
 		}
 		for _, id := range teams {
 			fmt.Fprintf(&yamlTeams, "    - id: %s\n      name: %s Team\n      conference: %s\n      division: %s\n", id, id, conference, division)
@@ -157,12 +157,12 @@ func getDivisionsSheet(t *testing.T, handler http.Handler) *httptest.ResponseRec
 }
 
 // assertDivisionsSheetHasChipGroupsAndWinnerSelects checks body renders a
-// chip group and a winner select for every division in teamDivisionOrder -
+// chip group and a winner select for every division in store.Divisions() -
 // factored out of its one caller purely to keep that test's own cyclomatic
 // complexity low (gocyclo).
 func assertDivisionsSheetHasChipGroupsAndWinnerSelects(t *testing.T, body string) {
 	t.Helper()
-	for _, division := range teamDivisionOrder {
+	for _, division := range store.Divisions() {
 		if !strings.Contains(body, `data-division="`+division+`"`) {
 			t.Errorf("expected a chip group for %q, got %q", division, body)
 		}

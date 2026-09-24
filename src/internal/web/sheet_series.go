@@ -10,33 +10,11 @@ import (
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
-// seriesKeySeparator joins a Prediction Set id (e.g. "r1") and a
-// PlayoffMatchup's own hand-maintained Key (e.g. "s1") into one
-// Prediction.SeriesKey (e.g. "r1.s1") - the one package-level separator
-// every joinSeriesKey/splitSeriesKey call site uses, so the format can't
-// drift (magic-value rule).
-const seriesKeySeparator = "."
-
-// joinSeriesKey builds the full SeriesKey a KindSeries Prediction row is
-// scoped by, from setID (the Prediction Set id) and key (a PlayoffMatchup's
-// own hand-maintained Key).
-func joinSeriesKey(setID, key string) string {
-	return setID + seriesKeySeparator + key
-}
-
-// splitSeriesKey reverses joinSeriesKey, returning the Prediction Set id and
-// matchup key it was built from. ok is false when seriesKey doesn't contain
-// seriesKeySeparator at all - never produced by joinSeriesKey itself, but
-// guards a caller against a hand-edited or otherwise malformed row.
-func splitSeriesKey(seriesKey string) (setID, key string, ok bool) {
-	setID, key, found := strings.Cut(seriesKey, seriesKeySeparator)
-	return setID, key, found
-}
-
-// stanleyCupFinalLabel is the single group heading stanleyCupFinalSetID's
-// one matchup renders under, in place of an "Eastern Conference"/"Western
-// Conference" subheader (Intent: the Final's two teams belong to different
-// conferences, so conference-grouping doesn't apply to it).
+// stanleyCupFinalLabel is the single group heading
+// store.StanleyCupFinalSetID's one matchup renders under, in place of an
+// "Eastern Conference"/"Western Conference" subheader (Intent: the Final's
+// two teams belong to different conferences, so conference-grouping doesn't
+// apply to it).
 const stanleyCupFinalLabel = "Stanley Cup Final"
 
 // seriesConferenceLabelSuffix turns a Team.Conference value ("Eastern"/
@@ -139,9 +117,10 @@ func teamName(teams roster[store.Team], id string) string {
 
 // conferenceForMatchup returns m's own conference, read off its TeamA's
 // Team.Conference (both of a series' teams always share one conference,
-// except stanleyCupFinalSetID's own single matchup, which never calls this).
-// An unmatched TeamA (e.g. a hand-edit mistake) degrades to grouping under an
-// empty-string conference rather than panicking or dropping the card.
+// except store.StanleyCupFinalSetID's own single matchup, which never calls
+// this). An unmatched TeamA (e.g. a hand-edit mistake) degrades to grouping
+// under an empty-string conference rather than panicking or dropping the
+// card.
 func conferenceForMatchup(st *store.Store, m store.PlayoffMatchup) string {
 	if team, ok := teamRoster(st).get(m.TeamA); ok {
 		return team.Conference
@@ -159,7 +138,7 @@ func selectedSeriesPick(st *store.Store, playerID, setID string, m store.Playoff
 		sub := rejection.submission[m.Key]
 		return sub.TeamID, sub.Games
 	}
-	if prediction, ok := st.FindSeriesPick(playerID, joinSeriesKey(setID, m.Key)); ok {
+	if prediction, ok := st.FindSeriesPick(playerID, store.JoinSeriesKey(setID, m.Key)); ok {
 		return prediction.TeamID, prediction.Games
 	}
 	return "", ""
@@ -194,7 +173,7 @@ func newSeriesCardPick(st *store.Store, playerID, setID string, m store.PlayoffM
 // groupSeriesByConference groups matchups into their two conferences, in
 // each conference's own first-appearance order among matchups (no fixed,
 // hand-maintained conference order exists for series, unlike
-// teamDivisionOrder) - groupDivisionsByConference's own grouping shape,
+// store.Divisions()) - groupDivisionsByConference's own grouping shape,
 // derived from the matchup data itself rather than a second hardcoded
 // division/round->conference map.
 func groupSeriesByConference(st *store.Store, playerID, setID string, matchups []store.PlayoffMatchup, rejection *seriesRejection) []seriesGroupPick {
@@ -220,7 +199,7 @@ func groupSeriesByConference(st *store.Store, playerID, setID string, matchups [
 // that happens to be, never a hardcoded expected count (Design Notes) -
 // grouped under "Eastern Conference"/"Western Conference" by each matchup's
 // own conference, or the single stanleyCupFinalLabel group when set.ID is
-// stanleyCupFinalSetID. rejection, when non-nil, retains a rejected
+// store.StanleyCupFinalSetID. rejection, when non-nil, retains a rejected
 // resubmission's own values and per-series errors for re-rendering
 // (renderRejectedSeriesPick); nil for every other render.
 func newSeriesPickView(st *store.Store, set store.PredictionSet, playerID string, submitted bool, rejection *seriesRejection) seriesPickView {
@@ -228,7 +207,7 @@ func newSeriesPickView(st *store.Store, set store.PredictionSet, playerID string
 
 	var groups []seriesGroupPick
 	switch set.ID {
-	case stanleyCupFinalSetID:
+	case store.StanleyCupFinalSetID:
 		if len(matchups) > 0 {
 			cards := make([]seriesCardPick, len(matchups))
 			for i, m := range matchups {
@@ -315,8 +294,8 @@ func handleSeriesSubmit(w http.ResponseWriter, r *http.Request, st *store.Store,
 		case seriesSubmissionIsBlank(sub), seriesSubmissionIsHalfFilled(sub):
 			continue
 		case seriesSubmissionIsComplete(m, sub):
-			if err := st.SaveSeriesPick(playerID, joinSeriesKey(set.ID, m.Key), sub.TeamID, sub.Games, now); err != nil {
-				slog.Error("save series pick", "player_id", playerID, "series_key", joinSeriesKey(set.ID, m.Key), "error", err)
+			if err := st.SaveSeriesPick(playerID, store.JoinSeriesKey(set.ID, m.Key), sub.TeamID, sub.Games, now); err != nil {
+				slog.Error("save series pick", "player_id", playerID, "series_key", store.JoinSeriesKey(set.ID, m.Key), "error", err)
 				http.Error(w, genericErrorBody, http.StatusInternalServerError)
 				return
 			}

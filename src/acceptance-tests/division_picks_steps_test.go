@@ -24,11 +24,6 @@ const (
 	divisionPicksPlayerName = "Basti"
 )
 
-// divisionPicksDivisionOrder mirrors internal/web's own teamDivisionOrder -
-// this feature exercises the real form, so its fixture must cover every
-// division in the same fixed order.
-var divisionPicksDivisionOrder = []string{"Atlantic", "Metropolitan", "Central", "Pacific"}
-
 // divisionPicksTeamsByDivision is the full 32-team roster this feature's
 // Background declares - real NHL team ids grouped by division, matching the
 // reference App.jsx's own DIVISIONS constant. A small 1-team-per-division
@@ -148,10 +143,18 @@ func (s *divisionPicksScenarioState) seedBody() (string, error) {
 	}
 
 	var yamlTeams strings.Builder
-	for _, division := range divisionPicksDivisionOrder {
-		for _, id := range divisionPicksTeamsByDivision[division] {
+	for _, division := range store.Divisions() {
+		teamIDs, ok := divisionPicksTeamsByDivision[division]
+		if !ok {
+			return "", fmt.Errorf("no fixture teams for division %q - divisionPicksTeamsByDivision has drifted from store.Divisions()", division)
+		}
+		conference, ok := divisionPicksConferenceByDivision[division]
+		if !ok {
+			return "", fmt.Errorf("no fixture conference for division %q - divisionPicksConferenceByDivision has drifted from store.Divisions()", division)
+		}
+		for _, id := range teamIDs {
 			fmt.Fprintf(&yamlTeams, "    - id: %q\n      name: %q\n      conference: %q\n      division: %q\n",
-				id, id+" Team", divisionPicksConferenceByDivision[division], division)
+				id, id+" Team", conference, division)
 		}
 	}
 
@@ -238,7 +241,7 @@ func (s *divisionPicksScenarioState) thePlayerSubmitsAValid88SplitWithAMetropoli
 }
 
 func (s *divisionPicksScenarioState) theDivisionsSheetShowsFourDivisionChipGroups() error {
-	for _, division := range divisionPicksDivisionOrder {
+	for _, division := range store.Divisions() {
 		if !strings.Contains(s.lastBody, `data-division="`+division+`"`) {
 			return fmt.Errorf("expected a chip group for %q, got %q", division, s.lastBody)
 		}
@@ -247,7 +250,7 @@ func (s *divisionPicksScenarioState) theDivisionsSheetShowsFourDivisionChipGroup
 }
 
 func (s *divisionPicksScenarioState) theDivisionsSheetShowsFourDivisionWinnerSelects() error {
-	for _, division := range divisionPicksDivisionOrder {
+	for _, division := range store.Divisions() {
 		if !strings.Contains(s.lastBody, `for="winner-`+division+`"`) {
 			return fmt.Errorf("expected a winner select for %q, got %q", division, s.lastBody)
 		}

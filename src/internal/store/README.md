@@ -13,3 +13,4 @@ The data-access layer: owns all reads and writes to the single `fantasy-hockey.y
 - `Store`'s in-memory document and mutex stay unexported; every access goes through an exported method (AD-29).
 - Every write serializes the whole in-memory document and atomically replaces the file on disk via write-to-temp-file-then-rename (AD-27).
 - `Player`/`LoginCode` are the canonical structs for these entities; other packages import and use them as-is (AD-24).
+- The store owns the persisted series-key format (`JoinSeriesKey`/`SplitSeriesKey`, `"<setID>.<matchupKey>"`), the playoff round-set ids (`Round1SetID`, `Round2SetID`, `ConferenceFinalsSetID`, `StanleyCupFinalSetID`) and the division vocabulary (`Divisions()`), so feature packages never redefine them (AD-24).

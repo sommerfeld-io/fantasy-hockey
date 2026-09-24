@@ -896,17 +896,18 @@ func TestGetPredictSheetShouldReturn404ForARoundGatedSetWithNoMatchupsRecorded(t
 
 // TestGetPredictSheetShouldServeEveryRoundGatedSetOnceAMatchupIsRecorded is
 // the counterpart, exercised for all three roundGatedSetIDs (a typo in
-// round2SetID/conferenceFinalsSetID/stanleyCupFinalSetID's literal value
-// would otherwise go uncaught): once a matchup is recorded, the direct URL
+// store.Round2SetID/store.ConferenceFinalsSetID/store.StanleyCupFinalSetID's
+// literal value would otherwise go uncaught): once a matchup is recorded,
+// the direct URL
 // opens the set's series sheet, even though its own upcoming flag is true -
 // the state today's real fantasy-hockey.yml actually seeds "r2"/"cf"/"scf"
 // at.
 func TestGetPredictSheetShouldServeEveryRoundGatedSetOnceAMatchupIsRecorded(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	tests := []struct{ id, title string }{
-		{id: round2SetID, title: "Round 2"},
-		{id: conferenceFinalsSetID, title: "Conference finals"},
-		{id: stanleyCupFinalSetID, title: "Stanley Cup final"},
+		{id: store.Round2SetID, title: "Round 2"},
+		{id: store.ConferenceFinalsSetID, title: "Conference finals"},
+		{id: store.StanleyCupFinalSetID, title: "Stanley Cup final"},
 	}
 
 	for _, tc := range tests {
@@ -944,7 +945,7 @@ func TestSheetShouldReturn404ForAGatedRoundWhenOnlyAnotherRoundHasMatchups(t *te
 	st := newTestStoreWithPredictionSetsAndMatchups(t, seed, r2OnlyMatchupsYAML)
 	handler := NewServer(st, noopSender, testSecret)
 
-	rec := getSheet(t, handler, conferenceFinalsSetID)
+	rec := getSheet(t, handler, store.ConferenceFinalsSetID)
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected GET status %d for cf with matchups only under r2, got %d", http.StatusNotFound, rec.Code)
 	}
@@ -952,13 +953,13 @@ func TestSheetShouldReturn404ForAGatedRoundWhenOnlyAnotherRoundHasMatchups(t *te
 		t.Errorf("expected the generic not-found body, got %q", rec.Body.String())
 	}
 
-	rec = postSeriesForm(t, handler, conferenceFinalsSetID, map[string]seriesSubmission{
+	rec = postSeriesForm(t, handler, store.ConferenceFinalsSetID, map[string]seriesSubmission{
 		"s1": {TeamID: "FLA", Games: "6"},
 	})
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected POST status %d for cf with matchups only under r2, got %d", http.StatusNotFound, rec.Code)
 	}
-	if _, ok := st.FindSeriesPick("basti", joinSeriesKey(conferenceFinalsSetID, "s1")); ok {
+	if _, ok := st.FindSeriesPick("basti", store.JoinSeriesKey(store.ConferenceFinalsSetID, "s1")); ok {
 		t.Error("expected nothing saved for a still-locked cf")
 	}
 }

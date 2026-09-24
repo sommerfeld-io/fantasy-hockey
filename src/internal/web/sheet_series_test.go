@@ -722,7 +722,7 @@ func gatedSeriesMatchupsYAML(id string) string {
 // under both conference groups - not the single-team dropdown or the stub.
 func TestGetGatedSeriesSheetShouldRenderSeriesCardsGroupedByConference(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	for _, id := range []string{round2SetID, conferenceFinalsSetID} {
+	for _, id := range []string{store.Round2SetID, store.ConferenceFinalsSetID} {
 		t.Run(id, func(t *testing.T) {
 			st := newTestStoreWithSeriesFixture(t, gatedSeriesPredictionSetSeed(id, "Gated round", deadline), gatedSeriesMatchupsYAML(id))
 
@@ -750,7 +750,7 @@ func TestGetGatedSeriesSheetShouldRenderSeriesCardsGroupedByConference(t *testin
 
 func TestPostGatedSeriesSheetShouldSaveEachSeriesUnderItsOwnSetID(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	for _, id := range []string{round2SetID, conferenceFinalsSetID, stanleyCupFinalSetID} {
+	for _, id := range []string{store.Round2SetID, store.ConferenceFinalsSetID, store.StanleyCupFinalSetID} {
 		t.Run(id, func(t *testing.T) {
 			st := newTestStoreWithSeriesFixture(t, gatedSeriesPredictionSetSeed(id, "Gated round", deadline), gatedSeriesMatchupsYAML(id))
 
@@ -761,8 +761,8 @@ func TestPostGatedSeriesSheetShouldSaveEachSeriesUnderItsOwnSetID(t *testing.T) 
 			if rec.Code != http.StatusFound {
 				t.Fatalf("expected status %d, got %d", http.StatusFound, rec.Code)
 			}
-			assertSavedSeriesPick(t, st, "basti", joinSeriesKey(id, "e1"), "TOR", "7")
-			if _, ok := st.FindSeriesPick("basti", joinSeriesKey(round1SetID, "e1")); ok {
+			assertSavedSeriesPick(t, st, "basti", store.JoinSeriesKey(id, "e1"), "TOR", "7")
+			if _, ok := st.FindSeriesPick("basti", store.JoinSeriesKey(store.Round1SetID, "e1")); ok {
 				t.Errorf("expected nothing saved under r1 for a %q submission", id)
 			}
 		})
@@ -776,9 +776,9 @@ func TestPostGatedSeriesSheetShouldSaveEachSeriesUnderItsOwnSetID(t *testing.T) 
 // submit would only fail with a 403.
 func TestGetGatedSeriesSheetShouldRenderReadOnlyWhenUnlockedButPastItsDeadline(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
-	st := newTestStoreWithSeriesFixture(t, gatedSeriesPredictionSetSeed(conferenceFinalsSetID, "Conference finals", deadline), gatedSeriesMatchupsYAML(conferenceFinalsSetID))
+	st := newTestStoreWithSeriesFixture(t, gatedSeriesPredictionSetSeed(store.ConferenceFinalsSetID, "Conference finals", deadline), gatedSeriesMatchupsYAML(store.ConferenceFinalsSetID))
 
-	rec := getSeriesSheet(t, NewServer(st, noopSender, testSecret), conferenceFinalsSetID)
+	rec := getSeriesSheet(t, NewServer(st, noopSender, testSecret), store.ConferenceFinalsSetID)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -792,32 +792,5 @@ func TestGetGatedSeriesSheetShouldRenderReadOnlyWhenUnlockedButPastItsDeadline(t
 	}
 	if strings.Contains(body, `<button type="submit">`) {
 		t.Errorf("expected no submit button on a closed set, got %q", body)
-	}
-}
-
-// TestJoinSeriesKeyShouldRoundTripThroughSplitSeriesKey proves
-// joinSeriesKey/splitSeriesKey are true inverses of one another - the
-// join/split helper pair the Code Map calls for, guarding the "r1.s1"-shaped
-// key format against an accidental separator change ever silently breaking
-// the round trip.
-func TestJoinSeriesKeyShouldRoundTripThroughSplitSeriesKey(t *testing.T) {
-	joined := joinSeriesKey("r1", "s1")
-	if joined != "r1.s1" {
-		t.Fatalf("expected joined key %q, got %q", "r1.s1", joined)
-	}
-
-	setID, key, ok := splitSeriesKey(joined)
-	if !ok {
-		t.Fatal("expected splitSeriesKey to report ok=true for a joined key")
-	}
-	if setID != "r1" || key != "s1" {
-		t.Errorf("expected setID/key %q/%q, got %q/%q", "r1", "s1", setID, key)
-	}
-}
-
-func TestSplitSeriesKeyShouldReportNotOkForAKeyWithNoSeparator(t *testing.T) {
-	_, _, ok := splitSeriesKey("malformed")
-	if ok {
-		t.Error("expected ok=false for a key with no separator")
 	}
 }
