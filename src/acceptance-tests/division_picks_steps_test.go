@@ -3,20 +3,14 @@ package acceptance_test
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/cucumber/godog"
 
-	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
-	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
 // divisionPicksSecret signs session cookies for this scenario's server - it
@@ -103,32 +97,19 @@ type divisionPicksSetFixture struct {
 // divisionPicksScenarioState holds the fixtures and results for one
 // division-picks scenario. A fresh instance is created per scenario so state
 // never leaks between runs. The store and server are built lazily
-// (ensureReady) on the first request, since Given steps keep appending
-// fixtures beforehand.
+// (lazyFixture.ensureReady) on the first request, since Given steps keep
+// appending fixtures beforehand.
 type divisionPicksScenarioState struct {
-	dataFile     string
-	set          *divisionPicksSetFixture
-	priorSubmit  bool
-	st           *store.Store
-	server       *httptest.Server
-	lastStatus   int
-	lastBody     string
-	lastLocation string
+	lazyFixture
+	set         *divisionPicksSetFixture
+	priorSubmit bool
 }
 
 func newDivisionPicksScenarioState() *divisionPicksScenarioState {
-	dir, err := os.MkdirTemp("", "fantasy-hockey-division-picks-*")
-	if err != nil {
-		panic(fmt.Sprintf("create temp dir: %v", err))
-	}
-	return &divisionPicksScenarioState{dataFile: filepath.Join(dir, store.DataFileName)}
-}
-
-func (s *divisionPicksScenarioState) close() {
-	if s.server != nil {
-		s.server.Close()
-	}
-	_ = os.RemoveAll(filepath.Dir(s.dataFile)) // best-effort cleanup of the scenario's temp dir
+	s := &divisionPicksScenarioState{}
+	s.lazyFixture = newLazyFixture("division-picks", divisionPicksPlayerID, divisionPicksPlayerName,
+		divisionPicksSecret, s.seedBody, s.savePriorSubmission)
+	return s
 }
 
 func (s *divisionPicksScenarioState) theSignedInPlayerIs(name string) error {
@@ -159,17 +140,11 @@ func (s *divisionPicksScenarioState) thePlayerAlreadySubmittedAValid88SplitWithA
 	return nil
 }
 
-// ensureReady lazily persists the Given-declared "divisions" Prediction Set
-// and the full team roster, starts the real production web.NewServer
-// handler around it, then - if the Background declared a prior submission -
-// saves it directly through the store, the first time a step needs to make
-// an HTTP call.
-func (s *divisionPicksScenarioState) ensureReady() error {
-	if s.server != nil {
-		return nil
-	}
+// seedBody renders the Given-declared "divisions" Prediction Set and the
+// full team roster as the data file's prediction_sets and teams sections.
+func (s *divisionPicksScenarioState) seedBody() (string, error) {
 	if s.set == nil {
-		return fmt.Errorf("no divisions Prediction Set deadline declared")
+		return "", fmt.Errorf("no divisions Prediction Set deadline declared")
 	}
 
 	var yamlTeams strings.Builder
@@ -180,66 +155,19 @@ func (s *divisionPicksScenarioState) ensureReady() error {
 		}
 	}
 
-	seed := fmt.Sprintf("season: \"2026-27\"\nplayers:\n    - id: %s\n      name: %s\n      email: basti@example.com\nprediction_sets:\n    - id: divisions\n      title: \"Division picks\"\n      subtitle: \"Playoff teams & division winners\"\n      deadline_utc: %q\n      phase: before_season\n      upcoming: false\nteams:\n%s",
-		divisionPicksPlayerID, divisionPicksPlayerName, s.set.deadline.Format(time.RFC3339), yamlTeams.String())
-	if err := os.WriteFile(s.dataFile, []byte(seed), 0o600); err != nil {
-		return fmt.Errorf("seed data file: %w", err)
-	}
-
-	st, err := store.New(s.dataFile)
-	if err != nil {
-		return fmt.Errorf("store.New: %w", err)
-	}
-	s.st = st
-
-	if s.priorSubmit {
-		if err := st.SaveDivisionPicks(divisionPicksPlayerID, validDivisionPicksFixture(), validDivisionWinnersFixture(), time.Now().UTC()); err != nil {
-			return fmt.Errorf("seed prior division picks: %w", err)
-		}
-	}
-
-	s.server = httptest.NewServer(web.NewServer(st, noopSender, divisionPicksSecret))
-	return nil
+	return fmt.Sprintf("prediction_sets:\n    - id: divisions\n      title: \"Division picks\"\n      subtitle: \"Playoff teams & division winners\"\n      deadline_utc: %q\n      phase: before_season\n      upcoming: false\nteams:\n%s",
+		s.set.deadline.Format(time.RFC3339), yamlTeams.String()), nil
 }
 
-// do requests method+path carrying the signed-in player's session cookie,
-// with an optional urlencoded form body, without following any redirect,
-// and records the result.
-func (s *divisionPicksScenarioState) do(method, path, body string) error {
-	if err := s.ensureReady(); err != nil {
-		return err
+// savePriorSubmission saves the Background's prior submission (if one was
+// declared) directly through the store, before the scenario's first request.
+func (s *divisionPicksScenarioState) savePriorSubmission(st *store.Store) error {
+	if !s.priorSubmit {
+		return nil
 	}
-
-	client := &http.Client{
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	if err := st.SaveDivisionPicks(divisionPicksPlayerID, validDivisionPicksFixture(), validDivisionWinnersFixture(), time.Now().UTC()); err != nil {
+		return fmt.Errorf("seed prior division picks: %w", err)
 	}
-	var reader io.Reader
-	if body != "" {
-		reader = strings.NewReader(body)
-	}
-	req, err := http.NewRequest(method, s.server.URL+path, reader)
-	if err != nil {
-		return fmt.Errorf("build request: %w", err)
-	}
-	if body != "" {
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	}
-	req.AddCookie(auth.IssueSessionCookie(divisionPicksPlayerID, divisionPicksSecret))
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("%s %s: %w", method, path, err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read response body: %w", err)
-	}
-
-	s.lastStatus = resp.StatusCode
-	s.lastLocation = resp.Header.Get("Location")
-	s.lastBody = string(respBody)
 	return nil
 }
 

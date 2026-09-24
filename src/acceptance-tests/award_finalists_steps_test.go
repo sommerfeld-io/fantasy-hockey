@@ -3,20 +3,14 @@ package acceptance_test
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/cucumber/godog"
 
-	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
-	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
 // awardFinalistsSecret signs session cookies for this scenario's server - it
@@ -126,32 +120,19 @@ type awardFinalistsSetFixture struct {
 // awardFinalistsScenarioState holds the fixtures and results for one
 // award-finalists scenario. A fresh instance is created per scenario so
 // state never leaks between runs. The store and server are built lazily
-// (ensureReady) on the first request, since Given steps keep appending
-// fixtures beforehand.
+// (lazyFixture.ensureReady) on the first request, since Given steps keep
+// appending fixtures beforehand.
 type awardFinalistsScenarioState struct {
-	dataFile     string
-	set          *awardFinalistsSetFixture
-	priorSubmit  bool
-	st           *store.Store
-	server       *httptest.Server
-	lastStatus   int
-	lastBody     string
-	lastLocation string
+	lazyFixture
+	set         *awardFinalistsSetFixture
+	priorSubmit bool
 }
 
 func newAwardFinalistsScenarioState() *awardFinalistsScenarioState {
-	dir, err := os.MkdirTemp("", "fantasy-hockey-award-finalists-*")
-	if err != nil {
-		panic(fmt.Sprintf("create temp dir: %v", err))
-	}
-	return &awardFinalistsScenarioState{dataFile: filepath.Join(dir, store.DataFileName)}
-}
-
-func (s *awardFinalistsScenarioState) close() {
-	if s.server != nil {
-		s.server.Close()
-	}
-	_ = os.RemoveAll(filepath.Dir(s.dataFile)) // best-effort cleanup of the scenario's temp dir
+	s := &awardFinalistsScenarioState{}
+	s.lazyFixture = newLazyFixture("award-finalists", awardFinalistsPlayerID, awardFinalistsPlayerName,
+		awardFinalistsSecret, s.seedBody, s.savePriorSubmission)
+	return s
 }
 
 func (s *awardFinalistsScenarioState) theSignedInPlayerIs(name string) error {
@@ -182,87 +163,33 @@ func (s *awardFinalistsScenarioState) thePlayerAlreadySubmittedValidFinalistsFor
 	return nil
 }
 
-// ensureReady lazily persists the Given-declared "awards" Prediction Set
-// and the NHL Player roster, starts the real production web.NewServer
-// handler around it, then - if the Background declared a prior submission -
-// saves it directly through the store, the first time a step needs to make
-// an HTTP call.
-func (s *awardFinalistsScenarioState) ensureReady() error {
-	if s.server != nil {
-		return nil
-	}
+// seedBody renders the Given-declared "awards" Prediction Set and the NHL
+// Player roster as the data file's prediction_sets and nhl_players sections.
+func (s *awardFinalistsScenarioState) seedBody() (string, error) {
 	if s.set == nil {
-		return fmt.Errorf("no awards Prediction Set deadline declared")
+		return "", fmt.Errorf("no awards Prediction Set deadline declared")
 	}
-
-	seed := fmt.Sprintf("season: \"2026-27\"\nplayers:\n    - id: %s\n      name: %s\n      email: basti@example.com\nprediction_sets:\n    - id: awards\n      title: \"Player awards\"\n      subtitle: \"Hart, Norris, Vezina, Art Ross, Rocket\"\n      deadline_utc: %q\n      phase: before_season\n      upcoming: false\n%s",
-		awardFinalistsPlayerID, awardFinalistsPlayerName, s.set.deadline.Format(time.RFC3339), awardFinalistsNHLPlayersYAML)
-	if err := os.WriteFile(s.dataFile, []byte(seed), 0o600); err != nil {
-		return fmt.Errorf("seed data file: %w", err)
-	}
-
-	st, err := store.New(s.dataFile)
-	if err != nil {
-		return fmt.Errorf("store.New: %w", err)
-	}
-	s.st = st
-
-	if s.priorSubmit {
-		finalists := make(map[string][]string, len(awardFinalistsOrder))
-		for award, slots := range validAwardFinalistsFixture() {
-			slugs := make([]string, 0, len(slots))
-			for _, slot := range slots {
-				slugs = append(slugs, slot.slug)
-			}
-			finalists[award] = slugs
-		}
-		if err := st.SaveAwardPicks(awardFinalistsPlayerID, finalists, time.Now().UTC()); err != nil {
-			return fmt.Errorf("seed prior award picks: %w", err)
-		}
-	}
-
-	s.server = httptest.NewServer(web.NewServer(st, noopSender, awardFinalistsSecret))
-	return nil
+	return fmt.Sprintf("prediction_sets:\n    - id: awards\n      title: \"Player awards\"\n      subtitle: \"Hart, Norris, Vezina, Art Ross, Rocket\"\n      deadline_utc: %q\n      phase: before_season\n      upcoming: false\n%s",
+		s.set.deadline.Format(time.RFC3339), awardFinalistsNHLPlayersYAML), nil
 }
 
-// do requests method+path carrying the signed-in player's session cookie,
-// with an optional urlencoded form body, without following any redirect,
-// and records the result.
-func (s *awardFinalistsScenarioState) do(method, path, body string) error {
-	if err := s.ensureReady(); err != nil {
-		return err
+// savePriorSubmission saves the Background's prior submission (if one was
+// declared) directly through the store, before the scenario's first request.
+func (s *awardFinalistsScenarioState) savePriorSubmission(st *store.Store) error {
+	if !s.priorSubmit {
+		return nil
 	}
-
-	client := &http.Client{
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
+	finalists := make(map[string][]string, len(awardFinalistsOrder))
+	for award, slots := range validAwardFinalistsFixture() {
+		slugs := make([]string, 0, len(slots))
+		for _, slot := range slots {
+			slugs = append(slugs, slot.slug)
+		}
+		finalists[award] = slugs
 	}
-	var reader io.Reader
-	if body != "" {
-		reader = strings.NewReader(body)
+	if err := st.SaveAwardPicks(awardFinalistsPlayerID, finalists, time.Now().UTC()); err != nil {
+		return fmt.Errorf("seed prior award picks: %w", err)
 	}
-	req, err := http.NewRequest(method, s.server.URL+path, reader)
-	if err != nil {
-		return fmt.Errorf("build request: %w", err)
-	}
-	if body != "" {
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	}
-	req.AddCookie(auth.IssueSessionCookie(awardFinalistsPlayerID, awardFinalistsSecret))
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("%s %s: %w", method, path, err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read response body: %w", err)
-	}
-
-	s.lastStatus = resp.StatusCode
-	s.lastLocation = resp.Header.Get("Location")
-	s.lastBody = string(respBody)
 	return nil
 }
 

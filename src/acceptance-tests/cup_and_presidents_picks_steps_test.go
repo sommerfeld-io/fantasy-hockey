@@ -3,19 +3,13 @@ package acceptance_test
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/cucumber/godog"
 
-	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
-	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
 // cupAndPresidentsPicksSecret signs session cookies for this scenario's
@@ -52,6 +46,7 @@ var cupAndPresidentsTeamNames = map[string]string{
 type cupAndPresidentsPredictionSetFixture struct {
 	id, title, subtitle, phase string
 	deadline                   time.Time
+	upcoming                   bool
 }
 
 // cupAndPresidentsTeamFixture is one Given-declared canonical team.
@@ -60,7 +55,7 @@ type cupAndPresidentsTeamFixture struct {
 }
 
 // cupAndPresidentsPickFixture is a pick the player already made, saved via
-// st.SavePrediction once the store exists (ensureReady), before the
+// st.SavePrediction once the store exists (savePriorPicks), before the
 // scenario's first request.
 type cupAndPresidentsPickFixture struct {
 	kind, teamID string
@@ -69,33 +64,20 @@ type cupAndPresidentsPickFixture struct {
 // cupAndPresidentsPicksScenarioState holds the fixtures and results for one
 // cup-and-presidents-picks scenario. A fresh instance is created per
 // scenario so state never leaks between runs. The store and server are
-// built lazily (ensureReady) on the first request, since Given steps keep
-// appending fixtures beforehand.
+// built lazily (lazyFixture.ensureReady) on the first request, since Given
+// steps keep appending fixtures beforehand.
 type cupAndPresidentsPicksScenarioState struct {
-	dataFile     string
-	sets         []cupAndPresidentsPredictionSetFixture
-	teams        []cupAndPresidentsTeamFixture
-	picks        []cupAndPresidentsPickFixture
-	st           *store.Store
-	server       *httptest.Server
-	lastStatus   int
-	lastBody     string
-	lastLocation string
+	lazyFixture
+	sets  []cupAndPresidentsPredictionSetFixture
+	teams []cupAndPresidentsTeamFixture
+	picks []cupAndPresidentsPickFixture
 }
 
 func newCupAndPresidentsPicksScenarioState() *cupAndPresidentsPicksScenarioState {
-	dir, err := os.MkdirTemp("", "fantasy-hockey-cup-and-presidents-picks-*")
-	if err != nil {
-		panic(fmt.Sprintf("create temp dir: %v", err))
-	}
-	return &cupAndPresidentsPicksScenarioState{dataFile: filepath.Join(dir, store.DataFileName)}
-}
-
-func (s *cupAndPresidentsPicksScenarioState) close() {
-	if s.server != nil {
-		s.server.Close()
-	}
-	_ = os.RemoveAll(filepath.Dir(s.dataFile)) // best-effort cleanup of the scenario's temp dir
+	s := &cupAndPresidentsPicksScenarioState{}
+	s.lazyFixture = newLazyFixture("cup-and-presidents-picks", cupAndPresidentsPicksPlayerID, cupAndPresidentsPicksPlayerName,
+		cupAndPresidentsPicksSecret, s.seedBody, s.savePriorPicks)
+	return s
 }
 
 func (s *cupAndPresidentsPicksScenarioState) theSignedInPlayerIs(name string) error {
@@ -115,6 +97,16 @@ func (s *cupAndPresidentsPicksScenarioState) theCanonicalTeamListIncludes(id, di
 }
 
 func (s *cupAndPresidentsPicksScenarioState) theSetHasADeadline(id, deadlinePhrase string) error {
+	return s.addKnownSet(id, deadlinePhrase, false)
+}
+
+func (s *cupAndPresidentsPicksScenarioState) theSetIsUpcomingWithADeadline(id, deadlinePhrase string) error {
+	return s.addKnownSet(id, deadlinePhrase, true)
+}
+
+// addKnownSet appends one of knownCupAndPresidentsPredictionSetBases' sets
+// with the given deadline and Upcoming flag.
+func (s *cupAndPresidentsPicksScenarioState) addKnownSet(id, deadlinePhrase string, upcoming bool) error {
 	base, ok := knownCupAndPresidentsPredictionSetBases[id]
 	if !ok {
 		return fmt.Errorf("no known base fixture for Prediction Set %q", id)
@@ -124,7 +116,7 @@ func (s *cupAndPresidentsPicksScenarioState) theSetHasADeadline(id, deadlinePhra
 		return err
 	}
 	s.sets = append(s.sets, cupAndPresidentsPredictionSetFixture{
-		id: id, title: base.title, subtitle: base.subtitle, phase: base.phase, deadline: deadline,
+		id: id, title: base.title, subtitle: base.subtitle, phase: base.phase, deadline: deadline, upcoming: upcoming,
 	})
 	return nil
 }
@@ -145,19 +137,13 @@ func (s *cupAndPresidentsPicksScenarioState) thePlayerAlreadyPicked(teamID, kind
 	return nil
 }
 
-// ensureReady lazily persists every Given-declared Prediction Set/team,
-// starts the real production web.NewServer handler around it, then saves
-// every Given-declared prior pick directly through the store - the first
-// time a step needs to make an HTTP call.
-func (s *cupAndPresidentsPicksScenarioState) ensureReady() error {
-	if s.server != nil {
-		return nil
-	}
-
+// seedBody renders every Given-declared Prediction Set and team as the data
+// file's prediction_sets and teams sections.
+func (s *cupAndPresidentsPicksScenarioState) seedBody() (string, error) {
 	var yamlSets strings.Builder
 	for _, set := range s.sets {
-		fmt.Fprintf(&yamlSets, "    - id: %q\n      title: %q\n      subtitle: %q\n      deadline_utc: %q\n      phase: %q\n      upcoming: false\n",
-			set.id, set.title, set.subtitle, set.deadline.Format(time.RFC3339), set.phase)
+		fmt.Fprintf(&yamlSets, "    - id: %q\n      title: %q\n      subtitle: %q\n      deadline_utc: %q\n      phase: %q\n      upcoming: %t\n",
+			set.id, set.title, set.subtitle, set.deadline.Format(time.RFC3339), set.phase, set.upcoming)
 	}
 
 	var yamlTeams strings.Builder
@@ -166,66 +152,17 @@ func (s *cupAndPresidentsPicksScenarioState) ensureReady() error {
 			team.id, team.name, "N/A", team.division)
 	}
 
-	seed := fmt.Sprintf("season: \"2026-27\"\nplayers:\n    - id: %s\n      name: %s\n      email: basti@example.com\nprediction_sets:\n%steams:\n%s",
-		cupAndPresidentsPicksPlayerID, cupAndPresidentsPicksPlayerName, yamlSets.String(), yamlTeams.String())
-	if err := os.WriteFile(s.dataFile, []byte(seed), 0o600); err != nil {
-		return fmt.Errorf("seed data file: %w", err)
-	}
+	return "prediction_sets:\n" + yamlSets.String() + "teams:\n" + yamlTeams.String(), nil
+}
 
-	st, err := store.New(s.dataFile)
-	if err != nil {
-		return fmt.Errorf("store.New: %w", err)
-	}
-	s.st = st
-
+// savePriorPicks saves every Given-declared prior pick directly through the
+// store, before the scenario's first request.
+func (s *cupAndPresidentsPicksScenarioState) savePriorPicks(st *store.Store) error {
 	for _, pick := range s.picks {
 		if err := st.SavePrediction(cupAndPresidentsPicksPlayerID, pick.kind, pick.teamID, time.Now().UTC()); err != nil {
 			return fmt.Errorf("seed prior pick: %w", err)
 		}
 	}
-
-	s.server = httptest.NewServer(web.NewServer(st, noopSender, cupAndPresidentsPicksSecret))
-	return nil
-}
-
-// do requests method+path carrying the signed-in player's session cookie,
-// with an optional urlencoded form body, without following any redirect, and
-// records the result.
-func (s *cupAndPresidentsPicksScenarioState) do(method, path, body string) error {
-	if err := s.ensureReady(); err != nil {
-		return err
-	}
-
-	client := &http.Client{
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
-	}
-	var reader io.Reader
-	if body != "" {
-		reader = strings.NewReader(body)
-	}
-	req, err := http.NewRequest(method, s.server.URL+path, reader)
-	if err != nil {
-		return fmt.Errorf("build request: %w", err)
-	}
-	if body != "" {
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	}
-	req.AddCookie(auth.IssueSessionCookie(cupAndPresidentsPicksPlayerID, cupAndPresidentsPicksSecret))
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("%s %s: %w", method, path, err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read response body: %w", err)
-	}
-
-	s.lastStatus = resp.StatusCode
-	s.lastLocation = resp.Header.Get("Location")
-	s.lastBody = string(respBody)
 	return nil
 }
 
@@ -312,6 +249,18 @@ func (s *cupAndPresidentsPicksScenarioState) thePickResponseStatusIs(want int) e
 	return nil
 }
 
+// genericNotFoundBody is net/http's own http.NotFound body - the same
+// response an unknown path or Prediction Set id gets, so it reveals nothing
+// about the set.
+const genericNotFoundBody = "404 page not found"
+
+func (s *cupAndPresidentsPicksScenarioState) thePickResponseShowsTheGenericNotFoundBody() error {
+	if strings.TrimSpace(s.lastBody) != genericNotFoundBody {
+		return fmt.Errorf("expected the generic not-found body %q, got %q", genericNotFoundBody, s.lastBody)
+	}
+	return nil
+}
+
 func (s *cupAndPresidentsPicksScenarioState) thePlayersSavedPickForIs(kind, teamID string) error {
 	prediction, ok := s.st.FindPrediction(cupAndPresidentsPicksPlayerID, kind)
 	if !ok {
@@ -378,6 +327,7 @@ func InitializeCupAndPresidentsPicksScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the signed-in player for cup and presidents picks is "([^"]*)"$`, s.theSignedInPlayerIs)
 	ctx.Step(`^the canonical team list includes "([^"]*)" in the "([^"]*)" division$`, s.theCanonicalTeamListIncludes)
 	ctx.Step(`^the "([^"]*)" Prediction Set has a deadline "([^"]*)"$`, s.theSetHasADeadline)
+	ctx.Step(`^the "([^"]*)" Prediction Set is upcoming with a deadline "([^"]*)"$`, s.theSetIsUpcomingWithADeadline)
 	ctx.Step(`^a stub Prediction Set "([^"]*)" titled "([^"]*)" with a deadline "([^"]*)"$`, s.aStubPredictionSetExists)
 	ctx.Step(`^the player already picked "([^"]*)" for "([^"]*)"$`, s.thePlayerAlreadyPicked)
 	ctx.Step(`^the player opens the cup-picks Prediction Set "([^"]*)"$`, s.thePlayerOpensThePredictionSet)
@@ -392,6 +342,7 @@ func InitializeCupAndPresidentsPicksScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the pick sheet shows "([^"]*)"$`, s.thePickSheetShows)
 	ctx.Step(`^the pick response redirects to "([^"]*)"$`, s.thePickResponseRedirectsTo)
 	ctx.Step(`^the pick response status is (\d+)$`, s.thePickResponseStatusIs)
+	ctx.Step(`^the pick response shows the generic not-found body$`, s.thePickResponseShowsTheGenericNotFoundBody)
 	ctx.Step(`^the player's saved pick for "([^"]*)" is "([^"]*)"$`, s.thePlayersSavedPickForIs)
 	ctx.Step(`^the player has no saved pick for "([^"]*)"$`, s.thePlayerHasNoSavedPickFor)
 	ctx.Step(`^the Predict screen shows the set row for "([^"]*)" with status "([^"]*)"$`, s.thePredictScreenShowsTheSetRowWithStatus)

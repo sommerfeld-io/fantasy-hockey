@@ -136,7 +136,7 @@ action_items:
       and document an explicit alternative unlock mechanism) before Story 3.2 ships
       any pickable set that starts upcoming: true"
     owner: "Epic 3 / Story 3.2 owner"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-2-retro-item-9-factor-the-3-4-independent-roster-member"
     epic: 2
@@ -144,14 +144,14 @@ action_items:
       divisionRoster/allBelongToRoster, nhlPlayerBySlug/isValidAwardFinalist) into
       one shared shape before adding a 4th/5th pickable sheet kind"
     owner: "Epic 3 first-playoff-picks-story owner"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-2-retro-item-10-split-internal-web-web-go-along-sheet-ki"
     epic: 2
     action: "Split internal/web/web.go along sheet-kind boundaries (same package,
       multiple files) before Epic 3 adds more pickable kinds on top of it"
     owner: "next contributor touching internal/web"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-2-retro-item-11-correct-two-stale-doc-comments-newteamop"
     epic: 2
@@ -203,7 +203,7 @@ action_items:
       and the repeated lazy-fixture+ensureReady scenario-state pattern across 4 step
       files) into a shared helper before Epic 3 adds more"
     owner: "Epic 3 owner"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-2-retro-item-18-decide-whether-internal-store-should-own"
     epic: 2

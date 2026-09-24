@@ -64,6 +64,19 @@ Feature: Cup Champion and Presidents' Trophy Picks
     And the pick sheet shows the team "TOR" preselected
     And the pick sheet shows no submit button
 
+  Scenario: An Upcoming set cannot be opened by direct URL
+    Given the "cup" Prediction Set is upcoming with a deadline "in 5 days"
+    When the player opens the cup-picks Prediction Set "cup"
+    Then the pick response status is 404
+    And the pick response shows the generic not-found body
+
+  Scenario: An Upcoming set cannot be submitted by direct POST, nothing is saved
+    Given the "cup" Prediction Set is upcoming with a deadline "in 5 days"
+    When the player submits team "TOR" for the Prediction Set "cup"
+    Then the pick response status is 404
+    And the pick response shows the generic not-found body
+    And the player has no saved pick for "cup"
+
   Scenario: A Prediction Set id that isn't cup, presidents, divisions, or awards still shows the static stub
     Given a stub Prediction Set "playoffcup" titled "Playoffs Cup pick" with a deadline "in 5 days"
     When the player opens the cup-picks Prediction Set "playoffcup"

@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 
 	"github.com/cucumber/godog"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
-	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
@@ -58,30 +55,8 @@ type loadCanonicalNHLPlayerListScenarioState struct {
 	lastStatus    int
 }
 
-// newLoadCanonicalNHLPlayerListStore bootstraps a store backed by
-// loadCanonicalNHLPlayerListSeed, so store.New's own parsing is exercised
-// end-to-end against a well-formed nhl_players: section, not just the
-// unit-level yaml.Unmarshal calls in internal/store's own tests. It returns
-// the seeded data file's path alongside the store so the caller can clean up
-// the temp directory once the scenario ends.
-func newLoadCanonicalNHLPlayerListStore() (*store.Store, string) {
-	dir, err := os.MkdirTemp("", "fantasy-hockey-load-canonical-nhl-player-list-*")
-	if err != nil {
-		panic(fmt.Sprintf("create temp dir: %v", err))
-	}
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(loadCanonicalNHLPlayerListSeed), 0o600); err != nil {
-		panic(fmt.Sprintf("seed file: %v", err))
-	}
-	st, err := store.New(path)
-	if err != nil {
-		panic(fmt.Sprintf("store.New: %v", err))
-	}
-	return st, path
-}
-
 func newLoadCanonicalNHLPlayerListScenarioState() *loadCanonicalNHLPlayerListScenarioState {
-	st, dataFile := newLoadCanonicalNHLPlayerListStore()
+	st, dataFile := newSeededStore("load-canonical-nhl-player-list", loadCanonicalNHLPlayerListSeed)
 	return &loadCanonicalNHLPlayerListScenarioState{
 		dataFile: dataFile,
 		server:   httptest.NewServer(web.NewServer(st, noopSender, testSessionSecret)),
@@ -90,7 +65,7 @@ func newLoadCanonicalNHLPlayerListScenarioState() *loadCanonicalNHLPlayerListSce
 
 func (s *loadCanonicalNHLPlayerListScenarioState) close() {
 	s.server.Close()
-	_ = os.RemoveAll(filepath.Dir(s.dataFile)) // best-effort cleanup of the scenario's temp dir
+	removeScenarioDataFile(s.dataFile)
 }
 
 // aDataFileWhoseNHLPlayersSectionHoldsASampleOfPositions is a no-op: the

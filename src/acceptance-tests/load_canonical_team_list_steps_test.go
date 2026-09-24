@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 
 	"github.com/cucumber/godog"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
-	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
@@ -66,30 +63,8 @@ type loadCanonicalTeamListScenarioState struct {
 	lastStatus    int
 }
 
-// newLoadCanonicalTeamListStore bootstraps a store backed by
-// loadCanonicalTeamListSeed, so store.New's own parsing is exercised
-// end-to-end against a well-formed teams: section, not just the unit-level
-// yaml.Unmarshal calls in internal/store's own tests. It returns the seeded
-// data file's path alongside the store so the caller can clean up the temp
-// directory once the scenario ends.
-func newLoadCanonicalTeamListStore() (*store.Store, string) {
-	dir, err := os.MkdirTemp("", "fantasy-hockey-load-canonical-team-list-*")
-	if err != nil {
-		panic(fmt.Sprintf("create temp dir: %v", err))
-	}
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(loadCanonicalTeamListSeed), 0o600); err != nil {
-		panic(fmt.Sprintf("seed file: %v", err))
-	}
-	st, err := store.New(path)
-	if err != nil {
-		panic(fmt.Sprintf("store.New: %v", err))
-	}
-	return st, path
-}
-
 func newLoadCanonicalTeamListScenarioState() *loadCanonicalTeamListScenarioState {
-	st, dataFile := newLoadCanonicalTeamListStore()
+	st, dataFile := newSeededStore("load-canonical-team-list", loadCanonicalTeamListSeed)
 	return &loadCanonicalTeamListScenarioState{
 		dataFile: dataFile,
 		server:   httptest.NewServer(web.NewServer(st, noopSender, testSessionSecret)),
@@ -98,7 +73,7 @@ func newLoadCanonicalTeamListScenarioState() *loadCanonicalTeamListScenarioState
 
 func (s *loadCanonicalTeamListScenarioState) close() {
 	s.server.Close()
-	_ = os.RemoveAll(filepath.Dir(s.dataFile)) // best-effort cleanup of the scenario's temp dir
+	removeScenarioDataFile(s.dataFile)
 }
 
 // aDataFileWhoseTeamsSectionHoldsASampleOfCanonicalTeams is a no-op: the
