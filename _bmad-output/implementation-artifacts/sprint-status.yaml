@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-24-2026 21:10
+last_updated: 09-24-2026 21:32
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -52,11 +52,11 @@ development_status:
   2-6-player-awards-finalists: done
   epic-2-retrospective: done
 
-  epic-3: in-progress
+  epic-3: done
   3-1-playoffs-cup-pick: done
   3-2-round-unlocking-based-on-recorded-matchups: done
   3-3-per-round-series-predictions: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   epic-4: backlog
   4-1-automatic-scoring-engine: backlog
@@ -215,3 +215,58 @@ action_items:
     owner: "John (PM) / Winston (Architect)"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-3-retro-item-19-move-the-series-key-format-serieskeysepa"
+    epic: 3
+    action: "Move the series-key format (seriesKeySeparator, joinSeriesKey, splitSeriesKey)
+      and the playoff round-set ids from internal/web into internal/store before story
+      4-1, so internal/scoring can read series picks without importing internal/web;
+      settle epic-2 item 18 (division vocabulary) in the same change"
+    owner: "Winston (Architect) / dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-20-set-upcoming-true-for-r1-in-src-fantasy"
+    epic: 3
+    action: "Set upcoming: true for r1 in src/fantasy-hockey.yml (it is Open in preseason
+      with only a placeholder) and flip it by hand together with playoffcup once the
+      playoff field is set"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-21-write-a-playoffs-operator-runbook-in-doc"
+    epic: 3
+    action: "Write a playoffs operator runbook in docs/: which sets to flip and when,
+      the playoff_matchups shape with a unique key per series, and stop the app before
+      editing fantasy-hockey.yml"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-22-hoist-the-duplicated-acceptance-test-hel"
+    epic: 3
+    action: "Hoist the duplicated acceptance-test helpers (setRowFragment x4, theSignedInPlayerIs
+      variants, team-name fixture maps, series group fragment) into fixture_support_test.go
+      before Epic 4 adds step files; supersedes epic-2 item 12"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-23-carry-open-retrospective-action-items-in"
+    epic: 3
+    action: "Carry open retrospective action items into the next epic context file
+      as explicit tasks (epic-2 items 11-16 and 18 went through Epic 3 untouched)"
+    owner: "Sprint planning / epic context owner"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-24-reconcile-specs-to-as-built-epics-md-sto"
+    epic: 3
+    action: "Reconcile specs to as-built: epics.md Story 3.2 AC2 needs an app restart
+      after a hand edit (AD-27); spec-3-3 Code Map validation bullet should describe
+      the silent skip of half-filled series"
+    owner: "John (PM)"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-25-name-the-story-id-in-each-story-commit-b"
+    epic: 3
+    action: "Name the story id in each story commit body or footer (e.g. Story: 3-3)
+      so retrospective tooling can attribute commits"
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
