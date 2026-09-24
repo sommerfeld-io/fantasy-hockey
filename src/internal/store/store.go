@@ -79,6 +79,11 @@ const (
 	KindCupChampion      = "cup"
 	KindPresidentsTrophy = "presidents"
 
+	// KindPlayoffsCup is Story 3.1's second, independently-stored Cup pick,
+	// made once the playoff field is set - a distinct (PlayerID, Kind) row
+	// from KindCupChampion's, so neither ever overwrites the other.
+	KindPlayoffsCup = "playoffcup"
+
 	// KindDivisionPlayoffTeams and KindDivisionWinner are Story 2.4's two
 	// division-scoped Kind values: unlike KindCupChampion/
 	// KindPresidentsTrophy, neither matches a Prediction Set id directly

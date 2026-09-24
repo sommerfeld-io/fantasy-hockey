@@ -16,23 +16,22 @@ import (
 
 // TestGetPredictSheetShouldRenderTheStubPageForAKnownSet covers a Prediction
 // Set id that isn't one of pickableSheetKinds - every id but "cup"/
-// "presidents"/divisionsSetID/awardsSetID keeps rendering the unchanged stub
-// (Boundaries & Constraints). "playoffcup" (Epic 3's own future re-pick set,
-// per the click-dummy App.jsx's own SETS list) is the next remaining stub id
-// once Story 2.6 makes "awards" real, matching Story 2.3/2.4's own
-// precedent of repointing this stub-proof test off the id it just made
-// real.
+// "presidents"/"playoffcup"/divisionsSetID/awardsSetID keeps rendering the
+// unchanged stub (Boundaries & Constraints). "r1" (Epic 3's own future round-1
+// series-picks set) is the next remaining stub id once Story 3.1 makes
+// "playoffcup" real, matching Story 2.3/2.4/2.6's own precedent of
+// repointing this stub-proof test off the id it just made real.
 func TestGetPredictSheetShouldRenderTheStubPageForAKnownSet(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	seed := fmt.Sprintf(`    - id: playoffcup
-      title: Playoffs Cup pick
-      subtitle: Re-pick the Stanley Cup winner
+	seed := fmt.Sprintf(`    - id: r1
+      title: Playoff round 1
+      subtitle: 8 series — winner & length
       deadline_utc: %q
       phase: playoffs
       upcoming: false
 `, deadline.Format(time.RFC3339))
 
-	req := httptest.NewRequest("GET", "/predict/playoffcup", nil)
+	req := httptest.NewRequest("GET", "/predict/r1", nil)
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
@@ -42,7 +41,7 @@ func TestGetPredictSheetShouldRenderTheStubPageForAKnownSet(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Playoffs Cup pick") {
+	if !strings.Contains(body, "Playoff round 1") {
 		t.Errorf("expected the sheet title, got %q", body)
 	}
 	if !strings.Contains(body, "in 5 days") {
@@ -61,15 +60,15 @@ func TestGetPredictSheetShouldRenderTheStubPageForAKnownSet(t *testing.T) {
 // stub, never the cup/presidents/divisions/awards closed read-only banner.
 func TestGetPredictSheetShouldRenderTheStubPageForAClosedSet(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
-	seed := fmt.Sprintf(`    - id: playoffcup
-      title: Playoffs Cup pick
-      subtitle: Re-pick the Stanley Cup winner
+	seed := fmt.Sprintf(`    - id: r1
+      title: Playoff round 1
+      subtitle: 8 series — winner & length
       deadline_utc: %q
       phase: playoffs
       upcoming: false
 `, deadline.Format(time.RFC3339))
 
-	req := httptest.NewRequest("GET", "/predict/playoffcup", nil)
+	req := httptest.NewRequest("GET", "/predict/r1", nil)
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
@@ -79,7 +78,7 @@ func TestGetPredictSheetShouldRenderTheStubPageForAClosedSet(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Playoffs Cup pick") {
+	if !strings.Contains(body, "Playoff round 1") {
 		t.Errorf("expected the sheet title, got %q", body)
 	}
 	if !strings.Contains(body, "closed") {
@@ -333,6 +332,93 @@ func TestPostPredictSheetShouldSaveAValidPickForPresidentsAndShowSubmittedOnRelo
 	}
 }
 
+// TestPostPredictSheetShouldSaveAValidPickForPlayoffsCupAndShowSubmittedOnReload
+// proves the shared pick-entry mechanic end-to-end for "playoffcup" too, not
+// only "cup"/"presidents": save, redirect, a reopened sheet pre-filled with
+// "Update predictions", and the Predict list showing Submitted for that row.
+func TestPostPredictSheetShouldSaveAValidPickForPlayoffsCupAndShowSubmittedOnReload(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	st := newTestStoreWithPredictionSetsAndTeams(t, playoffsCupPredictionSetSeed(deadline))
+	handler := NewServer(st, noopSender, testSecret)
+
+	rec := postSheet(t, handler, store.KindPlayoffsCup, "VGK")
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status %d, got %d", http.StatusFound, rec.Code)
+	}
+	if rec.Header().Get("Location") != "/predict" {
+		t.Errorf("expected a redirect to %q, got %q", "/predict", rec.Header().Get("Location"))
+	}
+
+	prediction, ok := st.FindPrediction("basti", store.KindPlayoffsCup)
+	if !ok {
+		t.Fatal("expected a saved Prediction row for playoffcup")
+	}
+	if prediction.TeamID != "VGK" {
+		t.Errorf("expected team id %q, got %q", "VGK", prediction.TeamID)
+	}
+
+	reopenReq := httptest.NewRequest("GET", "/predict/playoffcup", nil)
+	reopenReq.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	reopenRec := httptest.NewRecorder()
+	handler.ServeHTTP(reopenRec, reopenReq)
+
+	reopenBody := reopenRec.Body.String()
+	if !strings.Contains(reopenBody, `<form class="pick-form" method="post" action="/predict/playoffcup">`) {
+		t.Errorf("expected the playoffcup sheet to submit to /predict/playoffcup, got %q", reopenBody)
+	}
+	if !strings.Contains(reopenBody, `<option value="VGK" selected>Vegas Golden Knights</option>`) {
+		t.Errorf("expected the saved playoffcup pick preselected on reload, got %q", reopenBody)
+	}
+	if !strings.Contains(reopenBody, `>Update predictions</button>`) {
+		t.Errorf("expected the button to read \"Update predictions\" on reload, got %q", reopenBody)
+	}
+
+	predictReq := httptest.NewRequest("GET", "/predict", nil)
+	predictReq.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	predictRec := httptest.NewRecorder()
+	handler.ServeHTTP(predictRec, predictReq)
+
+	if !strings.Contains(predictRec.Body.String(), `<a id="predict-row-playoffcup" href="/predict/playoffcup" class="set-row set-row--submitted">`) {
+		t.Errorf("expected the playoffcup row to show Submitted on the Predict list, got %q", predictRec.Body.String())
+	}
+}
+
+// TestPostPredictSheetShouldNotOverwriteTheSeasonCupPickWhenSavingPlayoffsCup
+// proves the Intent's independence requirement: saving a playoffcup pick
+// never touches the player's already-saved season-opening cup pick, since
+// the two are distinct (PlayerID, Kind) rows.
+func TestPostPredictSheetShouldNotOverwriteTheSeasonCupPickWhenSavingPlayoffsCup(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline)+playoffsCupPredictionSetSeed(deadline))
+	if err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
+		t.Fatalf("seed SavePrediction: %v", err)
+	}
+	handler := NewServer(st, noopSender, testSecret)
+
+	rec := postSheet(t, handler, store.KindPlayoffsCup, "VGK")
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status %d, got %d", http.StatusFound, rec.Code)
+	}
+
+	playoffsCupPick, ok := st.FindPrediction("basti", store.KindPlayoffsCup)
+	if !ok {
+		t.Fatal("expected a saved playoffcup Prediction row")
+	}
+	if playoffsCupPick.TeamID != "VGK" {
+		t.Errorf("expected the playoffcup pick to be %q, got %q", "VGK", playoffsCupPick.TeamID)
+	}
+
+	seasonCupPick, ok := st.FindPrediction("basti", store.KindCupChampion)
+	if !ok {
+		t.Fatal("expected the season-opening cup Prediction row to still exist")
+	}
+	if seasonCupPick.TeamID != "TOR" {
+		t.Errorf("expected the season-opening cup pick to remain %q, got %q", "TOR", seasonCupPick.TeamID)
+	}
+}
+
 func TestPostPredictSheetShouldUpdateAnExistingPickInPlaceOnResubmission(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline))
@@ -496,22 +582,22 @@ prediction_sets:
 }
 
 // TestPostPredictSheetShouldReturn404ForANonPickableSetID covers a
-// Prediction Set id that isn't one of pickableSheetKinds - "playoffcup"
-// (Epic 3's own future re-pick set) is the next remaining non-pickable id
-// once Story 2.6 makes "awards" real, mirroring the stub-page tests' own
+// Prediction Set id that isn't one of pickableSheetKinds - "r1" (Epic 3's
+// own future round-1 series-picks set) is the next remaining non-pickable id
+// once Story 3.1 makes "playoffcup" real, mirroring the stub-page tests' own
 // repointing above.
 func TestPostPredictSheetShouldReturn404ForANonPickableSetID(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	seed := fmt.Sprintf(`    - id: playoffcup
-      title: Playoffs Cup pick
-      subtitle: Re-pick the Stanley Cup winner
+	seed := fmt.Sprintf(`    - id: r1
+      title: Playoff round 1
+      subtitle: 8 series — winner & length
       deadline_utc: %q
       phase: playoffs
       upcoming: false
 `, deadline.Format(time.RFC3339))
 	handler := NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret)
 
-	rec := postSheet(t, handler, "playoffcup", "TOR")
+	rec := postSheet(t, handler, "r1", "TOR")
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected status %d, got %d", http.StatusNotFound, rec.Code)
@@ -679,6 +765,18 @@ var upcomingGateCases = []struct {
 		},
 	},
 	{
+		id:       store.KindPlayoffsCup,
+		newStore: newTestStoreWithPredictionSetsAndTeams,
+		seed:     playoffsCupPredictionSetSeed,
+		post: func(t *testing.T, handler http.Handler) *httptest.ResponseRecorder {
+			return postSheet(t, handler, store.KindPlayoffsCup, "TOR")
+		},
+		saved: func(st *store.Store) bool {
+			_, ok := st.FindPrediction("basti", store.KindPlayoffsCup)
+			return ok
+		},
+	},
+	{
 		id:       divisionsSetID,
 		newStore: newTestStoreWithDivisionTeams,
 		seed:     divisionsPredictionSetSeed,
@@ -754,15 +852,15 @@ func TestPredictSheetShouldStillServeAndSaveEveryNonUpcomingOpenPickableKind(t *
 // applies to every set kind, not only the pickable ones.
 func TestGetPredictSheetShouldReturn404ForAnUpcomingStubSet(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	seed := fmt.Sprintf(`    - id: playoffcup
-      title: Playoffs Cup pick
-      subtitle: Re-pick the Stanley Cup winner
+	seed := fmt.Sprintf(`    - id: r1
+      title: Playoff round 1
+      subtitle: 8 series — winner & length
       deadline_utc: %q
       phase: playoffs
       upcoming: true
 `, deadline.Format(time.RFC3339))
 
-	rec := getSheet(t, NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret), "playoffcup")
+	rec := getSheet(t, NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret), "r1")
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected status %d for an upcoming stub set, got %d", http.StatusNotFound, rec.Code)

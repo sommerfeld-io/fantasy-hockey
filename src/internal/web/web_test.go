@@ -140,6 +140,19 @@ func presidentsPredictionSetSeed(deadline time.Time) string {
 `, deadline.Format(time.RFC3339))
 }
 
+// playoffsCupPredictionSetSeed is one "playoffcup" Prediction Set's raw
+// prediction_sets YAML block with deadline as its deadline_utc - Story 3.1's
+// pickable id, sharing cup/presidents' own pick-entry sheet mechanic.
+func playoffsCupPredictionSetSeed(deadline time.Time) string {
+	return fmt.Sprintf(`    - id: playoffcup
+      title: Playoffs Cup pick
+      subtitle: Re-pick the Stanley Cup winner
+      deadline_utc: %q
+      phase: playoffs
+      upcoming: false
+`, deadline.Format(time.RFC3339))
+}
+
 // assertRedirectsToLoginWithNoCookie asserts rec is a 302 to /login carrying
 // no Set-Cookie header - a regression that both redirected and leaked/
 // re-issued a cookie on this path would otherwise go unnoticed.

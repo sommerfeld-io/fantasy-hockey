@@ -24,12 +24,14 @@ const awardsSetID = "awards"
 
 // pickableSheetKinds is the set of Prediction Set ids that get a real
 // pick-entry form instead of the static stub - Story 2.3's single-team
-// dropdown for the "cup" and "presidents" ids, Story 2.4's checkbox-chip
+// dropdown for the "cup" and "presidents" ids, Story 3.1's identical
+// single-team dropdown for the "playoffcup" id, Story 2.4's checkbox-chip
 // form for divisionsSetID, Story 2.6's finalist form for awardsSetID. Every
 // other id keeps rendering the stub unchanged.
 var pickableSheetKinds = map[string]bool{
 	store.KindCupChampion:      true,
 	store.KindPresidentsTrophy: true,
+	store.KindPlayoffsCup:      true,
 	divisionsSetID:             true,
 	awardsSetID:                true,
 }

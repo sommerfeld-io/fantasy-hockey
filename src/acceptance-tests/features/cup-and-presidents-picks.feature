@@ -77,9 +77,9 @@ Feature: Cup Champion and Presidents' Trophy Picks
     And the pick response shows the generic not-found body
     And the player has no saved pick for "cup"
 
-  Scenario: A Prediction Set id that isn't cup, presidents, divisions, or awards still shows the static stub
-    Given a stub Prediction Set "playoffcup" titled "Playoffs Cup pick" with a deadline "in 5 days"
-    When the player opens the cup-picks Prediction Set "playoffcup"
+  Scenario: A Prediction Set id that isn't cup, presidents, playoffcup, divisions, or awards still shows the static stub
+    Given a stub Prediction Set "r1" titled "Playoff round 1" with a deadline "in 5 days"
+    When the player opens the cup-picks Prediction Set "r1"
     Then the pick sheet shows "Not available yet."
     And the pick sheet shows no team dropdown
 
