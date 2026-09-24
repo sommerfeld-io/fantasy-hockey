@@ -65,7 +65,7 @@ prediction_sets:
       subtitle: 8 series — winner & length
       deadline_utc: "2027-04-18T16:00:00Z"
       phase: playoffs
-      upcoming: false
+      upcoming: true
     - id: r2
       title: Playoff round 2
       subtitle: Set once round 1 ends
