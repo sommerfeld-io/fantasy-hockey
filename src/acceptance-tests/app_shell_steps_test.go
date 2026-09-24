@@ -84,8 +84,8 @@ func (s *appShellScenarioState) close() {
 }
 
 func (s *appShellScenarioState) thePlayerIsSignedIn(name string) error {
-	if name != appShellPlayerName {
-		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, appShellPlayerName)
+	if err := requireSeededPlayer(name, appShellPlayerName); err != nil {
+		return err
 	}
 	s.sessionCookie = auth.IssueSessionCookie(appShellPlayerID, testSessionSecret)
 	return nil

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
@@ -210,4 +211,72 @@ func (f *lazyFixture) do(method, path, body string) error {
 	f.lastLocation = resp.Header.Get("Location")
 	f.lastBody = string(respBody)
 	return nil
+}
+
+// sampleTeamNames maps the team ids that the cup-and-presidents picks and
+// playoffs Cup pick Backgrounds declare to their display names. It is a
+// small sample, not the full 32-team roster, because those scenarios only
+// need a couple of teams to pick from. Series predictions keeps its own
+// seriesPredictionsTeams because it also needs each team's conference.
+var sampleTeamNames = map[string]string{
+	"TOR": "Toronto Maple Leafs",
+	"VGK": "Vegas Golden Knights",
+}
+
+// requireSeededPlayer fails unless name is exactly want, the one player a
+// scenario seeds. The comparison is case-sensitive: a feature has to name
+// the seeded player the way the fixture spells it.
+func requireSeededPlayer(name, want string) error {
+	if name != want {
+		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, want)
+	}
+	return nil
+}
+
+// theSignedInPlayerIs validates name against the one player the fixture
+// seeds and signs requests in as (see do). It is promoted to every scenario
+// state that embeds lazyFixture, whatever step text each registers it under;
+// steps without a lazyFixture call requireSeededPlayer directly. It performs
+// no sign-in action itself - the session cookie do() attaches is
+// unconditional and doesn't depend on this step having run.
+func (f *lazyFixture) theSignedInPlayerIs(name string) error {
+	return requireSeededPlayer(name, f.playerName)
+}
+
+// setRowFragment isolates the single set row for id (the <a>/<div> with
+// id="predict-row-{id}" up to its closing tag) in the last response body so
+// an assertion about one row can't accidentally match text belonging to a
+// different row on the same page.
+func (f *lazyFixture) setRowFragment(id string) (string, error) {
+	marker := `id="predict-row-` + id + `"`
+	start := strings.Index(f.lastBody, marker)
+	if start == -1 {
+		return "", fmt.Errorf("expected a set row for %q, got %q", id, f.lastBody)
+	}
+	rest := f.lastBody[start:]
+	end := strings.Index(rest, "</a>")
+	if divEnd := strings.Index(rest, "</div>"); end == -1 || (divEnd != -1 && divEnd < end) {
+		end = divEnd
+	}
+	if end == -1 {
+		return "", fmt.Errorf("could not find the end of the set row for %q", id)
+	}
+	return rest[:end], nil
+}
+
+func TestRequireSeededPlayerShouldAcceptTheExactName(t *testing.T) {
+	if err := requireSeededPlayer("Basti", "Basti"); err != nil {
+		t.Fatalf("requireSeededPlayer(%q, %q) = %v, want nil", "Basti", "Basti", err)
+	}
+}
+
+func TestRequireSeededPlayerShouldRejectADifferentCase(t *testing.T) {
+	err := requireSeededPlayer("basti", "Basti")
+	if err == nil {
+		t.Fatalf("requireSeededPlayer(%q, %q) = nil, want an error", "basti", "Basti")
+	}
+	want := `no fixture for player "basti"; only "Basti" is seeded`
+	if err.Error() != want {
+		t.Fatalf("requireSeededPlayer error = %q, want %q", err.Error(), want)
+	}
 }

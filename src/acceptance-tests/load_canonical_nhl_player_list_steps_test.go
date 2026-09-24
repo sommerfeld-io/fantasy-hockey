@@ -83,8 +83,8 @@ func (s *loadCanonicalNHLPlayerListScenarioState) aDataFileWhoseNHLPlayersSectio
 // "the player ... is signed in" so none of the identically-shaped steps
 // registered in the same GoDog suite ever collide on the same step text.
 func (s *loadCanonicalNHLPlayerListScenarioState) theSeededPlayerIsLoggedInForThisScenario(name string) error {
-	if name != loadCanonicalNHLPlayerListPlayerName {
-		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, loadCanonicalNHLPlayerListPlayerName)
+	if err := requireSeededPlayer(name, loadCanonicalNHLPlayerListPlayerName); err != nil {
+		return err
 	}
 	s.sessionCookie = auth.IssueSessionCookie(loadCanonicalNHLPlayerListPlayerID, testSessionSecret)
 	return nil

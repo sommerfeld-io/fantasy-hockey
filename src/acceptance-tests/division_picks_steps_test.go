@@ -107,13 +107,6 @@ func newDivisionPicksScenarioState() *divisionPicksScenarioState {
 	return s
 }
 
-func (s *divisionPicksScenarioState) theSignedInPlayerIs(name string) error {
-	if strings.ToLower(name) != divisionPicksPlayerID {
-		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, divisionPicksPlayerName)
-	}
-	return nil
-}
-
 // theCanonicalDivisionTeamListIncludesTheFullRoster is a no-op: ensureReady
 // always seeds divisionPicksTeamsByDivision's full 32-team roster regardless
 // - this step exists only so the Background reads clearly as a Given.

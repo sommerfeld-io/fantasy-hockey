@@ -48,17 +48,6 @@ func newRoundUnlockingScenarioState() *roundUnlockingScenarioState {
 	return s
 }
 
-// theSignedInPlayerIs validates name against the one player fixture every
-// scenario in this feature seeds and signs requests in as (see
-// lazyFixture.do). It performs no sign-in action itself - the session cookie
-// do() attaches is unconditional and doesn't depend on this step having run.
-func (s *roundUnlockingScenarioState) theSignedInPlayerIs(name string) error {
-	if strings.ToLower(name) != roundUnlockingPlayerID {
-		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, roundUnlockingPlayerName)
-	}
-	return nil
-}
-
 // aPredictionSetExists declares a Prediction Set fixture with upcoming
 // always false - Story 3.2's own scenarios only ever need to prove a
 // round-gated id ignores that flag, never that it honors an upcoming: true
@@ -132,27 +121,6 @@ func (s *roundUnlockingScenarioState) thePlayerOpensThePredictScreen() error {
 
 func (s *roundUnlockingScenarioState) thePlayerOpensThePredictionSet(id string) error {
 	return s.do(http.MethodGet, "/predict/"+id, "")
-}
-
-// setRowFragment isolates the single set row for id (the <a>/<div> with
-// id="predict-row-{id}" up to its closing tag) so an assertion about one row
-// can't accidentally match text belonging to a different row on the same
-// page.
-func (s *roundUnlockingScenarioState) setRowFragment(id string) (string, error) {
-	marker := `id="predict-row-` + id + `"`
-	start := strings.Index(s.lastBody, marker)
-	if start == -1 {
-		return "", fmt.Errorf("expected a set row for %q, got %q", id, s.lastBody)
-	}
-	rest := s.lastBody[start:]
-	end := strings.Index(rest, "</a>")
-	if divEnd := strings.Index(rest, "</div>"); end == -1 || (divEnd != -1 && divEnd < end) {
-		end = divEnd
-	}
-	if end == -1 {
-		return "", fmt.Errorf("could not find the end of the set row for %q", id)
-	}
-	return rest[:end], nil
 }
 
 func (s *roundUnlockingScenarioState) theSetRowShowsTheStatus(id, status string) error {

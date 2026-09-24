@@ -73,3 +73,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-epic-3-retro-items-18-19-store-owned-playoff-and-division-ids.md`
   summary: The store now owns the division vocabulary (`store.Divisions()`) but never enforces it - a hand-maintained `Team.Division` typo (e.g. `Metropolitian`) silently drops those teams from every division-grouped dropdown and chip form, and `SaveDivisionPicks` accepts any division key.
   evidence: Verified real (blind-hunter + edge-case-hunter): `groupTeamsByDivision` only emits divisions listed in `store.Divisions()`, and nothing checks team data on load. Pre-existing behavior, not introduced by this move; it belongs with the already-deferred structured validation of hand-maintained sections (see the `playoff_matchups` validation entry from spec-3-3).
+
+## Deferred from: code review of spec-epic-3-retro-item-22-hoist-acceptance-test-helpers (2026-09-24)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-3-retro-item-22-hoist-acceptance-test-helpers.md`
+  summary: `theCanonicalTeamListIncludes` and its `{id, name, division}` team-fixture struct are still duplicated between `cup_and_presidents_picks_steps_test.go` and `playoffs_cup_pick_steps_test.go` - only their `sampleTeamNames` lookup map was hoisted.
+  evidence: Verified real (blind-hunter), but pre-existing and not among the helpers the item-22 Intent names; hoisting needs a shared fixture type in `fixture_support_test.go`. Worth doing before an Epic 4 step file adds a third copy.

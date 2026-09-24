@@ -135,13 +135,6 @@ func newAwardFinalistsScenarioState() *awardFinalistsScenarioState {
 	return s
 }
 
-func (s *awardFinalistsScenarioState) theSignedInPlayerIs(name string) error {
-	if strings.ToLower(name) != awardFinalistsPlayerID {
-		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, awardFinalistsPlayerName)
-	}
-	return nil
-}
-
 // theCanonicalNHLPlayerListIncludesASample is a no-op: ensureReady always
 // seeds awardFinalistsNHLPlayersYAML's roster regardless - this step exists
 // only so the Background reads clearly as a Given.

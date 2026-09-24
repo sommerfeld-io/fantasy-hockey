@@ -110,13 +110,6 @@ func newSeriesPredictionsScenarioState() *seriesPredictionsScenarioState {
 	return s
 }
 
-func (s *seriesPredictionsScenarioState) theSignedInPlayerIs(name string) error {
-	if strings.ToLower(name) != seriesPredictionsPlayerID {
-		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, seriesPredictionsPlayerName)
-	}
-	return nil
-}
-
 // theCanonicalTeamListIncludesTeamsFromBothConferences is a no-op:
 // ensureReady always seeds seriesPredictionsTeams' full roster regardless -
 // this step exists only so the Background reads clearly as a Given

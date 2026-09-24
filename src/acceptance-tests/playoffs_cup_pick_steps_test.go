@@ -23,14 +23,6 @@ const (
 	playoffsCupPickPlayerName = "Basti"
 )
 
-// playoffsCupPickTeamNames names the sample teams this feature's Background
-// declares by id - a small fixture, not the real file's full 32-team roster
-// (mirrors cup_and_presidents_picks_steps_test.go's own rationale).
-var playoffsCupPickTeamNames = map[string]string{
-	"TOR": "Toronto Maple Leafs",
-	"VGK": "Vegas Golden Knights",
-}
-
 // playoffsCupPickSetFixture is one Given-declared Prediction Set (either the
 // "playoffcup" set itself or, for the independence scenario, the
 // season-opening "cup" set), waiting to be written into the scenario's data
@@ -72,15 +64,8 @@ func newPlayoffsCupPickScenarioState() *playoffsCupPickScenarioState {
 	return s
 }
 
-func (s *playoffsCupPickScenarioState) theSignedInPlayerIs(name string) error {
-	if strings.ToLower(name) != playoffsCupPickPlayerID {
-		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, playoffsCupPickPlayerName)
-	}
-	return nil
-}
-
 func (s *playoffsCupPickScenarioState) theCanonicalTeamListIncludes(id, division string) error {
-	name, ok := playoffsCupPickTeamNames[id]
+	name, ok := sampleTeamNames[id]
 	if !ok {
 		return fmt.Errorf("no known display name for team id %q", id)
 	}
@@ -276,27 +261,6 @@ func (s *playoffsCupPickScenarioState) thePlayersSavedSeasonCupPickIsStill(teamI
 		return fmt.Errorf("expected the season-opening Cup champion pick to still be %q, got %q", teamID, prediction.TeamID)
 	}
 	return nil
-}
-
-// setRowFragment isolates the single set row for id (the <a>/<div> with
-// id="predict-row-{id}" up to its closing tag) so an assertion about one row
-// can't accidentally match text belonging to a different row on the same
-// page.
-func (s *playoffsCupPickScenarioState) setRowFragment(id string) (string, error) {
-	marker := `id="predict-row-` + id + `"`
-	start := strings.Index(s.lastBody, marker)
-	if start == -1 {
-		return "", fmt.Errorf("expected a set row for %q, got %q", id, s.lastBody)
-	}
-	rest := s.lastBody[start:]
-	end := strings.Index(rest, "</a>")
-	if divEnd := strings.Index(rest, "</div>"); end == -1 || (divEnd != -1 && divEnd < end) {
-		end = divEnd
-	}
-	if end == -1 {
-		return "", fmt.Errorf("could not find the end of the set row for %q", id)
-	}
-	return rest[:end], nil
 }
 
 func (s *playoffsCupPickScenarioState) thePredictScreenShowsThePlayoffsCupSetRowWithStatus(status string) error {

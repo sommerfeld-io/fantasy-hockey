@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-24-2026 22:15
+last_updated: 09-24-2026 22:26
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -169,14 +169,14 @@ action_items:
     action: "Hoist the duplicated setRowFragment acceptance-test helper (browse_prediction_sets_steps_test.go
       and cup_and_presidents_picks_steps_test.go) into one shared helper"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-2-retro-item-13-standardize-thefixtureplayeris-theseeded"
     epic: 2
     action: "Standardize theFixturePlayerIs/theSeededPlayerHasAValidSession on exact-case
       player-name comparison"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-2-retro-item-14-add-and-the-shell-shows-the-predict-cont"
     epic: 2
@@ -246,7 +246,7 @@ action_items:
       variants, team-name fixture maps, series group fragment) into fixture_support_test.go
       before Epic 4 adds step files; supersedes epic-2 item 12"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
   - id: "epic-3-retro-item-23-carry-open-retrospective-action-items-in"
     epic: 3

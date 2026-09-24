@@ -51,17 +51,6 @@ func newBrowsePredictionSetsScenarioState() *browsePredictionSetsScenarioState {
 	return s
 }
 
-// theFixturePlayerIs validates name against the one player fixture every
-// scenario in this feature seeds and signs requests in as (see
-// lazyFixture.do). It performs no sign-in action itself - the session cookie
-// do() attaches is unconditional and doesn't depend on this step having run.
-func (s *browsePredictionSetsScenarioState) theFixturePlayerIs(name string) error {
-	if strings.ToLower(name) != browsePredictionSetsPlayerID {
-		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, browsePredictionSetsPlayerName)
-	}
-	return nil
-}
-
 func (s *browsePredictionSetsScenarioState) addPredictionSet(id, title, subtitle, phase, deadlinePhrase string, upcoming bool) error {
 	deadline, err := parseRelativeDeadline(deadlinePhrase, time.Now().UTC())
 	if err != nil {
@@ -121,27 +110,6 @@ func (s *browsePredictionSetsScenarioState) thePredictScreenShowsTheSection(labe
 		return fmt.Errorf("expected the Predict screen to show the %q section, got %q", label, s.lastBody)
 	}
 	return nil
-}
-
-// setRowFragment isolates the single set row for id (the <a>/<div> with
-// id="predict-row-{id}" up to its closing tag) so an assertion about one row
-// can't accidentally match text belonging to a different row on the same
-// page.
-func (s *browsePredictionSetsScenarioState) setRowFragment(id string) (string, error) {
-	marker := `id="predict-row-` + id + `"`
-	start := strings.Index(s.lastBody, marker)
-	if start == -1 {
-		return "", fmt.Errorf("expected a set row for %q, got %q", id, s.lastBody)
-	}
-	rest := s.lastBody[start:]
-	end := strings.Index(rest, "</a>")
-	if divEnd := strings.Index(rest, "</div>"); end == -1 || (divEnd != -1 && divEnd < end) {
-		end = divEnd
-	}
-	if end == -1 {
-		return "", fmt.Errorf("could not find the end of the set row for %q", id)
-	}
-	return rest[:end], nil
 }
 
 func (s *browsePredictionSetsScenarioState) theSetRowShowsTheTitle(id, title string) error {
@@ -259,7 +227,7 @@ func InitializeBrowsePredictionSetsScenario(ctx *godog.ScenarioContext) {
 		return gctx, nil
 	})
 
-	ctx.Step(`^the fixture player is "([^"]*)"$`, s.theFixturePlayerIs)
+	ctx.Step(`^the fixture player is "([^"]*)"$`, s.theSignedInPlayerIs)
 	ctx.Step(`^a Prediction Set "([^"]*)" titled "([^"]*)" with subtitle "([^"]*)" in phase "([^"]*)" with a deadline "([^"]*)"$`, s.aPredictionSetExists)
 	ctx.Step(`^an upcoming Prediction Set "([^"]*)" titled "([^"]*)" with subtitle "([^"]*)" in phase "([^"]*)" with a deadline "([^"]*)"$`, s.anUpcomingPredictionSetExists)
 	ctx.Step(`^the player opens the Predict screen$`, s.thePlayerOpensThePredictScreen)

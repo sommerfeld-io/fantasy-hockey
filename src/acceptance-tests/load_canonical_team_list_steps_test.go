@@ -90,8 +90,8 @@ func (s *loadCanonicalTeamListScenarioState) aDataFileWhoseTeamsSectionHoldsASam
 // so the two identically-shaped steps registered in the same GoDog suite
 // never collide on the same step text.
 func (s *loadCanonicalTeamListScenarioState) theSeededPlayerHasAValidSession(name string) error {
-	if name != loadCanonicalTeamListPlayerName {
-		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, loadCanonicalTeamListPlayerName)
+	if err := requireSeededPlayer(name, loadCanonicalTeamListPlayerName); err != nil {
+		return err
 	}
 	s.sessionCookie = auth.IssueSessionCookie(loadCanonicalTeamListPlayerID, testSessionSecret)
 	return nil

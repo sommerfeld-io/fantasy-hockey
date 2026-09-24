@@ -32,14 +32,6 @@ var knownCupAndPresidentsPredictionSetBases = map[string]struct{ title, subtitle
 	store.KindPresidentsTrophy: {"Presidents' Trophy", "Best regular-season record", "before_season"},
 }
 
-// cupAndPresidentsTeamNames names the sample teams this feature's Background
-// declares by id - a small fixture, not the real file's full 32-team roster
-// (mirrors load_canonical_team_list_steps_test.go's own rationale).
-var cupAndPresidentsTeamNames = map[string]string{
-	"TOR": "Toronto Maple Leafs",
-	"VGK": "Vegas Golden Knights",
-}
-
 // cupAndPresidentsPredictionSetFixture is one Given-declared Prediction Set,
 // waiting to be written into the scenario's data file the first time a step
 // needs a running server.
@@ -80,15 +72,8 @@ func newCupAndPresidentsPicksScenarioState() *cupAndPresidentsPicksScenarioState
 	return s
 }
 
-func (s *cupAndPresidentsPicksScenarioState) theSignedInPlayerIs(name string) error {
-	if strings.ToLower(name) != cupAndPresidentsPicksPlayerID {
-		return fmt.Errorf("no fixture for player %q; only %q is seeded", name, cupAndPresidentsPicksPlayerName)
-	}
-	return nil
-}
-
 func (s *cupAndPresidentsPicksScenarioState) theCanonicalTeamListIncludes(id, division string) error {
-	name, ok := cupAndPresidentsTeamNames[id]
+	name, ok := sampleTeamNames[id]
 	if !ok {
 		return fmt.Errorf("no known display name for team id %q", id)
 	}
@@ -277,27 +262,6 @@ func (s *cupAndPresidentsPicksScenarioState) thePlayerHasNoSavedPickFor(kind str
 		return fmt.Errorf("expected no saved pick for %q, found one", kind)
 	}
 	return nil
-}
-
-// setRowFragment isolates the single set row for id (the <a>/<div> with
-// id="predict-row-{id}" up to its closing tag) so an assertion about one row
-// can't accidentally match text belonging to a different row on the same
-// page.
-func (s *cupAndPresidentsPicksScenarioState) setRowFragment(id string) (string, error) {
-	marker := `id="predict-row-` + id + `"`
-	start := strings.Index(s.lastBody, marker)
-	if start == -1 {
-		return "", fmt.Errorf("expected a set row for %q, got %q", id, s.lastBody)
-	}
-	rest := s.lastBody[start:]
-	end := strings.Index(rest, "</a>")
-	if divEnd := strings.Index(rest, "</div>"); end == -1 || (divEnd != -1 && divEnd < end) {
-		end = divEnd
-	}
-	if end == -1 {
-		return "", fmt.Errorf("could not find the end of the set row for %q", id)
-	}
-	return rest[:end], nil
 }
 
 func (s *cupAndPresidentsPicksScenarioState) thePredictScreenShowsTheSetRowWithStatus(id, status string) error {
