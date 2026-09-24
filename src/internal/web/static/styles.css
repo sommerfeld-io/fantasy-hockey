@@ -648,7 +648,8 @@ select:disabled option {
   cursor: pointer;
 }
 
-.chip:has(input:checked) {
+.chip:has(input:checked),
+.series-btn:has(input:checked) {
   background: var(--sel);
   border-color: var(--ice);
   color: var(--text);
@@ -854,12 +855,6 @@ select:disabled option {
   height: 100%;
   margin: 0;
   cursor: pointer;
-}
-
-.series-btn:has(input:checked) {
-  background: var(--sel);
-  border-color: var(--ice);
-  color: var(--text);
 }
 
 .series-btn:has(input:disabled) {

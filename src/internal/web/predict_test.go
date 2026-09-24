@@ -293,6 +293,90 @@ func TestPredictShouldLeaveR1UnaffectedByAbsentPlayoffMatchups(t *testing.T) {
 	}
 }
 
+// TestPredictShouldLeaveR1UpcomingByItsOwnFlagEvenWithR1MatchupsRecorded
+// covers "r1" with playoff_matchups present for r1 itself: r1 isn't one of
+// roundGatedSetIDs, so recording its series must not unlock it - its own
+// upcoming: true still keeps it Upcoming.
+func TestPredictShouldLeaveR1UpcomingByItsOwnFlagEvenWithR1MatchupsRecorded(t *testing.T) {
+	seed := fmt.Sprintf(`    - id: r1
+      title: Playoff round 1
+      subtitle: 8 series — winner & length
+      deadline_utc: %q
+      phase: playoffs
+      upcoming: true
+`, time.Now().UTC().Add(5*24*time.Hour).Format(time.RFC3339))
+	matchups := `    r1:
+        - key: s1
+          a: FLA
+          b: TOR
+`
+
+	req := httptest.NewRequest("GET", "/predict", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret).ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `class="status-pill status-pill--upcoming">Upcoming</span>`) {
+		t.Errorf("expected r1 to stay Upcoming per its own flag despite recorded r1 matchups, got %q", body)
+	}
+	if strings.Contains(body, `<a id="predict-row-r1"`) {
+		t.Errorf("expected no link for an Upcoming r1, got %q", body)
+	}
+}
+
+// gatedRoundsSeed seeds "r2", "cf" and "scf" at upcoming: true - exactly as
+// today's real fantasy-hockey.yml does - so only recorded matchups decide
+// which of them unlock.
+func gatedRoundsSeed(deadline time.Time) string {
+	var b strings.Builder
+	for _, id := range []string{round2SetID, conferenceFinalsSetID, stanleyCupFinalSetID} {
+		fmt.Fprintf(&b, `    - id: %s
+      title: Round %s
+      subtitle: Set once the prior round ends
+      deadline_utc: %q
+      phase: playoffs
+      upcoming: true
+`, id, id, deadline.Format(time.RFC3339))
+	}
+	return b.String()
+}
+
+// r2OnlyMatchupsYAML records a matchup for "r2" only.
+const r2OnlyMatchupsYAML = `    r2:
+        - key: s1
+          a: FLA
+          b: TOR
+`
+
+// TestPredictShouldUnlockOnlyTheRoundWhoseMatchupsAreRecorded covers each
+// round unlocking independently: matchups recorded under "r2" alone open
+// r2, while "cf" and "scf" - with nothing recorded under their own ids -
+// stay Upcoming and unlinked.
+func TestPredictShouldUnlockOnlyTheRoundWhoseMatchupsAreRecorded(t *testing.T) {
+	seed := gatedRoundsSeed(time.Now().UTC().Add(5 * 24 * time.Hour))
+
+	req := httptest.NewRequest("GET", "/predict", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, r2OnlyMatchupsYAML), noopSender, testSecret).ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `<a id="predict-row-r2" href="/predict/r2" class="set-row set-row--open">`) {
+		t.Errorf("expected r2 to unlock once its own matchups are recorded, got %q", body)
+	}
+	for _, id := range []string{conferenceFinalsSetID, stanleyCupFinalSetID} {
+		if !strings.Contains(body, fmt.Sprintf(`<div id="predict-row-%s" class="set-row set-row--upcoming">`, id)) {
+			t.Errorf("expected %q to stay Upcoming with matchups recorded only under r2, got %q", id, body)
+		}
+		if strings.Contains(body, fmt.Sprintf(`<a id="predict-row-%s"`, id)) {
+			t.Errorf("expected no link for %q, got %q", id, body)
+		}
+	}
+}
+
 // TestPredictShouldLeaveANonRoundSetUnaffectedByPresentPlayoffMatchups
 // covers the mirror image: "cup" (not one of roundGatedSetIDs) stays
 // Upcoming per its own flag even when playoff_matchups is present in the

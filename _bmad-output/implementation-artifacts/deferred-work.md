@@ -58,3 +58,9 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-3-per-round-series-predictions.md`
   summary: `handleSeriesSubmit`'s per-series save loop isn't atomic across the whole POST - if `SaveSeriesPick` fails partway through (a disk write error), series saved earlier in the same loop stay saved while the client only sees a generic 500 with no indication which succeeded.
   evidence: Verified real (edge-case-hunter), but this is the Implementation Notes' own deliberate, documented trade-off (row-level atomicity, matching the frozen Intent's literal wording, not whole-POST atomicity), and a disk-write failure mid-request is the same class of low-likelihood operational fault already accepted in this file's story-1-1 entries (timing side-channels, unguarded async sends) at this app's declared hobby scale.
+
+## Deferred from: code review of spec-3-2-round-unlocking-based-on-recorded-matchups (2026-09-24)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-round-unlocking-based-on-recorded-matchups.md`
+  summary: Hand edits to `playoff_matchups` made while the app is running are not picked up until a restart, and the app's next whole-file write (any prediction save or login-code issue) overwrites them from memory. AC2 ("when the player next loads Predict") therefore only holds across a restart.
+  evidence: Verified real (acceptance-auditor): `PlayoffMatchups` reads `s.doc`, which `New()` loads once, and the store has no reload path. This is the AD-27 trait every hand-maintained section already has; the fix (reload on change, or an operator note to stop the app before editing) is cross-cutting.

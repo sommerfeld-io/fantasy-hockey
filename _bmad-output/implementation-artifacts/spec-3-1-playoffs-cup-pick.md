@@ -38,3 +38,23 @@ context: []
 - **false (premature):** `status: 'in-progress'` and `sprint-status.yaml` still `in-progress` rather than `review`/`done`. Not a defect — both are set by this same Finalize Spec step, which runs immediately after classifying these findings.
 - **true, handled procedurally (not a code fix):** `.task`/`.vscode` submodule pointer bumps are unrelated dirty state that predates this story. Not part of the diff to patch — handled by committing only Story 3.1's files.
 - **false (moot after patch):** `epic-3-context.md` not flagging "reuse the mechanic but not its test coverage" — moot once the acceptance-coverage gap above was closed; there is no longer a gap to inherit.
+
+### Review Findings
+
+Code review on 2026-09-24 (commit `5722479`): Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor.
+
+- [x] [Review][Patch] Playoffs Cup pick is Open and submittable in preseason. Decision (2026-09-24): set `upcoming: true` on `playoffcup` in the data file, to be flipped by hand once the playoff field is set, and remove the stray test pick (`sebastian`, `DET`) [src/fantasy-hockey.yml]
+- [x] [Review][Patch] Close the playoffcup test-mirror gaps: add the sibling's "never force-creates a Prediction row" scenario; assert the `<select>` is disabled when closed; add the reverse-independence and no-leak checks (saving `cup` leaves `playoffcup` alone, and a saved season `cup` pick is not preselected on the playoffcup sheet); keep an existing pick unchanged after a late POST [src/acceptance-tests/features/playoffs-cup-pick.feature]
+
+#### Rejected
+
+- false: the stub examples moved to `r1` would need another rewrite. Story 3.3 already moved them to the fixture-only id `mystery-set`.
+- false: scope went beyond the Approach. The extra stub moves are required and documented in Implementation Notes.
+- low: "all 32 teams" is not verified for playoffcup. The fixture matches the sibling feature, and the code path is shared.
+- low: loose `<button` / `<optgroup` assertions.
+- low: kind constants used as set ids in tests; comments that name story numbers.
+- low: inherited "Pick a team" message for an unknown team id.
+- low: after an unknown-team re-render no option is selected. This is only reachable with a tampered form.
+- low: acceptance-step hygiene (a nil store before `ensureReady`, unencoded form body, duplicate Given ids). Test-only, and not reachable with the current scenarios.
+- low: data-seed deadline ordering. Informational, not a defect.
+- already tracked (retro item 12): the copied `setRowFragment` and fixture helpers.

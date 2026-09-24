@@ -316,7 +316,7 @@ func handleSeriesSubmit(w http.ResponseWriter, r *http.Request, st *store.Store,
 			continue
 		case seriesSubmissionIsComplete(m, sub):
 			if err := st.SaveSeriesPick(playerID, joinSeriesKey(set.ID, m.Key), sub.TeamID, sub.Games, now); err != nil {
-				slog.Error("save series pick", "player_id", playerID, "series_key", m.Key, "error", err)
+				slog.Error("save series pick", "player_id", playerID, "series_key", joinSeriesKey(set.ID, m.Key), "error", err)
 				http.Error(w, genericErrorBody, http.StatusInternalServerError)
 				return
 			}

@@ -42,6 +42,7 @@ Feature: Playoffs Cup Pick
     When the player opens the Playoffs Cup pick sheet
     Then the playoffs pick sheet shows a read-only banner
     And the playoffs pick sheet shows the team "TOR" preselected
+    And the playoffs pick sheet shows the team dropdown disabled
     And the playoffs pick sheet shows no submit button
 
   Scenario: An Upcoming Playoffs Cup pick cannot be opened by direct URL
@@ -70,6 +71,13 @@ Feature: Playoffs Cup Pick
     Then the playoffs pick response status is 403
     And the player has no saved Playoffs Cup pick
 
+  Scenario: Submitting after the deadline leaves an existing Playoffs Cup pick unchanged
+    Given the Playoffs Cup pick has a deadline "1 day ago"
+    And the player already picked "TOR" for the Playoffs Cup pick
+    When the player submits team "VGK" for the Playoffs Cup pick
+    Then the playoffs pick response status is 403
+    And the player's saved Playoffs Cup pick is "TOR"
+
   Scenario: The Playoffs Cup pick is stored independently from the season-opening Cup champion pick
     Given the season-opening Cup champion pick has a deadline "in 5 days"
     And the Playoffs Cup pick has a deadline "in 5 days"
@@ -77,3 +85,24 @@ Feature: Playoffs Cup Pick
     When the player submits team "VGK" for the Playoffs Cup pick
     Then the player's saved Playoffs Cup pick is "VGK"
     And the player's saved season-opening Cup champion pick is still "TOR"
+
+  Scenario: Saving the season-opening Cup champion pick leaves the Playoffs Cup pick untouched
+    Given the season-opening Cup champion pick has a deadline "in 5 days"
+    And the Playoffs Cup pick has a deadline "in 5 days"
+    And the player already picked "VGK" for the Playoffs Cup pick
+    When the player submits team "TOR" for the season-opening Cup champion pick
+    Then the player's saved season-opening Cup champion pick is still "TOR"
+    And the player's saved Playoffs Cup pick is "VGK"
+
+  Scenario: A saved season-opening Cup champion pick is not preselected on the Playoffs Cup pick sheet
+    Given the season-opening Cup champion pick has a deadline "in 5 days"
+    And the Playoffs Cup pick has a deadline "in 5 days"
+    And the player already picked "TOR" for the season-opening Cup champion pick
+    When the player opens the Playoffs Cup pick sheet
+    Then the playoffs pick sheet shows no team preselected
+    And the playoffs pick sheet shows the button text "Submit predictions"
+
+  Scenario: Never opening the Playoffs Cup pick never force-creates a Prediction row
+    Given the Playoffs Cup pick has a deadline "in 5 days"
+    When the player opens the Playoffs Cup pick sheet
+    Then the player has no saved Playoffs Cup pick

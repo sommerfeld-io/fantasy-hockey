@@ -898,9 +898,9 @@ func TestGetPredictSheetShouldReturn404ForARoundGatedSetWithNoMatchupsRecorded(t
 // the counterpart, exercised for all three roundGatedSetIDs (a typo in
 // round2SetID/conferenceFinalsSetID/stanleyCupFinalSetID's literal value
 // would otherwise go uncaught): once a matchup is recorded, the direct URL
-// opens the set (still just the static stub, since none of these ids are
-// pickableSheetKinds ids), even though its own upcoming flag is true - the
-// state today's real fantasy-hockey.yml actually seeds "r2"/"cf"/"scf" at.
+// opens the set's series sheet, even though its own upcoming flag is true -
+// the state today's real fantasy-hockey.yml actually seeds "r2"/"cf"/"scf"
+// at.
 func TestGetPredictSheetShouldServeEveryRoundGatedSetOnceAMatchupIsRecorded(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	tests := []struct{ id, title string }{
@@ -918,7 +918,7 @@ func TestGetPredictSheetShouldServeEveryRoundGatedSetOnceAMatchupIsRecorded(t *t
       phase: playoffs
       upcoming: true
 `, tc.id, tc.title, deadline.Format(time.RFC3339))
-			matchups := fmt.Sprintf("    %s:\n        - a: FLA\n          b: TOR\n", tc.id)
+			matchups := fmt.Sprintf("    %s:\n        - key: s1\n          a: FLA\n          b: TOR\n", tc.id)
 
 			rec := getSheet(t, NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret), tc.id)
 
@@ -928,7 +928,38 @@ func TestGetPredictSheetShouldServeEveryRoundGatedSetOnceAMatchupIsRecorded(t *t
 			if !strings.Contains(rec.Body.String(), tc.title) {
 				t.Errorf("expected the sheet title once unlocked, got %q", rec.Body.String())
 			}
+			if !strings.Contains(rec.Body.String(), `data-series="s1"`) {
+				t.Errorf("expected the recorded matchup's series card once unlocked, got %q", rec.Body.String())
+			}
 		})
+	}
+}
+
+// TestSheetShouldReturn404ForAGatedRoundWhenOnlyAnotherRoundHasMatchups
+// covers the direct-URL side of independent unlocking: with matchups
+// recorded only under "r2", both GET and POST /predict/cf answer the generic
+// 404, and nothing is saved.
+func TestSheetShouldReturn404ForAGatedRoundWhenOnlyAnotherRoundHasMatchups(t *testing.T) {
+	seed := gatedRoundsSeed(time.Now().UTC().Add(5 * 24 * time.Hour))
+	st := newTestStoreWithPredictionSetsAndMatchups(t, seed, r2OnlyMatchupsYAML)
+	handler := NewServer(st, noopSender, testSecret)
+
+	rec := getSheet(t, handler, conferenceFinalsSetID)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected GET status %d for cf with matchups only under r2, got %d", http.StatusNotFound, rec.Code)
+	}
+	if rec.Body.String() != unknownSheetBody(t) {
+		t.Errorf("expected the generic not-found body, got %q", rec.Body.String())
+	}
+
+	rec = postSeriesForm(t, handler, conferenceFinalsSetID, map[string]seriesSubmission{
+		"s1": {TeamID: "FLA", Games: "6"},
+	})
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected POST status %d for cf with matchups only under r2, got %d", http.StatusNotFound, rec.Code)
+	}
+	if _, ok := st.FindSeriesPick("basti", joinSeriesKey(conferenceFinalsSetID, "s1")); ok {
+		t.Error("expected nothing saved for a still-locked cf")
 	}
 }
 

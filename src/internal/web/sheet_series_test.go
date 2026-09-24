@@ -534,12 +534,86 @@ func TestPostR1SheetShouldRejectAnOutOfRangeGamesCountOnlyForThatSeriesAndSaveOt
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200 for a rejected series, got %d", rec.Code)
 	}
+	assertSeriesCardHasInlineError(t, rec.Body.String(), "e1", "e2")
 	if _, ok := st.FindSeriesPick("basti", "r1.e1"); ok {
 		t.Error("expected no saved pick for the rejected e1 series")
 	}
 	got, ok := st.FindSeriesPick("basti", "r1.e2")
 	if !ok || got.TeamID != "FLA" || got.Games != "7" {
 		t.Errorf("expected e2's valid pick FLA/7 to still save, got %+v (ok=%v)", got, ok)
+	}
+}
+
+// assertSeriesCardHasInlineError fails t unless the card for key (up to the
+// next card, nextKey) carries its own inline error caption, and the nextKey
+// card itself does not.
+func assertSeriesCardHasInlineError(t *testing.T, body, key, nextKey string) {
+	t.Helper()
+	start := strings.Index(body, `data-series="`+key+`"`)
+	next := strings.Index(body, `data-series="`+nextKey+`"`)
+	if start == -1 || next == -1 || next < start {
+		t.Fatalf("expected cards %q and %q to render in order, got %q", key, nextKey, body)
+	}
+	if !strings.Contains(body[start:next], "error-text") {
+		t.Errorf("expected %q's own inline error caption, got %q", key, body[start:next])
+	}
+	end := strings.Index(body[next+1:], `data-series="`)
+	nextCard := body[next:]
+	if end != -1 {
+		nextCard = body[next : next+1+end]
+	}
+	if strings.Contains(nextCard, "error-text") {
+		t.Errorf("expected no inline error on the valid %q card, got %q", nextKey, nextCard)
+	}
+}
+
+func TestPostR1SheetShouldRejectANonNumericGamesValueOnlyForThatSeriesAndSaveOthers(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
+	handler := NewServer(st, noopSender, testSecret)
+
+	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
+		"e1": {TeamID: "BOS", Games: "abc"}, // not a game count at all.
+		"e2": {TeamID: "FLA", Games: "7"},   // complete and valid.
+	})
+
+	if rec.Code != 200 {
+		t.Fatalf("expected status 200 for a rejected series, got %d", rec.Code)
+	}
+	assertSeriesCardHasInlineError(t, rec.Body.String(), "e1", "e2")
+	if _, ok := st.FindSeriesPick("basti", "r1.e1"); ok {
+		t.Error("expected no saved pick for the rejected e1 series")
+	}
+	assertSavedSeriesPick(t, st, "basti", "r1.e2", "FLA", "7")
+}
+
+// TestPostR1SheetShouldKeepOtherCardsSubmittedValuesWhenRejecting proves a
+// rejected re-render shows every card's own submitted values - here a
+// half-filled sibling (e3, winner only) keeps its checked winner button, so
+// the player doesn't lose unsaved selections because another card (e1) was
+// invalid - while a card left blank (e4) shows nothing checked.
+func TestPostR1SheetShouldKeepOtherCardsSubmittedValuesWhenRejecting(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
+	handler := NewServer(st, noopSender, testSecret)
+
+	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
+		"e1": {TeamID: "COL", Games: "6"}, // COL is foreign to e1: rejects.
+		"e3": {TeamID: "CAR"},             // half-filled: nothing saved, but kept on re-render.
+	})
+
+	if rec.Code != 200 {
+		t.Fatalf("expected status 200 for a rejected series, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `value="CAR" aria-label="Carolina Hurricanes" checked`) {
+		t.Errorf("expected e3's submitted winner CAR to stay checked on re-render, got %q", body)
+	}
+	if strings.Contains(body, `value="WSH" aria-label="Washington Capitals" checked`) {
+		t.Errorf("expected the blank e4 card to show no checked winner, got %q", body)
+	}
+	if _, ok := st.FindSeriesPick("basti", "r1.e3"); ok {
+		t.Error("expected no saved pick for the half-filled e3 series")
 	}
 }
 
@@ -613,6 +687,111 @@ func TestPostR1SheetShouldReturn500WhenTheStoreWriteFails(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("expected status %d when the store write fails, got %d", http.StatusInternalServerError, rec.Code)
+	}
+}
+
+// gatedSeriesPredictionSetSeed is a round-gated series set's raw
+// prediction_sets YAML block, seeded at upcoming: true exactly as today's
+// real fantasy-hockey.yml seeds "r2"/"cf"/"scf" - only a recorded matchup
+// unlocks it.
+func gatedSeriesPredictionSetSeed(id, title string, deadline time.Time) string {
+	return fmt.Sprintf(`    - id: %s
+      title: %s
+      subtitle: Set once the prior round ends
+      deadline_utc: %q
+      phase: playoffs
+      upcoming: true
+`, id, title, deadline.Format(time.RFC3339))
+}
+
+// gatedSeriesMatchupsYAML records one Eastern (e1) and one Western (w1)
+// series under id.
+func gatedSeriesMatchupsYAML(id string) string {
+	return fmt.Sprintf(`    %s:
+        - key: e1
+          a: BOS
+          b: TOR
+        - key: w1
+          a: COL
+          b: DAL
+`, id)
+}
+
+// TestGetGatedSeriesSheetShouldRenderSeriesCardsGroupedByConference proves
+// "r2" and "cf" render as real series sheets once unlocked - keyed cards
+// under both conference groups - not the single-team dropdown or the stub.
+func TestGetGatedSeriesSheetShouldRenderSeriesCardsGroupedByConference(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	for _, id := range []string{round2SetID, conferenceFinalsSetID} {
+		t.Run(id, func(t *testing.T) {
+			st := newTestStoreWithSeriesFixture(t, gatedSeriesPredictionSetSeed(id, "Gated round", deadline), gatedSeriesMatchupsYAML(id))
+
+			rec := getSeriesSheet(t, NewServer(st, noopSender, testSecret), id)
+
+			if rec.Code != 200 {
+				t.Fatalf("expected status 200, got %d", rec.Code)
+			}
+			body := rec.Body.String()
+			if got := strings.Count(body, `data-series="`); got != 2 {
+				t.Errorf("expected 2 series cards, got %d in %q", got, body)
+			}
+			if !strings.Contains(seriesGroupFragment(t, body, "Eastern Conference"), `data-series="e1"`) {
+				t.Errorf("expected e1 under the Eastern Conference group, got %q", body)
+			}
+			if !strings.Contains(seriesGroupFragment(t, body, "Western Conference"), `data-series="w1"`) {
+				t.Errorf("expected w1 under the Western Conference group, got %q", body)
+			}
+			if strings.Contains(body, `name="team_id"`) {
+				t.Errorf("expected no single-team dropdown on a series sheet, got %q", body)
+			}
+		})
+	}
+}
+
+func TestPostGatedSeriesSheetShouldSaveEachSeriesUnderItsOwnSetID(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	for _, id := range []string{round2SetID, conferenceFinalsSetID, stanleyCupFinalSetID} {
+		t.Run(id, func(t *testing.T) {
+			st := newTestStoreWithSeriesFixture(t, gatedSeriesPredictionSetSeed(id, "Gated round", deadline), gatedSeriesMatchupsYAML(id))
+
+			rec := postSeriesForm(t, NewServer(st, noopSender, testSecret), id, map[string]seriesSubmission{
+				"e1": {TeamID: "TOR", Games: "7"},
+			})
+
+			if rec.Code != http.StatusFound {
+				t.Fatalf("expected status %d, got %d", http.StatusFound, rec.Code)
+			}
+			assertSavedSeriesPick(t, st, "basti", joinSeriesKey(id, "e1"), "TOR", "7")
+			if _, ok := st.FindSeriesPick("basti", joinSeriesKey(round1SetID, "e1")); ok {
+				t.Errorf("expected nothing saved under r1 for a %q submission", id)
+			}
+		})
+	}
+}
+
+// TestGetGatedSeriesSheetShouldRenderReadOnlyWhenUnlockedButPastItsDeadline
+// pins newSheetData's own use of effectiveUpcoming: "cf" at upcoming: true
+// with a recorded matchup is unlocked, so past its deadline it must render
+// Closed (read-only banner, disabled inputs) - not an editable form whose
+// submit would only fail with a 403.
+func TestGetGatedSeriesSheetShouldRenderReadOnlyWhenUnlockedButPastItsDeadline(t *testing.T) {
+	deadline := time.Now().UTC().Add(-24 * time.Hour)
+	st := newTestStoreWithSeriesFixture(t, gatedSeriesPredictionSetSeed(conferenceFinalsSetID, "Conference finals", deadline), gatedSeriesMatchupsYAML(conferenceFinalsSetID))
+
+	rec := getSeriesSheet(t, NewServer(st, noopSender, testSecret), conferenceFinalsSetID)
+
+	if rec.Code != 200 {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "closed-banner") {
+		t.Errorf("expected the read-only banner, got %q", body)
+	}
+	if !strings.Contains(body, `value="BOS" aria-label="Boston Bruins"  disabled`) {
+		t.Errorf("expected disabled winner buttons, got %q", body)
+	}
+	if strings.Contains(body, `<button type="submit">`) {
+		t.Errorf("expected no submit button on a closed set, got %q", body)
 	}
 }
 

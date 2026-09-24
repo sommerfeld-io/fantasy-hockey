@@ -47,18 +47,23 @@ var seriesSetIDs = map[string]bool{
 // dropdown for the "cup" and "presidents" ids, Story 3.1's identical
 // single-team dropdown for the "playoffcup" id, Story 2.4's checkbox-chip
 // form for divisionsSetID, Story 2.6's finalist form for awardsSetID, Story
-// 3.3's series form for every seriesSetIDs id. Every other id keeps
-// rendering the stub unchanged.
-var pickableSheetKinds = map[string]bool{
+// 3.3's series form for every seriesSetIDs id - merged in from
+// seriesSetIDs rather than listed again, so the two maps can't drift apart.
+// Every other id keeps rendering the stub unchanged.
+var pickableSheetKinds = withSeriesSetIDs(map[string]bool{
 	store.KindCupChampion:      true,
 	store.KindPresidentsTrophy: true,
 	store.KindPlayoffsCup:      true,
 	divisionsSetID:             true,
 	awardsSetID:                true,
-	round1SetID:                true,
-	round2SetID:                true,
-	conferenceFinalsSetID:      true,
-	stanleyCupFinalSetID:       true,
+})
+
+// withSeriesSetIDs returns kinds with every seriesSetIDs id added.
+func withSeriesSetIDs(kinds map[string]bool) map[string]bool {
+	for id := range seriesSetIDs {
+		kinds[id] = true
+	}
+	return kinds
 }
 
 // teamDivisionOrder is the fixed division display order for the

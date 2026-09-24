@@ -59,7 +59,7 @@ prediction_sets:
       subtitle: Re-pick the Stanley Cup winner
       deadline_utc: "2027-04-15T16:00:00Z"
       phase: playoffs
-      upcoming: false
+      upcoming: true
     - id: r1
       title: Playoff round 1
       subtitle: 8 series — winner & length
@@ -331,8 +331,3 @@ predictions:
           - mcdavid-connor
           - mackinnon-nathan
           - kucherov-nikita
-    - id: b7622aa3-ee8a-4c21-a10f-d78113d1caf5
-      player_id: sebastian
-      kind: playoffcup
-      team_id: DET
-      submitted_at: "2026-09-24T18:47:02Z"

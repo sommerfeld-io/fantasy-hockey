@@ -79,3 +79,26 @@ context: []
 - **defer** (blind-hunter): the "signed-in player" acceptance step performs no sign-in action, just validates a name against one hardcoded fixture. Confirmed this exact pattern is already used verbatim by `cup_and_presidents_picks_steps_test.go`'s own `theSignedInPlayerIs` - pre-existing repo convention, not introduced or worsened by this story.
 - **defer** (blind-hunter): `roundGatedSetIDs`/its constants duplicate the `r2`/`cf`/`scf` id vocabulary with no cross-check against `fantasy-hockey.yml`'s actual ids. Confirmed this is the same trade-off every existing special-cased id already accepts (`divisionsSetID`, `awardsSetID`, every `store.Kind*` constant) - none of them cross-validate against the YAML file either; an existing architectural pattern, not something this diff introduces.
 - **empty** (edge-case-hunter): zero findings reported after tracing all call sites, lock semantics, deletions, and falsification-testing every checkable spec claim.
+
+### Review Findings
+
+Code review on 2026-09-24 (commit `1e6cf92`): Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor.
+
+- [x] [Review][Patch] No test checks that rounds unlock independently: seed `r2`/`cf`/`scf` at `upcoming: true` with matchups only under `r2`, then assert `r2` Open, `cf`/`scf` Upcoming, and `GET /predict/cf` returns 404 [src/internal/web/predict_test.go, src/internal/web/sheet_test.go]
+- [x] [Review][Patch] No test for `r1` with `upcoming: true` plus `r1` matchups present staying Upcoming. The spec task asks for "absent or present" [src/internal/web/predict_test.go]
+- [x] [Review][Patch] Using `effectiveUpcoming` in `newSheetData` is not pinned by a test: a closed gated series sheet (`cf`, `upcoming: true`, matchup recorded, past deadline) must show `closed-banner` and disabled inputs [src/internal/web/sheet_series_test.go]
+- [x] [Review][Defer] A hand edit to `playoff_matchups` while the app runs is not seen until a restart, and the next app write overwrites it [src/internal/store/store.go:247] - deferred: pre-existing AD-27 trait of every hand-maintained section, but this is the first story whose AC depends on a live hand edit
+
+#### Rejected
+
+- spec: `upcoming: true` is ignored for gated rounds, and there is no admin lock. AC1 says "regardless of `cf`'s own `upcoming` value".
+- spec: gating logic lives in `internal/web` and not in `internal/predictions`. The spec's Code Map chose this placement.
+- low: the acceptance feature covers only `cf` and `upcoming: false`. Unit tests cover all three ids and `upcoming: true`.
+- low: "dimmed/locked" not asserted in acceptance tests. The unit test checks `set-row--upcoming`.
+- low: blank `a`/`b` entries unlock a round. This belongs to the already-deferred `playoff_matchups` validation item.
+- low: `playoff_matchups` keys are case-sensitive; extra YAML keys are dropped on write; the fixture writes an unquoted map key.
+- low: the first write adds `playoff_matchups: {}` and reorders keys. Harmless, and the same as the other sections.
+- low: a slice is copied under the lock just to test its length.
+- low: store-test boilerplate; the store doc comment names a web function; Gherkin titles mention the YAML key.
+- already tracked (retro item 12): `setRowFragment` truncation fragility.
+- already tracked (deferred-work): hard-coded round ids.

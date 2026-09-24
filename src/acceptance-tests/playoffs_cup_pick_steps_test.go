@@ -158,6 +158,22 @@ func (s *playoffsCupPickScenarioState) thePlayerSubmitsTeamForThePlayoffsCupPick
 	return s.do(http.MethodPost, "/predict/"+store.KindPlayoffsCup, "team_id="+teamID)
 }
 
+func (s *playoffsCupPickScenarioState) thePlayerSubmitsTeamForTheSeasonCupPick(teamID string) error {
+	return s.do(http.MethodPost, "/predict/"+store.KindCupChampion, "team_id="+teamID)
+}
+
+func (s *playoffsCupPickScenarioState) thePlayoffsPickSheetShowsTheTeamDropdownDisabled() error {
+	start := strings.Index(s.lastBody, `<select name="team_id"`)
+	if start == -1 {
+		return fmt.Errorf("expected a team dropdown, got %q", s.lastBody)
+	}
+	tag := s.lastBody[start : start+strings.Index(s.lastBody[start:], ">")]
+	if !strings.Contains(tag, " disabled") {
+		return fmt.Errorf("expected the team dropdown to be disabled, got %q", tag)
+	}
+	return nil
+}
+
 func (s *playoffsCupPickScenarioState) thePlayoffsPickSheetShowsATeamDropdownGroupedByDivision() error {
 	if !strings.Contains(s.lastBody, `<select name="team_id"`) || !strings.Contains(s.lastBody, "<optgroup label=") {
 		return fmt.Errorf("expected a team dropdown grouped by division, got %q", s.lastBody)
@@ -323,6 +339,8 @@ func InitializePlayoffsCupPickScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the playoffs pick sheet shows "([^"]*)"$`, s.thePlayoffsPickSheetShows)
 	ctx.Step(`^the playoffs pick sheet shows a read-only banner$`, s.thePlayoffsPickSheetShowsAReadOnlyBanner)
 	ctx.Step(`^the playoffs pick sheet shows no submit button$`, s.thePlayoffsPickSheetShowsNoSubmitButton)
+	ctx.Step(`^the playoffs pick sheet shows the team dropdown disabled$`, s.thePlayoffsPickSheetShowsTheTeamDropdownDisabled)
+	ctx.Step(`^the player submits team "([^"]*)" for the season-opening Cup champion pick$`, s.thePlayerSubmitsTeamForTheSeasonCupPick)
 	ctx.Step(`^the playoffs pick response redirects to "([^"]*)"$`, s.thePlayoffsPickResponseRedirectsTo)
 	ctx.Step(`^the playoffs pick response status is (\d+)$`, s.thePlayoffsPickResponseStatusIs)
 	ctx.Step(`^the playoffs pick response shows the generic not-found body$`, s.thePlayoffsPickResponseShowsTheGenericNotFoundBody)

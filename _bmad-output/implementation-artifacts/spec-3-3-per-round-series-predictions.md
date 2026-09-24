@@ -90,3 +90,32 @@ Round grouping needs no hand-maintained conference/round data: a series' two tea
 - **defer** (blind-hunter): the HTML-fragment-isolation helper (`seriesGroupFragment`) is duplicated near-verbatim between `sheet_series_test.go` and `series_predictions_steps_test.go`. Matches this repo's own already-tracked, still-open Epic 2 retrospective action item (`epic-2-retro-item-12-hoist-the-duplicated-setrowfragment-acce...`, `sprint-status.yaml`) covering the identical pre-existing pattern across other feature files - not new to this story.
 - **defer** (blind-hunter + edge-case-hunter, grouped - same root cause): `PlayoffMatchup` has no validation anywhere (at `store.New()` or otherwise) that `Key` is non-blank/unique within a round, or that `TeamA`/`TeamB` both resolve to real teams sharing one conference. Concretely: a duplicate or blank `Key` collides two series' `SeriesKey`s into one Prediction row; an unresolvable `TeamA` degrades `conferenceForMatchup` to an empty-string conference (a stray " Conference" heading); and a blank `TeamAID` combined with no saved pick yet makes the template's `{{if eq .SelectedTeamID .TeamAID}}` spuriously render that radio as checked (both sides equal `""`). All three require a human hand-edit mistake in `playoff_matchups`, the exact same class of risk this codebase already accepts everywhere else for hand-maintained ids: `newRoster`'s own doc comment states duplicates are unvalidated ("the first item with a given key wins"), and this very diff's own `teamName` degrades an unresolved id to the raw string rather than erroring. Story 3.3 applies this same established, deliberate convention to a new field rather than inventing a gap; a proper fix (structured validation/warnings for hand-maintained `playoff_matchups`) is a cross-cutting concern better solved once, deliberately, not patched piecemeal per-symptom here.
 - **false, moot** (blind-hunter): spec `status: 'done'` while Implementation Notes say no formal review was run. Moot: this review pass is what resolves that - status is corrected to `done` only after this triage completes, per the workflow's own Finalize step.
+
+### Review Findings
+
+Code review on 2026-09-24 (commit `fc1d543`): Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor.
+
+- [x] [Review][Patch] The `r2`/`cf` series sheets are never checked for series output: GET should show keyed cards and conference legends, and POST should save under `"r2.<key>"`. Also fix the stale "static stub" comment and the keyless fixture in `TestGetPredictSheetShouldServeEveryRoundGatedSetOnceAMatchupIsRecorded` [src/internal/web/sheet_series_test.go, src/internal/web/sheet_test.go]
+- [x] [Review][Patch] `pickableSheetKinds` repeats the `seriesSetIDs` entries by hand. Dropping an id from one map silently falls back to the single-team dropdown, and every test still passes [src/internal/web/sheet.go:52]
+- [x] [Review][Patch] No test checks that a rejected re-render keeps the other cards' submitted values (a half-filled sibling's radio should render `checked`) [src/internal/web/sheet_series_test.go]
+- [x] [Review][Patch] The out-of-range games rejection test does not assert the inline error, and there is no test for a non-numeric `games` value [src/internal/web/sheet_series_test.go]
+- [x] [Review][Patch] The save-failure log line records the bare matchup key, not the `joinSeriesKey(set.ID, m.Key)` series key [src/internal/web/sheet_series.go:319]
+- [x] [Review][Patch] `.series-btn:has(input:checked)` copies the `.chip:has(input:checked)` declarations and should share that rule, as the Code Map asks [src/internal/web/static/styles.css]
+
+#### Rejected
+
+- spec: half-filled series with an invalid value are skipped, not rejected. This conflicts with the Code Map text but matches the frozen Intent and AC 4; the fix would be a spec edit.
+- spec: a POST with only half-filled series redirects without feedback. The frozen Intent says "shows no error".
+- low: POST to a series set with zero matchups returns 302. The form is not rendered in that state.
+- low: a closed set with zero matchups shows no closed banner.
+- low: conference groups follow first-appearance order. The data is hand-entered, East first by convention.
+- low: picks are orphaned when a matchup key is renamed.
+- low: the team roster is rebuilt per card.
+- low: `splitSeriesKey` is unused in production. The spec asks for join/split helpers.
+- low: brittle `checked` / `<button type="submit">` substring assertions.
+- low: acceptance steps hard-code `r1`.
+- low: key naming convention is undocumented.
+- low: a blank series in a rejected re-render shows unchecked. Only reachable with a tampered form.
+- low: a progress counter such as "3/8 picked". A feature request, not a defect.
+- low: the rejected re-render re-reads matchups. The race window is negligible.
+- already tracked (deferred-work): `Key` validation (blank, duplicate, `.` separator), an unresolved team giving the " Conference" label, cross-conference matchups, non-atomic multi-series save, accessibility of series cards, duplicated fragment helper.
