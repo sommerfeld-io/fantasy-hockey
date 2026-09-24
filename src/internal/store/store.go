@@ -100,6 +100,14 @@ const (
 	// "awards" set) - a row of this kind is instead keyed by (PlayerID,
 	// Kind, Award), never by Kind alone.
 	KindAward = "award"
+
+	// KindSeries is Story 3.3's per-series Kind value, shared by all four
+	// round Prediction Sets ("r1"/"r2"/"cf"/"scf") - like KindAward, it
+	// doesn't match any one of those Prediction Set ids directly. A row of
+	// this kind is instead keyed by (PlayerID, Kind, SeriesKey), never by
+	// (PlayerID, Kind) alone - SeriesKey itself already encodes which
+	// Prediction Set the row belongs to.
+	KindSeries = "series"
 )
 
 // Award values, matching the PRD's own five individual-award names
@@ -131,8 +139,14 @@ const (
 // (FindAwardFinalists/SaveAwardPicks): Award is one of the AwardHart/
 // AwardNorris/AwardVezina/AwardArtRoss/AwardRocketRichard keys, and
 // FinalistSlugs holds exactly 3 ordered NHL Player (AwardFinalist) slugs -
-// SaveAwardPicks never upserts a row with fewer. Both stay zero-valued/
-// omitted on every other Kind's row.
+// SaveAwardPicks never upserts a row with fewer. SeriesKey and Games are set
+// only on a KindSeries row (FindSeriesPick/SaveSeriesPick): SeriesKey is the
+// full key a PlayoffMatchup is scoped by - the owning Prediction Set id plus
+// a separator plus the matchup's own hand-maintained Key (e.g. "r1.s1") -
+// and Games is one of "4"/"5"/"6"/"7", kept a string for consistency with
+// every other Prediction field even though it's numeric. All of Division/
+// TeamIDs/Award/FinalistSlugs/SeriesKey/Games stay zero-valued/omitted on
+// every row they don't apply to.
 type Prediction struct {
 	ID            string   `yaml:"id"`
 	PlayerID      string   `yaml:"player_id"`
@@ -143,6 +157,8 @@ type Prediction struct {
 	TeamIDs       []string `yaml:"team_ids,omitempty"`
 	Award         string   `yaml:"award,omitempty"`
 	FinalistSlugs []string `yaml:"finalist_slugs,omitempty"`
+	SeriesKey     string   `yaml:"series_key,omitempty"`
+	Games         string   `yaml:"games,omitempty"`
 }
 
 // Team is one of the season's 32 NHL teams. Like Player and PredictionSet,
@@ -190,8 +206,15 @@ type AwardFinalist struct {
 // (AD-23). Its presence for a round-gated Prediction Set id is what
 // internal/web's effectiveUpcoming treats as "that round's matchups are
 // known" (Story 3.2, FR-20) - TeamA/TeamB's values themselves are never read
-// by this story, only whether at least one matchup entry exists for the id.
+// by that story, only whether at least one matchup entry exists for the id.
+// Key is Story 3.3's hand-maintained per-series identity (e.g. "s1") - a
+// stable, human-chosen id rather than one derived from the entry's position
+// in the list, so a human reordering playoff_matchups by hand can never
+// silently reassign an already-saved series pick to a different matchup. It
+// is joined with the Prediction Set id to form a KindSeries Prediction row's
+// full SeriesKey.
 type PlayoffMatchup struct {
+	Key   string `yaml:"key"`
 	TeamA string `yaml:"a"`
 	TeamB string `yaml:"b"`
 }
@@ -480,6 +503,73 @@ func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) err
 	if err := s.writeLocked(); err != nil {
 		s.doc.Predictions = s.doc.Predictions[:len(s.doc.Predictions)-1]
 		return fmt.Errorf("store: persist prediction: %w", err)
+	}
+	return nil
+}
+
+// FindSeriesPick returns playerID's saved winner-and-games pick for
+// seriesKey, if any (Kind == KindSeries) - a row is matched by (PlayerID,
+// Kind, SeriesKey), mirroring findDivisionPrediction's own extra-key match.
+func (s *Store) FindSeriesPick(playerID, seriesKey string) (Prediction, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range s.doc.Predictions {
+		if p.PlayerID == playerID && p.Kind == KindSeries && p.SeriesKey == seriesKey {
+			return p, true
+		}
+	}
+	return Prediction{}, false
+}
+
+// SaveSeriesPick saves playerID's winner (teamID) and game-count (games)
+// pick for seriesKey together as one row, persisting the change -
+// SavePrediction's own single-row upsert-by-(PlayerID, Kind) pattern,
+// generalized to the extra SeriesKey every KindSeries row is scoped by. An
+// existing (playerID, KindSeries, seriesKey) row is updated in place - a
+// resubmission never appends a duplicate - otherwise a new row is appended
+// with a generated id. Store does not validate teamID/games itself
+// (internal/web re-validates both server-side before ever calling this,
+// matching every other pick kind). If the write fails, the change is rolled
+// back from memory so a caller told the write failed can't later have it
+// silently persisted by an unrelated successful write.
+func (s *Store) SaveSeriesPick(playerID, seriesKey, teamID, games string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	submittedAt := now.UTC().Format(time.RFC3339)
+
+	for i := range s.doc.Predictions {
+		row := &s.doc.Predictions[i]
+		if row.PlayerID != playerID || row.Kind != KindSeries || row.SeriesKey != seriesKey {
+			continue
+		}
+
+		oldTeamID, oldGames, oldSubmittedAt := row.TeamID, row.Games, row.SubmittedAt
+		row.TeamID = teamID
+		row.Games = games
+		row.SubmittedAt = submittedAt
+
+		if err := s.writeLocked(); err != nil {
+			row.TeamID, row.Games, row.SubmittedAt = oldTeamID, oldGames, oldSubmittedAt
+			return fmt.Errorf("store: persist series pick: %w", err)
+		}
+		return nil
+	}
+
+	s.doc.Predictions = append(s.doc.Predictions, Prediction{
+		ID:          uuid.NewString(),
+		PlayerID:    playerID,
+		Kind:        KindSeries,
+		SeriesKey:   seriesKey,
+		TeamID:      teamID,
+		Games:       games,
+		SubmittedAt: submittedAt,
+	})
+
+	if err := s.writeLocked(); err != nil {
+		s.doc.Predictions = s.doc.Predictions[:len(s.doc.Predictions)-1]
+		return fmt.Errorf("store: persist series pick: %w", err)
 	}
 	return nil
 }

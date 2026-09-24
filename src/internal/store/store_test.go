@@ -1596,6 +1596,264 @@ func TestSaveAwardPicksShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	}
 }
 
+// TestPlayoffMatchupShouldRoundTripItsKeyThroughYAML proves PlayoffMatchup's
+// hand-maintained Key field parses off fantasy-hockey.yml's key: entry
+// alongside TeamA/TeamB, extending TestPlayoffMatchupsShouldReturnThe
+// SeededListForAPresentKey's own seeded-list coverage to the new field.
+func TestPlayoffMatchupShouldRoundTripItsKeyThroughYAML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	seed := `season: "2026-27"
+players: []
+login_codes: []
+playoff_matchups:
+    r1:
+        - key: s1
+          a: FLA
+          b: TOR
+`
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	got := st.PlayoffMatchups("r1")
+	if len(got) != 1 {
+		t.Fatalf("expected 1 matchup, got %d: %+v", len(got), got)
+	}
+	if got[0].Key != "s1" {
+		t.Errorf("expected key %q, got %q", "s1", got[0].Key)
+	}
+	if got[0].TeamA != "FLA" || got[0].TeamB != "TOR" {
+		t.Errorf("expected teams FLA/TOR, got %+v", got[0])
+	}
+}
+
+func TestFindSeriesPickShouldNotReturnARowOnNoMatch(t *testing.T) {
+	st := newTestStore(t)
+
+	_, ok := st.FindSeriesPick("basti", "r1.s1")
+	if ok {
+		t.Fatal("expected no match when no series rows exist")
+	}
+}
+
+func TestFindSeriesPickShouldReturnTheSeededRowOnAMatch(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindSeries, SeriesKey: "r1.s1", TeamID: "TOR", Games: "6", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	got, ok := st.FindSeriesPick("basti", "r1.s1")
+	if !ok {
+		t.Fatal("expected a match, got none")
+	}
+	if got.TeamID != "TOR" || got.Games != "6" {
+		t.Errorf("expected team id %q and games %q, got %q/%q", "TOR", "6", got.TeamID, got.Games)
+	}
+}
+
+func TestFindSeriesPickShouldNotMatchARowForADifferentSeriesKey(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindSeries, SeriesKey: "r1.s1", TeamID: "TOR", Games: "6", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindSeriesPick("basti", "r1.s2")
+	if ok {
+		t.Fatal("expected no match for a different series key, even for the same player")
+	}
+}
+
+func TestFindSeriesPickShouldNotMatchARowForADifferentPlayer(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindSeries, SeriesKey: "r1.s1", TeamID: "TOR", Games: "6", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindSeriesPick("someone-else", "r1.s1")
+	if ok {
+		t.Fatal("expected no match for a different player, even for the same series key")
+	}
+}
+
+func TestFindSeriesPickShouldNotMatchADifferentlyKindedRow(t *testing.T) {
+	st := newTestStore(t)
+	seedPrediction(t, st, Prediction{ID: "p1", PlayerID: "basti", Kind: KindCupChampion, TeamID: "TOR", SubmittedAt: "2026-09-14T10:00:00Z"})
+
+	_, ok := st.FindSeriesPick("basti", "r1.s1")
+	if ok {
+		t.Fatal("expected no match for a differently-kinded row, even sharing the same player")
+	}
+}
+
+func TestSaveSeriesPickShouldAppendANewRowWhenNoneExists(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", now); err != nil {
+		t.Fatalf("SaveSeriesPick returned error: %v", err)
+	}
+
+	got, ok := st.FindSeriesPick("basti", "r1.s1")
+	if !ok {
+		t.Fatal("expected a Prediction row to have been saved")
+	}
+	if got.TeamID != "TOR" || got.Games != "6" {
+		t.Errorf("expected team id %q and games %q, got %q/%q", "TOR", "6", got.TeamID, got.Games)
+	}
+	if got.PlayerID != "basti" || got.Kind != KindSeries {
+		t.Errorf("unexpected prediction row: %+v", got)
+	}
+	if got.SubmittedAt != "2026-09-14T10:00:00Z" {
+		t.Errorf("expected submitted_at %q, got %q", "2026-09-14T10:00:00Z", got.SubmittedAt)
+	}
+	if got.ID == "" {
+		t.Error("expected a generated id, got empty string")
+	}
+}
+
+func TestSaveSeriesPickShouldUpdateAnExistingRowInPlaceOnResubmission(t *testing.T) {
+	st := newTestStore(t)
+	first := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	second := first.Add(time.Hour)
+
+	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", first); err != nil {
+		t.Fatalf("first SaveSeriesPick returned error: %v", err)
+	}
+	if err := st.SaveSeriesPick("basti", "r1.s1", "FLA", "7", second); err != nil {
+		t.Fatalf("second SaveSeriesPick returned error: %v", err)
+	}
+
+	st.mu.RLock()
+	rows := len(st.doc.Predictions)
+	st.mu.RUnlock()
+	if rows != 1 {
+		t.Fatalf("expected the resubmission to update the existing row rather than append, got %d rows", rows)
+	}
+
+	got, ok := st.FindSeriesPick("basti", "r1.s1")
+	if !ok {
+		t.Fatal("expected a match")
+	}
+	if got.TeamID != "FLA" || got.Games != "7" {
+		t.Errorf("expected the updated team id %q and games %q, got %q/%q", "FLA", "7", got.TeamID, got.Games)
+	}
+	if got.SubmittedAt != second.Format(time.RFC3339) {
+		t.Errorf("expected the updated submitted_at %q, got %q", second.Format(time.RFC3339), got.SubmittedAt)
+	}
+}
+
+// assertSeriesPick fails t unless playerID has a saved series pick for
+// seriesKey matching wantTeamID/wantGames - assertSavedDivisionPlayoffTeams'
+// own single-assertion-helper precedent, factored out purely to keep its
+// callers' own cyclomatic complexity low (gocyclo).
+func assertSeriesPick(t *testing.T, st *Store, playerID, seriesKey, wantTeamID, wantGames string) {
+	t.Helper()
+	got, ok := st.FindSeriesPick(playerID, seriesKey)
+	if !ok {
+		t.Errorf("expected a series pick for %q/%q, found none", playerID, seriesKey)
+		return
+	}
+	if got.TeamID != wantTeamID || got.Games != wantGames {
+		t.Errorf("expected %q/%q for %q/%q, got %q/%q", wantTeamID, wantGames, playerID, seriesKey, got.TeamID, got.Games)
+	}
+}
+
+func TestSaveSeriesPickShouldNotTouchARowForADifferentSeriesKeyOrPlayer(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", now); err != nil {
+		t.Fatalf("SaveSeriesPick returned error: %v", err)
+	}
+	if err := st.SaveSeriesPick("basti", "r1.s2", "EDM", "5", now); err != nil {
+		t.Fatalf("SaveSeriesPick returned error: %v", err)
+	}
+	if err := st.SaveSeriesPick("other-player", "r1.s1", "BOS", "4", now); err != nil {
+		t.Fatalf("SaveSeriesPick returned error: %v", err)
+	}
+
+	assertSeriesPick(t, st, "basti", "r1.s1", "TOR", "6")
+	assertSeriesPick(t, st, "basti", "r1.s2", "EDM", "5")
+	assertSeriesPick(t, st, "other-player", "r1.s1", "BOS", "4")
+}
+
+func TestSaveSeriesPickShouldPersistToDisk(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("SaveSeriesPick returned error: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	var doc document
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal file: %v", err)
+	}
+	if len(doc.Predictions) != 1 {
+		t.Fatalf("expected 1 persisted prediction, got %d", len(doc.Predictions))
+	}
+	got := doc.Predictions[0]
+	if got.Kind != KindSeries || got.SeriesKey != "r1.s1" || got.TeamID != "TOR" || got.Games != "6" {
+		t.Errorf("expected the persisted file to contain the new series pick, got %+v", got)
+	}
+}
+
+func TestSaveSeriesPickShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Now().UTC()); err == nil {
+		t.Fatal("expected SaveSeriesPick to return an error when the write fails")
+	}
+
+	if _, ok := st.FindSeriesPick("basti", "r1.s1"); ok {
+		t.Error("expected the failed append to be rolled back, but a Prediction row was found")
+	}
+}
+
+func TestSaveSeriesPickShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Now().UTC()); err != nil {
+		t.Fatalf("seed SaveSeriesPick returned error: %v", err)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if err := st.SaveSeriesPick("basti", "r1.s1", "FLA", "7", time.Now().UTC()); err == nil {
+		t.Fatal("expected SaveSeriesPick to return an error when the write fails")
+	}
+
+	got, ok := st.FindSeriesPick("basti", "r1.s1")
+	if !ok {
+		t.Fatal("expected the original row to still be found")
+	}
+	if got.TeamID != "TOR" || got.Games != "6" {
+		t.Errorf("expected the failed update to be rolled back to %q/%q, got %q/%q", "TOR", "6", got.TeamID, got.Games)
+	}
+}
+
 func TestStoreShouldBeSafeForConcurrentCreateLoginCode(t *testing.T) {
 	st := newTestStore(t)
 

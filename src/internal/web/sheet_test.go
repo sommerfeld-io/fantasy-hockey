@@ -16,22 +16,23 @@ import (
 
 // TestGetPredictSheetShouldRenderTheStubPageForAKnownSet covers a Prediction
 // Set id that isn't one of pickableSheetKinds - every id but "cup"/
-// "presidents"/"playoffcup"/divisionsSetID/awardsSetID keeps rendering the
-// unchanged stub (Boundaries & Constraints). "r1" (Epic 3's own future round-1
-// series-picks set) is the next remaining stub id once Story 3.1 makes
-// "playoffcup" real, matching Story 2.3/2.4/2.6's own precedent of
-// repointing this stub-proof test off the id it just made real.
+// "presidents"/"playoffcup"/divisionsSetID/awardsSetID/seriesSetIDs keeps
+// rendering the unchanged stub (Boundaries & Constraints). Story 3.3 made
+// every remaining Epic 3 id ("r1"/"r2"/"cf"/"scf") real, so no genuinely
+// future id remains to repoint this test onto (Story 2.3/2.4/2.6/3.3's own
+// precedent) - "mystery-set" is a synthetic id that will never be one of
+// pickableSheetKinds, standing in for whatever kind gets built next.
 func TestGetPredictSheetShouldRenderTheStubPageForAKnownSet(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	seed := fmt.Sprintf(`    - id: r1
-      title: Playoff round 1
-      subtitle: 8 series — winner & length
+	seed := fmt.Sprintf(`    - id: mystery-set
+      title: Mystery set
+      subtitle: Not built yet
       deadline_utc: %q
       phase: playoffs
       upcoming: false
 `, deadline.Format(time.RFC3339))
 
-	req := httptest.NewRequest("GET", "/predict/r1", nil)
+	req := httptest.NewRequest("GET", "/predict/mystery-set", nil)
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
@@ -41,7 +42,7 @@ func TestGetPredictSheetShouldRenderTheStubPageForAKnownSet(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Playoff round 1") {
+	if !strings.Contains(body, "Mystery set") {
 		t.Errorf("expected the sheet title, got %q", body)
 	}
 	if !strings.Contains(body, "in 5 days") {
@@ -60,15 +61,15 @@ func TestGetPredictSheetShouldRenderTheStubPageForAKnownSet(t *testing.T) {
 // stub, never the cup/presidents/divisions/awards closed read-only banner.
 func TestGetPredictSheetShouldRenderTheStubPageForAClosedSet(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
-	seed := fmt.Sprintf(`    - id: r1
-      title: Playoff round 1
-      subtitle: 8 series — winner & length
+	seed := fmt.Sprintf(`    - id: mystery-set
+      title: Mystery set
+      subtitle: Not built yet
       deadline_utc: %q
       phase: playoffs
       upcoming: false
 `, deadline.Format(time.RFC3339))
 
-	req := httptest.NewRequest("GET", "/predict/r1", nil)
+	req := httptest.NewRequest("GET", "/predict/mystery-set", nil)
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
@@ -78,7 +79,7 @@ func TestGetPredictSheetShouldRenderTheStubPageForAClosedSet(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Playoff round 1") {
+	if !strings.Contains(body, "Mystery set") {
 		t.Errorf("expected the sheet title, got %q", body)
 	}
 	if !strings.Contains(body, "closed") {
@@ -582,22 +583,22 @@ prediction_sets:
 }
 
 // TestPostPredictSheetShouldReturn404ForANonPickableSetID covers a
-// Prediction Set id that isn't one of pickableSheetKinds - "r1" (Epic 3's
-// own future round-1 series-picks set) is the next remaining non-pickable id
-// once Story 3.1 makes "playoffcup" real, mirroring the stub-page tests' own
-// repointing above.
+// Prediction Set id that isn't one of pickableSheetKinds - Story 3.3 made
+// every remaining Epic 3 id real (mirroring the stub-page tests' own
+// repointing above), so "mystery-set" stands in as a synthetic id that will
+// never be one of pickableSheetKinds.
 func TestPostPredictSheetShouldReturn404ForANonPickableSetID(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	seed := fmt.Sprintf(`    - id: r1
-      title: Playoff round 1
-      subtitle: 8 series — winner & length
+	seed := fmt.Sprintf(`    - id: mystery-set
+      title: Mystery set
+      subtitle: Not built yet
       deadline_utc: %q
       phase: playoffs
       upcoming: false
 `, deadline.Format(time.RFC3339))
 	handler := NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret)
 
-	rec := postSheet(t, handler, "r1", "TOR")
+	rec := postSheet(t, handler, "mystery-set", "TOR")
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected status %d, got %d", http.StatusNotFound, rec.Code)

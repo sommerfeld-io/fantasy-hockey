@@ -22,18 +22,43 @@ const divisionsSetID = "divisions"
 // on it, so the id literal can't drift between call sites.
 const awardsSetID = "awards"
 
+// round1SetID is the fourth Prediction Set id Story 3.3 gives a series
+// pick-entry sheet to. Unlike round2SetID/conferenceFinalsSetID/
+// stanleyCupFinalSetID (predict.go's own roundGatedSetIDs trio), it stays
+// outside that map - Story 3.2 deliberately left "r1" gated by its own
+// hand-maintained upcoming flag rather than by playoff_matchups - but it
+// still gets the identical series sheet once unlocked.
+const round1SetID = "r1"
+
+// seriesSetIDs is every Prediction Set id that gets Story 3.3's series
+// pick-entry sheet - one card per recorded playoff_matchups entry, a
+// full-width winner button per team plus a 4/5/6/7 game-count button -
+// rather than a single-team dropdown, the divisions checkbox-chip form, or
+// the awards finalist form.
+var seriesSetIDs = map[string]bool{
+	round1SetID:           true,
+	round2SetID:           true,
+	conferenceFinalsSetID: true,
+	stanleyCupFinalSetID:  true,
+}
+
 // pickableSheetKinds is the set of Prediction Set ids that get a real
 // pick-entry form instead of the static stub - Story 2.3's single-team
 // dropdown for the "cup" and "presidents" ids, Story 3.1's identical
 // single-team dropdown for the "playoffcup" id, Story 2.4's checkbox-chip
-// form for divisionsSetID, Story 2.6's finalist form for awardsSetID. Every
-// other id keeps rendering the stub unchanged.
+// form for divisionsSetID, Story 2.6's finalist form for awardsSetID, Story
+// 3.3's series form for every seriesSetIDs id. Every other id keeps
+// rendering the stub unchanged.
 var pickableSheetKinds = map[string]bool{
 	store.KindCupChampion:      true,
 	store.KindPresidentsTrophy: true,
 	store.KindPlayoffsCup:      true,
 	divisionsSetID:             true,
 	awardsSetID:                true,
+	round1SetID:                true,
+	round2SetID:                true,
+	conferenceFinalsSetID:      true,
+	stanleyCupFinalSetID:       true,
 }
 
 // teamDivisionOrder is the fixed division display order for the
@@ -69,26 +94,34 @@ func groupTeamsByDivision(teams []store.Team) []teamDivisionGroup {
 // setSubmitted reports whether playerID already has a saved pick for set,
 // used both by buildPredictPhases (the Predict list's Submitted status) and
 // newSheetData (the sheet's Update-vs-Submit button text). For every id
-// other than divisionsSetID/awardsSetID this is Story 2.1's single
-// (PlayerID, Kind == set.ID) lookup; divisionsSetID/awardsSetID can't use
-// that lookup, since their picks are stored across per-division/per-award
-// rows keyed by (PlayerID, Kind, Division)/(PlayerID, Kind, Award) rather
+// other than divisionsSetID/awardsSetID/seriesSetIDs this is Story 2.1's
+// single (PlayerID, Kind == set.ID) lookup; divisionsSetID/awardsSetID/
+// seriesSetIDs can't use that lookup, since their picks are stored across
+// per-division/per-award/per-series rows keyed by (PlayerID, Kind,
+// Division)/(PlayerID, Kind, Award)/(PlayerID, KindSeries, SeriesKey) rather
 // than one row keyed by Kind == set.ID (AD-28) - submitted there means "has
-// saved at least one row for any division/award," matching the reference
-// App.jsx's own single "submitted" flag per set rather than one per
-// division/award.
+// saved at least one row for any division/award/series," matching the
+// reference App.jsx's own single "submitted" flag per set rather than one
+// per division/award/series.
 func setSubmitted(st *store.Store, set store.PredictionSet, playerID string) bool {
-	switch set.ID {
-	case divisionsSetID:
+	switch {
+	case set.ID == divisionsSetID:
 		for _, division := range teamDivisionOrder {
 			if _, ok := st.FindDivisionPlayoffTeams(playerID, division); ok {
 				return true
 			}
 		}
 		return false
-	case awardsSetID:
+	case set.ID == awardsSetID:
 		for _, award := range awardOrder {
 			if _, ok := st.FindAwardFinalists(playerID, award); ok {
+				return true
+			}
+		}
+		return false
+	case seriesSetIDs[set.ID]:
+		for _, m := range st.PlayoffMatchups(set.ID) {
+			if _, ok := st.FindSeriesPick(playerID, joinSeriesKey(set.ID, m.Key)); ok {
 				return true
 			}
 		}
@@ -113,12 +146,12 @@ type pickView struct {
 }
 
 // sheetData feeds templates/sheet.html: Title/DeadlineText/Countdown render
-// for every Prediction Set id. Closed, Pick, DivisionPick, and AwardsPick
-// are only populated for pickableSheetKinds ids (handleSheet/
+// for every Prediction Set id. Closed, Pick, DivisionPick, AwardsPick, and
+// SeriesPick are only populated for pickableSheetKinds ids (handleSheet/
 // handleSheetSubmit) - Pick populates for "cup"/"presidents", DivisionPick
-// for divisionsSetID, AwardsPick for awardsSetID; all three stay nil for
-// every other id, which keeps rendering the static "not available yet."
-// stub (Boundaries & Constraints).
+// for divisionsSetID, AwardsPick for awardsSetID, SeriesPick for every
+// seriesSetIDs id; all four stay nil for every other id, which keeps
+// rendering the static "not available yet." stub (Boundaries & Constraints).
 type sheetData struct {
 	ID           string
 	Title        string
@@ -128,20 +161,23 @@ type sheetData struct {
 	Pick         *pickView
 	DivisionPick *divisionPickView
 	AwardsPick   *awardsPickView
+	SeriesPick   *seriesPickView
 }
 
 // newSheetData builds sheetData for set as seen by playerID at now: the
 // common Title/DeadlineText/Countdown/Closed fields every id gets, plus a
 // populated Pick for the "cup"/"presidents" ids, a populated DivisionPick
-// for divisionsSetID, or a populated AwardsPick for awardsSetID (each built
-// from playerID's saved picks). teamIDOverride, when non-nil, replaces the
-// saved pick's team id in the rendered cup/presidents form - used by
-// renderRejectedPick to re-render the sheet with the rejected submission's
-// (invalid) value instead of the last-saved one; it has no effect for
-// divisionsSetID/awardsSetID, whose own rejected-resubmission re-renders go
-// through renderRejectedDivisionsPick/renderRejectedAwardsPick and
-// newDivisionPickView/newAwardsPickView directly instead. err is non-nil
-// only when set.DeadlineUTC fails to parse, mirroring newPredictSetView.
+// for divisionsSetID, a populated AwardsPick for awardsSetID, or a populated
+// SeriesPick for a seriesSetIDs id (each built from playerID's saved picks).
+// teamIDOverride, when non-nil, replaces the saved pick's team id in the
+// rendered cup/presidents form - used by renderRejectedPick to re-render the
+// sheet with the rejected submission's (invalid) value instead of the
+// last-saved one; it has no effect for divisionsSetID/awardsSetID/
+// seriesSetIDs, whose own rejected-resubmission re-renders go through
+// renderRejectedDivisionsPick/renderRejectedAwardsPick/
+// renderRejectedSeriesPick and newDivisionPickView/newAwardsPickView/
+// newSeriesPickView directly instead. err is non-nil only when
+// set.DeadlineUTC fails to parse, mirroring newPredictSetView.
 func newSheetData(st *store.Store, set store.PredictionSet, playerID string, now time.Time, teamIDOverride *string) (sheetData, error) {
 	submitted := setSubmitted(st, set, playerID)
 
@@ -165,6 +201,9 @@ func newSheetData(st *store.Store, set store.PredictionSet, playerID string, now
 	case set.ID == awardsSetID:
 		awardsView := newAwardsPickView(st, playerID, submitted, nil)
 		data.AwardsPick = &awardsView
+	case seriesSetIDs[set.ID]:
+		seriesView := newSeriesPickView(st, set, playerID, submitted, nil)
+		data.SeriesPick = &seriesView
 	case pickableSheetKinds[set.ID]:
 		prediction, _ := st.FindPrediction(playerID, set.ID)
 		selectedTeamID := prediction.TeamID
@@ -258,9 +297,11 @@ const invalidTeamErrorText = "Pick a team before submitting."
 
 // handleSheetSubmit handles POST /predict/{id}: the cup/presidents pick
 // submission (single team_id), the divisionsSetID's division
-// playoff-teams-and-winners submission (handleDivisionsSubmit), or the
-// awardsSetID's award-finalists submission (handleAwardsSubmit). {id} not
-// being a pickableSheetKinds id, or matching no Prediction Set, gets a
+// playoff-teams-and-winners submission (handleDivisionsSubmit), the
+// awardsSetID's award-finalists submission (handleAwardsSubmit), or a
+// seriesSetIDs id's per-series winner-and-games submission
+// (handleSeriesSubmit). {id} not being a pickableSheetKinds id, or matching
+// no Prediction Set, gets a
 // generic http.StatusNotFound - identical to handleSheet's own unknown-id
 // handling, so it can't be used to probe which ids exist. An Upcoming set
 // gets that same 404 before its deadline or form is even looked at (Upcoming
@@ -307,12 +348,7 @@ func handleSheetSubmit(st *store.Store) http.HandlerFunc {
 
 		playerID, _ := auth.PlayerIDFromContext(r.Context())
 
-		if id == divisionsSetID {
-			handleDivisionsSubmit(w, r, st, set, playerID, now)
-			return
-		}
-		if id == awardsSetID {
-			handleAwardsSubmit(w, r, st, set, playerID, now)
+		if dispatchSheetSubmitByKind(w, r, st, id, set, playerID, now) {
 			return
 		}
 
@@ -330,6 +366,26 @@ func handleSheetSubmit(st *store.Store) http.HandlerFunc {
 
 		http.Redirect(w, r, "/predict", http.StatusFound)
 	}
+}
+
+// dispatchSheetSubmitByKind routes id's own kind-specific submission handler
+// (handleDivisionsSubmit/handleAwardsSubmit/handleSeriesSubmit) and reports
+// whether one matched - factored out of handleSheetSubmit purely to keep its
+// own cyclomatic complexity low (gocyclo). A false result means id gets the
+// plain single-team_id path instead (handleSheetSubmit's own remaining
+// cup/presidents/playoffcup handling).
+func dispatchSheetSubmitByKind(w http.ResponseWriter, r *http.Request, st *store.Store, id string, set store.PredictionSet, playerID string, now time.Time) bool {
+	switch {
+	case id == divisionsSetID:
+		handleDivisionsSubmit(w, r, st, set, playerID, now)
+	case id == awardsSetID:
+		handleAwardsSubmit(w, r, st, set, playerID, now)
+	case seriesSetIDs[id]:
+		handleSeriesSubmit(w, r, st, set, playerID, now)
+	default:
+		return false
+	}
+	return true
 }
 
 // renderRejectedPick re-renders set's sheet (200) with teamID retained and

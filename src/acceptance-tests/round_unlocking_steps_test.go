@@ -115,8 +115,11 @@ func (s *roundUnlockingScenarioState) seedBody() (string, error) {
 	yamlMatchups.WriteString("playoff_matchups:\n")
 	for _, setID := range order {
 		fmt.Fprintf(&yamlMatchups, "    %s:\n", setID)
-		for _, m := range bySetID[setID] {
-			fmt.Fprintf(&yamlMatchups, "        - a: %q\n          b: %q\n", m.teamA, m.teamB)
+		// key is generated as "s<n>" (1-based, per setID) rather than left
+		// blank - Story 3.3's series sheet requires every matchup to carry a
+		// non-empty Key, so this fixture must reflect that same valid shape.
+		for i, m := range bySetID[setID] {
+			fmt.Fprintf(&yamlMatchups, "        - key: %q\n          a: %q\n          b: %q\n", fmt.Sprintf("s%d", i+1), m.teamA, m.teamB)
 		}
 	}
 

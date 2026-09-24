@@ -1,17 +1,23 @@
 {{/*
   Per-Prediction-Set sheet page: a back arrow to /predict, the set's title,
-  its formatted deadline+countdown, and one of four bodies - the static
+  its formatted deadline+countdown, and one of five bodies - the static
   "not available yet" stub (every id but the pickable ones, Story 2.1);
   when .Pick is set (Story 2.3), a real single-team dropdown grouped by
   division, sourced from Store.Teams(); when .DivisionPick is set
   (Story 2.4), the checkbox-chip playoff-teams form plus four division-
-  winner selects; or, when .AwardsPick is set (Story 2.6), 5 trophy groups
-  of 3 text/hidden-slug finalist-autocomplete pairs each. Submitting POSTs
-  to /predict/{id}; the button reads "Update predictions" once
-  .Pick.Submitted/.DivisionPick.Submitted/.AwardsPick.Submitted is true.
-  Once .Closed, the inputs render disabled and the action bar (button + hint)
-  is replaced by a read-only banner - no override for anyone, even the
-  player who made the pick.
+  winner selects; when .AwardsPick is set (Story 2.6), 5 trophy groups of 3
+  text/hidden-slug finalist-autocomplete pairs each; or, when .SeriesPick is
+  set (Story 3.3), one series card per recorded playoff_matchups entry,
+  grouped under a conference (or Stanley Cup Final) subheader, each with two
+  full-width team-winner buttons and four 4/5/6/7 game-count buttons - or,
+  when .SeriesPick has no Groups at all (a series-pickable set with no
+  matchups recorded yet, e.g. "r1" right after it opens), a "No series
+  recorded yet." placeholder in place of the form, mirroring the static
+  stub's own tone. Submitting POSTs to /predict/{id}; the button reads "Update predictions"
+  once .Pick.Submitted/.DivisionPick.Submitted/.AwardsPick.Submitted/
+  .SeriesPick.Submitted is true. Once .Closed, the inputs render disabled and
+  the action bar (button + hint) is replaced by a read-only banner - no
+  override for anyone, even the player who made the pick.
 */}}
 <!doctype html>
 <html lang="en">
@@ -143,6 +149,50 @@
       {{end}}
     </form>
     <script src="/static/awards.js" defer></script>
+    {{else if .SeriesPick}}
+    {{if not .SeriesPick.Groups}}
+    <p class="sheet-placeholder">No series recorded yet.</p>
+    {{else}}
+    <form class="pick-form series-form" method="post" action="/predict/{{.ID}}" {{if .Closed}}data-closed{{end}}>
+      <p class="hint series-hint">For each series, tap the winner and how many games it takes.</p>
+      {{range .SeriesPick.Groups}}
+      <fieldset class="series-group">
+        <legend class="conference-title">{{.Label}}</legend>
+        {{range .Cards}}
+        {{$card := .}}
+        <div class="series-card {{if .Error}}series-card--invalid{{end}}" data-series="{{.Key}}">
+          <div class="series-teams">
+            <label class="series-btn series-team-btn">
+              <input type="radio" name="{{.TeamField}}" value="{{.TeamAID}}" aria-label="{{.TeamAName}}" {{if eq .SelectedTeamID .TeamAID}}checked{{end}} {{if $.Closed}}disabled{{end}}>
+              <span>{{.TeamAName}}</span>
+            </label>
+            <label class="series-btn series-team-btn">
+              <input type="radio" name="{{.TeamField}}" value="{{.TeamBID}}" aria-label="{{.TeamBName}}" {{if eq .SelectedTeamID .TeamBID}}checked{{end}} {{if $.Closed}}disabled{{end}}>
+              <span>{{.TeamBName}}</span>
+            </label>
+          </div>
+          <div class="series-games">
+            {{range $.SeriesPick.GameOptions}}
+            <label class="series-btn series-games-btn">
+              <input type="radio" name="{{$card.GamesField}}" value="{{.}}" aria-label="{{.}} games" {{if eq $card.SelectedGames .}}checked{{end}} {{if $.Closed}}disabled{{end}}>
+              <span>{{.}}</span>
+            </label>
+            {{end}}
+          </div>
+          {{if .Error}}<p class="error-text">{{.Error}}</p>{{end}}
+        </div>
+        {{end}}
+      </fieldset>
+      {{end}}
+
+      {{if .Closed}}
+      <p class="closed-banner">This Prediction Set is closed. No changes can be made.</p>
+      {{else}}
+      <button type="submit">{{if .SeriesPick.Submitted}}Update predictions{{else}}Submit predictions{{end}}</button>
+      <p class="hint">Editable until the deadline.</p>
+      {{end}}
+    </form>
+    {{end}}
     {{else}}
     <p class="sheet-placeholder">Not available yet.</p>
     {{end}}

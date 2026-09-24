@@ -50,9 +50,9 @@ Feature: Browse Prediction Sets by Phase and Status
     And the set row for "cf" is not actionable
 
   Scenario: Tapping an actionable row opens its stub page
-    Given a Prediction Set "r1" titled "Playoff round 1" with subtitle "8 series — winner & length" in phase "playoffs" with a deadline "in 5 days"
-    When the player opens the Prediction Set "r1"
-    Then the sheet shows the title "Playoff round 1"
+    Given a Prediction Set "mystery-set" titled "Mystery set" with subtitle "Not built yet" in phase "playoffs" with a deadline "in 5 days"
+    When the player opens the Prediction Set "mystery-set"
+    Then the sheet shows the title "Mystery set"
     And the sheet shows the countdown "in 5 days"
     And the sheet shows "Not available yet."
 
