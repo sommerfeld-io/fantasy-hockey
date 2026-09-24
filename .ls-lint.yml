@@ -57,7 +57,7 @@ ignore:
   # linter definitions etc.
   - .editorconfig
   - .gherkin-lintrc
-  - .golangci.yml
+  - src/.golangci.yml
   - .hadolint.yml
   - .lychee.toml
   - .ls-lint.yml

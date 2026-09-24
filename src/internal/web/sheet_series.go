@@ -227,8 +227,8 @@ func newSeriesPickView(st *store.Store, set store.PredictionSet, playerID string
 	matchups := st.PlayoffMatchups(set.ID)
 
 	var groups []seriesGroupPick
-	switch {
-	case set.ID == stanleyCupFinalSetID:
+	switch set.ID {
+	case stanleyCupFinalSetID:
 		if len(matchups) > 0 {
 			cards := make([]seriesCardPick, len(matchups))
 			for i, m := range matchups {
