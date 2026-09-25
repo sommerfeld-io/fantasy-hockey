@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-25-2026 18:07
+last_updated: 09-25-2026 20:34
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -66,7 +66,7 @@ development_status:
   epic-5: in-progress
   5-1-compare-selector-and-side-by-side-table: done
   5-2-division-comparison-granularity-and-consistent-value-formatt: done
-  epic-5-retrospective: optional
+  epic-5-retrospective: done
 
   epic-6: backlog
   6-1-season-rollover-with-retained-history: backlog
@@ -348,12 +348,58 @@ action_items:
       above Co-Authored-By) or teach git_evidence.py to read trailers, so commits
       are attributed automatically"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
   - id: "epic-4-retro-item-36-give-each-later-reviewer-the-earlier-rev"
     epic: 4
     action: "Give each later reviewer the earlier Review Triage Logs plus this retro's
       accepted deviations (B3-B5) so rejected findings are not re-raised"
     owner: "whoever runs reviews"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-5-retro-item-37-consolidate-isgatedround-s-duplicated-lo"
+    epic: 5
+    action: "Consolidate isGatedRound's duplicated lookup and validity check: reuse
+      findPredictionSetByID (sheet.go) and share selectableCompareSets's phase/deadline
+      validity predicate instead of re-deriving both independently in compare.go"
+    owner: "next dev touching internal/web/compare.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
+  - id: "epic-5-retro-item-38-fix-the-simultaneous-nothing-to-compare"
+    epic: 5
+    action: "Fix the simultaneous \"Nothing to compare yet.\" / \"Matchups not set.\"\
+      \ contradiction on Compare: suppress the per-group empty note for the phase
+      whose gated-round Note is being shown, or unify into one shared \"nothing to
+      show\" source of truth -- confirmed live against the real running app with real
+      data, not just a constructed fixture"
+    owner: "next dev touching Compare (product/UX call on which note to suppress)"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
+  - id: "epic-5-retro-item-39-hoist-the-duplicated-acceptance-test-pla"
+    epic: 5
+    action: "Hoist the duplicated acceptance-test player-pool fixture helpers (comparePlayerID/requirePoolPlayer/thePoolPlayersAre/seedBody's
+      player loop) out of compare_predictions_steps_test.go and leaderboard_steps_test.go
+      into fixture_support_test.go; this is the 4th epic in a row with this same item
+      (epic-2 item 12, epic-3 item 22, epic-4 item 34) -- consider adding a standing
+      'check fixture_support_test.go first' note to src/CLAUDE.md's acceptance-test
+      guidance"
+    owner: "next dev touching compare_predictions_steps_test.go or leaderboard_steps_test.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
+  - id: "epic-5-retro-item-40-close-three-compare-story-boundary-test"
+    epic: 5
+    action: "Close three Compare story-boundary test-coverage gaps: an own-column-holds-a-tag
+      scenario, drive isGatedRound through the conference-finals and Stanley-Cup-Final
+      ids (not only r2), and a consistency test asserting roundGatedSetIDs is a subset
+      of seriesSetIDs"
+    owner: "next dev touching Compare"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
+  - id: "epic-5-retro-item-41-consider-splitting-compare-go-along-cate"
+    epic: 5
+    action: "Consider splitting compare.go along category-kind boundaries (compare_divisions.go/compare_awards.go/compare_series.go,
+      mirroring sheet_*.go) before a future story adds another category kind -- it
+      is already the largest production file in internal/web (488 lines)"
+    owner: "whoever plans the next Compare-touching story"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
