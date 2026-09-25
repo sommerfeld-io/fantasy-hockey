@@ -44,7 +44,7 @@ Nothing about this product needs to scale past three people or grow an admin lay
 - **UJ-2.** Sadl, a few minutes after receiving a login-code email, taps in, is logged in, and lands straight on his own picks — never anyone else's.
 - **UJ-3.** Tobbi, mid-playoffs, opens Compare, picks "Round 1," and scrolls the side-by-side table to see who called the upset he just watched.
 - **UJ-4.** *[DEFERRED — not in MVP; see §4.5, FR-22]* Basti, after a slow week, gets a reminder email for a set he hasn't finished, taps through, and completes the missing picks before it locks.
-- **UJ-5.** Sadl, right after Round 1 results are entered, opens Leaderboard to see Regular, Playoff, and Total points update live, and where he now ranks.
+- **UJ-5.** Sadl, right after Round 1 results are entered (and the app restarted to pick them up), opens Leaderboard to see Regular, Playoff, and Total points recomputed, and where he now ranks.
 - **UJ-6.** Whoever is running the pool that season edits `fantasy-hockey.yml` directly to record a just-finished series result or open the next playoff round — no in-app action, no screen.
 
 ## 3. Glossary
@@ -65,7 +65,7 @@ Nothing about this product needs to scale past three people or grow an admin lay
 - **Prediction set** — one deadline-bound group of predictions (e.g. "Division picks", "Playoff Round 1"). Every prediction belongs to exactly one set and has exactly one deadline.
 - **Result** — the real-world outcome recorded against a Prediction set once it's known, used to compute scoring.
 - **Leaderboard** — the always-live, computed view of every Player's points: Regular, Playoff, and Total. (Named "Standings" in an earlier draft of this PRD; renamed to match the UX spines' click-dummy-exact terminology — see the naming note below.)
-- **`fantasy-hockey.yml`** — the single data file, edited directly and out of band by whoever runs the pool, that holds all Results, deadlines, and Playoff matchups. No in-app UI reads from or writes to it except as a read-only source.
+- **`fantasy-hockey.yml`** — the single data file, edited directly and out of band by whoever runs the pool, that holds all Results, deadlines, and Playoff matchups. The app treats those sections as read-only: no in-app UI creates or changes them, and the app picks up a hand edit only after a restart.
 
 ## 4. Features
 
@@ -211,7 +211,7 @@ A later Playoff round opens only once that round's real matchups are recorded in
 #### FR-21: Matchup context labels
 Each Series is labeled by its Conference ("Eastern Conference" / "Western Conference"), except the final round, labeled "Stanley Cup Final."
 
-**Notes:** Real-world results, deadlines, and Playoff matchups are never entered through the app — there is no management or admin UI anywhere in this product (see §5 Non-Goals). Every FR above that reacts to `fantasy-hockey.yml` (deadline enforcement, round unlocking, scoring) only *reads* it; nothing in the app ever writes to that part of the file.
+**Notes:** Real-world results, deadlines, and Playoff matchups are never entered through the app — there is no management or admin UI anywhere in this product (see §5 Non-Goals). Every FR above that reacts to `fantasy-hockey.yml` (deadline enforcement, round unlocking, scoring) only *reads* it; nothing in the app ever creates or changes that part of the file. (The app rewrites the whole file when it saves a pick or login code, carrying the hand-maintained sections over with their values unchanged — preserving their exact formatting is Story 7.4.)
 
 ### 4.5 Deadline Reminders — deferred, not in MVP
 **Description:** [DEFERRED] Not present in the click-dummy at all — new for this rebuild, and explicitly removed from v1 scope during the UX pass: no trigger surface, button, or affordance for it exists anywhere in the UX spines (`_bmad-output/planning-artifacts/ux-designs/ux-fantasy-hockey-2026-09-14/EXPERIENCE.md`, "Deferred" section). Kept here as a specified-but-deferred capability for a future version, not deleted — see §6.2. Realizes UJ-4 (also deferred; see PRD §2.3).
@@ -236,7 +236,7 @@ A Player can see a Leaderboard view of all Players with Regular, Playoff, and To
 
 **Consequences (testable):**
 - Four columns: Player, Regular, Playoff, and a visually emphasized Total (the deciding column).
-- Always reflects the latest scoring computation live — there is no separate "in-progress"/projected tier.
+- Always reflects the latest scoring computation — recomputed on every view, never cached; a newly saved pick shows immediately, a hand-recorded result after the app is restarted. There is no separate "in-progress"/projected tier.
 - Players with an equal Total share the same rank; no tiebreaker of any kind is applied.
 
 #### FR-24: Automatic scoring

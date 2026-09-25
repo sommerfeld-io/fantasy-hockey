@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-25-2026 12:49
+last_updated: 09-25-2026 12:54
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -76,6 +76,7 @@ development_status:
   7-1-log-data-changing-writes: backlog
   7-2-clean-up-unusable-login-codes: backlog
   7-3-keep-written-yaml-yamllint-compliant: backlog
+  7-4-hand-edited-results-are-safe-to-edit: backlog
   epic-7-retrospective: optional
 
 # Action items committed during retrospectives (section created by the retrospective workflow)
@@ -261,7 +262,7 @@ action_items:
       after a hand edit (AD-27); spec-3-3 Code Map validation bullet should describe
       the silent skip of half-filled series"
     owner: "John (PM)"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
   - id: "epic-3-retro-item-25-name-the-story-id-in-each-story-commit-b"
     epic: 3
@@ -285,7 +286,7 @@ action_items:
       need restart), epic-4-context, spec-4-1 frozen Never/malformed lists, architecture
       AD-23; absorbs epic-3 item 24"
     owner: "John (PM) / dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
   - id: "epic-4-retro-item-28-give-the-results-file-deferrals-a-real-h"
     epic: 4
@@ -294,7 +295,7 @@ action_items:
       comment/style-preserving rewrite, games quoting, and a startup 'results loaded,
       N problems' line"
     owner: "John (PM)"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
   - id: "epic-4-retro-item-29-write-an-operator-runbook-in-docs-for-re"
     epic: 4

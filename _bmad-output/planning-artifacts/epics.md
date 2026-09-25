@@ -453,8 +453,8 @@ So that I don't predict blind.
 **When** that round's matchups are NOT yet recorded under `playoff_matchups` in `fantasy-hockey.yml`
 **Then** the round's set shows as Upcoming on Predict (dimmed, lock icon, not tappable), per Story 2.1's Upcoming treatment
 
-**Given** a human directly adds that round's matchups to `fantasy-hockey.yml`
-**When** I next load Predict
+**Given** a human directly adds that round's matchups to `fantasy-hockey.yml` (with the app stopped, then restarted — the store reads the file only at startup, AD-27)
+**When** I next load Predict after the restart
 **Then** the round's set becomes Open — no in-app action, no admin screen, ever triggers this
 
 *References: PRD FR-10, FR-20; Architecture AD-23.*
@@ -517,15 +517,15 @@ So that I can see who's winning.
 **Given** I open Leaderboard
 **When** the screen renders
 **Then** I see one row per player with Player, Regular, Playoff, and a visually emphasized Total column (left border + tint), sorted by Total descending, in tabular-numeral monospace
-**And** the leader's rank badge and Total render in `gold`, and no row carries a "(you)" marker
+**And** every rank-1 player's rank badge and Total render in `gold` (tied leaders are treated alike, since singling one out would be a tiebreaker), nobody is gold while the top Total is 0, and no row carries a "(you)" marker
 
 **Given** two or more players share the same Total
 **When** the Leaderboard renders
 **Then** they share the same rank — no tiebreaker of any kind is applied
 
-**Given** any new result or prediction affecting scoring
+**Given** a new prediction saved in the app, or a new result recorded by hand in `fantasy-hockey.yml` and picked up by restarting the app (AD-27)
 **When** I open or refresh Leaderboard
-**Then** it reflects the latest computation live — there is no separate "in-progress"/projected tier
+**Then** it reflects the latest computation — recomputed on every request, never cached, with no separate "in-progress"/projected tier
 
 *References: PRD FR-23; Architecture AD-15; UX-DR10; UX EXPERIENCE.md Component Patterns (Leaderboard table), Open Items (sample-data caveat — real scoring is this story's, not the click-dummy's placeholder values).*
 
@@ -671,4 +671,30 @@ So that opening the file after the app has written to it never shows me lint-dir
 **When** it runs
 **Then** an automated test writes a file through the real `store` code path and verifies the result against the repository's actual `yamllint` binary/config (matching `task lint`'s invocation, not `--strict`), not a hand-rolled reimplementation of its rules
 
-*References: repo `.yamllint` config; Architecture AD-27; brainstorm-intent.md Story C. Readiness-gate finding (confirmed empirically, 2026-09-15): `go.yaml.in/yaml/v3`'s marshal defaults do NOT emit a document-start `---` marker, which the repo's default-extended `.yamllint.yml` flags as a warning at `1:1` — human-confirmed as acceptable (matches the repo's actual, non-strict lint gate), so no marshal/output change is required to close that specific gap. Ask the human whether a Gherkin acceptance test applies before implementation.*
+*References: repo `.yamllint` config; Architecture AD-27; brainstorm-intent.md Story C. Readiness-gate finding (confirmed empirically, 2026-09-15): `go.yaml.in/yaml/v3`'s marshal defaults do NOT emit a document-start `---` marker, which the repo's default-extended `.yamllint.yml` flags as a warning at `1:1` — human-confirmed as acceptable (matches the repo's actual, non-strict lint gate), so no marshal/output change is required to close that specific gap. Remove the temporary `src/fantasy-hockey.yml` entry from `.yamllint.yml`'s `ignore:` list (added in commit `27f6868` while the app's own writes weren't yet lint-clean) once this story's writes pass. Story 7.4 owns preserving the hand-maintained sections' own formatting; this story only guarantees the app's output is lint-clean. Ask the human whether a Gherkin acceptance test applies before implementation.*
+
+### Story 7.4: Hand-Edited Results Are Safe to Edit
+
+As the person running the pool,
+I want the app to catch my mistakes in the hand-maintained sections of fantasy-hockey.yml and leave what I wrote exactly as I wrote it,
+So that a typo never silently costs someone points, never takes the app down, and never gets rewritten away by the next player's save.
+
+**Acceptance Criteria:**
+
+**Given** a misspelled or unknown key inside `results:` or `award_finalists:` (e.g. `stanley_cup_winer`, `divison_winner`, `gmes`)
+**When** the app starts
+**Then** it logs one "malformed result" warning naming the key's path, alongside the existing value-level warnings — never silently ignoring it
+
+**Given** a wrongly shaped entry in `results:` or `award_finalists:` (e.g. a scalar where a list belongs, `playoffs: FLA`)
+**When** the app starts
+**Then** it still starts, logs a warning naming the entry, and scores that entry as 0 — and the next save does not wipe or rewrite what the human wrote in that section
+
+**Given** hand-maintained sections the app never changes (`results:`, `award_finalists:`, and the other human-maintained sections per AD-23)
+**When** the app saves a prediction or a login code
+**Then** those sections are written back exactly as the human wrote them — comments, flow/block style, quoting (`games: 5` stays unquoted), key order and unknown keys preserved
+
+**Given** a startup with a readable data file
+**When** loading completes
+**Then** one summary line reports how many result problems were found (including zero), so a clean restart is distinguishable from an unchecked one
+
+*References: Architecture AD-9, AD-23, AD-27; Epic 4 retro findings R3, R6, R7 (`epic-4-retro-2026-09-25.md`); `deferred-work.md` entries sourced from `spec-4-1-automatic-scoring-engine.md`; operator runbook `docs/recording-results-and-playoffs.md` (update its "not warned about" list when this ships). Out of scope: detecting a hand edit made while the app runs (the runbook's stop-edit-restart rule stands). Coordinate with Story 7.3, which owns lint-clean output. Ask the human whether a Gherkin acceptance test applies before implementation.*

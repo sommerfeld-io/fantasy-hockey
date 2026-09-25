@@ -106,7 +106,7 @@ graph TD
 
 - **Binds:** FR-32 (persistent storage), all data access
 - **Prevents:** re-introducing a database engine, a schema-migration tool, or a separate datastore container for three people's picks in one season.
-- **Rule:** all persisted state (season, players, teams, deadlines, predictions, results, award finalists, playoff matchups, login codes) lives in one file, `fantasy-hockey.yml`. `internal/store` is the only package that touches it. Only predictions and login codes are written by the app at runtime, in response to a player's own action — everything else is human-maintained (AD-23). **Accepted constraint:** exactly one process writes the file at a time (AD-27) — revisit only if a future version needs more than one writer (see Deferred). [ADOPTED]
+- **Rule:** all persisted state (season, players, teams, deadlines, predictions, results, award finalists, playoff matchups, login codes) lives in one file, `fantasy-hockey.yml`. `internal/store` is the only package that touches it. Only predictions and login codes are created or changed by the app at runtime, in response to a player's own action — everything else is human-maintained (AD-23). Because writes are whole-file (AD-27), every save re-serializes the hand-maintained sections too, with their values unchanged; keeping their exact formatting is Story 7.4. **Accepted constraint:** exactly one process writes the file at a time (AD-27) — revisit only if a future version needs more than one writer (see Deferred). [ADOPTED]
 
 ### AD-10 — Server-rendered presentation, minimal-dependency stance
 
@@ -190,7 +190,7 @@ graph TD
 
 - **Binds:** FR-8 (deadline enforcement), FR-20 (round unlocking), FR-24 (scoring), PRD §5 Non-Goals
 - **Prevents:** building a management/admin UI or an `internal/results`-style write path; any feature package assuming it can write a Result, AwardFinalist, Deadline, or playoff matchup entry.
-- **Rule:** award finalists/winners, team results, series results, playoff matchups, each Prediction set's deadline, **the canonical team list, and the NHL Player candidate list (FR-33)** are all written by a human directly editing `fantasy-hockey.yml` — no Go code path ever writes any of them. `internal/predictions` reads deadlines and playoff matchups; `internal/scoring` reads results and award finalists; `internal/web` reads the team/NHL Player lists to embed for autocomplete (AD-19). No package exposes a way to create/modify these sections; `internal/store`'s writers cover only predictions and login codes (AD-9). [ADOPTED, FR-33 lists added at spine review]
+- **Rule:** award finalists/winners, team results, series results, playoff matchups, each Prediction set's deadline, **the canonical team list, and the NHL Player candidate list (FR-33)** are all written by a human directly editing `fantasy-hockey.yml` — no Go code path ever writes any of them. `internal/predictions` reads deadlines and playoff matchups; `internal/scoring` reads results and award finalists; `internal/web` reads the team/NHL Player lists to embed for autocomplete (AD-19). No package exposes a way to create/modify these sections; `internal/store`'s writers change only predictions and login codes (AD-9) and carry every hand-maintained section over unchanged on each whole-file write. The store reads these sections once at startup, so a hand edit takes effect after a restart and must be made with the app stopped (AD-27; operator runbook `docs/recording-results-and-playoffs.md`). [ADOPTED, FR-33 lists added at spine review]
 
 ### AD-24 — Import-boundary and shared-struct ownership: `internal/store` owns domain entity structs and shared enums
 
@@ -214,7 +214,7 @@ graph TD
 
 - **Binds:** AD-9
 - **Prevents:** a crash or concurrent write leaving `fantasy-hockey.yml` half-written or corrupted.
-- **Rule:** `internal/store` loads the whole file into memory once at startup. Every write updates that in-memory structure under a mutex, then serializes the *entire* file back to disk by writing to a temporary file in the same directory and renaming it over the original — never in place. A multi-field prediction save updates the in-memory structure once and triggers exactly one write-and-rename. Relies on the app being the only process that ever writes the file at once (AD-9) — no locking against a second writer, none expected to exist. [ADOPTED — matches the PRD addendum's independently-logged deferral of a write-queuing mechanism; no conflict.]
+- **Rule:** `internal/store` loads the whole file into memory once at startup. Every write updates that in-memory structure under a mutex, then serializes the *entire* file back to disk by writing to a temporary file in the same directory and renaming it over the original — never in place. A multi-field prediction save updates the in-memory structure once and triggers exactly one write-and-rename. Relies on the app being the only process that ever writes the file at once (AD-9) — no locking against a second writer, none expected to exist. [ADOPTED — matches the PRD addendum's independently-logged deferral of a write-queuing mechanism; no conflict.] Consequence (as built, Epic 4): because the file is read only at startup, a hand edit made while the app runs is not seen and is overwritten by the next write. The stop-edit-restart rule is the accepted mitigation; detecting on-disk changes before a write is not planned.
 
 ### AD-28 — Prediction row granularity: one row per independently-saveable pick
 
@@ -336,7 +336,7 @@ src/
 
 ### Illustrative data-file shape
 
-Not a final schema — exact field names/nesting are an implementation-time decision (PRD Open Question 3) — but this is the kind of shape `fantasy-hockey.yml` takes, per AD-9/AD-17/AD-20/AD-23:
+Illustrative only. The as-built schema for results, award finalists and playoff matchups is documented in `src/internal/store/README.md` and the operator runbook `docs/recording-results-and-playoffs.md`; this block follows it for those sections, per AD-9/AD-17/AD-20/AD-23:
 
 ```yaml
 # --- hand-maintained: the app only ever reads these sections (AD-23) ---
@@ -372,8 +372,8 @@ award_finalists:                   # AwardFinalist struct: {slug, display_name} 
         - { slug: "...", display_name: "..." }
 
 playoff_matchups:
-    round2:
-        - { a: "FLA", b: "TOR" }   # unlocks Round 2's Prediction set once present (AD-23, FR-20)
+    r2:                            # keyed by Prediction Set id: r1, r2, cf, scf
+        - { key: "s1", a: "FLA", b: "TOR" }   # key: unique per round, never renamed; unlocks r2 once present (AD-23, FR-20)
 
 # --- app-written at runtime: the only sections internal/store ever writes (AD-9) ---
 

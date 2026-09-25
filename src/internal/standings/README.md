@@ -13,4 +13,4 @@ Turns `internal/scoring`'s points into the Leaderboard's ranked rows. `Rows(st *
 
 - Every point value comes from `scoring.PlayerPoints`. This package never derives a point value itself.
 - It imports only `internal/scoring` and `internal/store`, the one feature-to-feature import the architecture allows. `imports_test.go` guards this.
-- Nothing is cached or persisted. Every call recomputes from the store, so a new pick or a reloaded result shows up on the next call.
+- Nothing is cached or persisted. Every call recomputes from the store, so a new pick shows up on the next call. Hand-recorded results are read only at startup (see internal/store), so a new result shows up after a restart.

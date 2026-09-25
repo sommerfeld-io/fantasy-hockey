@@ -30,13 +30,13 @@ context:
 - Award rule: 5 points for each picked slug found anywhere in that award's recorded finalist list, which can hold more than 3 entries when there is a tie. This applies equally to all 5 awards.
 - The season-opening Cup pick and the Playoffs Cup pick are each compared against the same recorded Cup winner. The first goes to Regular and the second to Playoff.
 - Series rule: the winner and the game count both matching earns the round's "exact" value. The winner alone earns the round's "winner" value. They never add up.
-- `internal/scoring` imports only `internal/store`, never `internal/web`, and nothing else imports it yet.
+- `internal/scoring` imports only `internal/store`, never `internal/web`. Its only production importer is `internal/standings` (Story 4.2); the acceptance tests also call it. (Reconciled 2026-09-25, sprint-change-proposal-2026-09-25.)
 - Decision, results shape: `results.team_marks.<lowercase division>: {playoffs: [abbreviations], division_winner: ABBR}`, `results.presidents_trophy`, `results.stanley_cup_winner`, and `results.series.<roundN>.<matchup key>: {winner, games}`, where the round and the matchup key are two nested mapping levels (`series:` → `round1:` → `s1: {winner: FLA, games: 5}`), never one flat `round1.s1:` key. `round1` to `round4` map to `r1`, `r2`, `cf` and `scf`, and the matchup key is the existing `playoff_matchups` `key`. Finalists go in a top-level `award_finalists.<award>: [{slug, display_name}]`, and only `slug` is compared. Unquoted `games: 5` must load.
-- Decision, malformed results: at startup the app logs one stderr warning for each bad entry: an unknown team abbreviation, finalist slug, division, award or round, a series key with no matching `playoff_matchups` entry, or games outside 4–7. The app still starts, and a bad entry scores 0.
+- Decision, malformed results: at startup the app logs one stderr warning for each bad entry: an unknown team abbreviation, finalist slug, division, award or round, a series key with no matching `playoff_matchups` entry, games outside 4–7, a series winner that isn't one of its matchup's two teams, or a `team_marks` team from another division. The app still starts for a bad value, and a bad entry scores 0; a wrongly shaped entry currently stops startup (Story 7.4). (Reconciled 2026-09-25.)
 
 **Never:**
 
-- Write any score, or anything from the results section, to `fantasy-hockey.yml`.
+- Write any score to `fantasy-hockey.yml`, or create or change anything in the results section. (Whole-file saves carry it over with its values unchanged, per AD-27. Reconciled 2026-09-25.)
 - Build `internal/standings`, a Leaderboard view, or ranking. Those belong to Story 4.2.
 - Add a UI for entering results.
 - Add a tiebreaker.
@@ -47,7 +47,7 @@ context:
 |-----------------------------|-----------------------------------------------------------------|------------------------------|
 | No results recorded yet     | All picks saved, results section absent                         | Regular 0, Playoff 0         |
 | Winner picked and listed    | Picked FLA in playoff list and as winner; FLA won the division  | 15 for FLA, not 20           |
-| Winner wrong, team made it  | Picked TOR as winner; TOR made playoffs but FLA won             | 5 for TOR                    |
+| Winner wrong, team made it  | Picked TOR as winner and in the playoff list; TOR made playoffs but FLA won | 5 for TOR        |
 | Tie expands award finalists | Hart recorded with 4 slugs; the player's 3 picks all appear in them | 15                       |
 | Exact series                | Picked FLA in 5; result FLA in 5 (round 1)                      | 25, not 40                   |
 | Winner-only series          | Picked FLA in 6; result FLA in 5 (Conference Finals)            | 30                           |
@@ -91,7 +91,7 @@ context:
 
 **Acceptance Criteria:**
 
-- Given a seeded data file with picks and results, when scoring runs twice with an edit to the results in between, then the second call reflects the edit and the data file's bytes are unchanged by scoring.
+- Given a seeded data file with picks and results, when scoring runs, the results are edited by hand and the app restarts, and scoring runs again, then the second call reflects the edit and the data file's bytes are unchanged by scoring.
 - Given a player with every pick correct and every result recorded, when scoring runs, then Regular and Playoff equal the maximum totals the point table allows.
 - Given `internal/scoring`, when its imports are listed, then it imports `internal/store` and no other `internal/` package.
 

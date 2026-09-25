@@ -32,7 +32,7 @@ Every player's Regular, Playoff, and Total points are computed automatically fro
 - All 5 awards (Hart, Norris, Vezina, Art Ross, Rocket Richard) score the same way against whatever finalists are recorded for them. No award is exempt. A real-world tie past 3rd place expands the recorded finalist set, which is edited by hand and never entered by a player.
 - An empty pick contributes zero without raising an error. A missing result (not yet recorded) scores nothing yet and must not fail.
 - Total = Regular + Playoff, and Total is the column that decides rank. Players with equal Totals share the same rank, with no tiebreaker of any kind.
-- The Leaderboard is always live. There is no cached value and no separate "in-progress"/projected tier: a new result or prediction shows up on the next open or refresh.
+- The Leaderboard is always live. There is no cached value and no separate "in-progress"/projected tier: a new prediction shows up on the next open or refresh; a hand-recorded result after the app restarts (AD-27).
 - The click-dummy's Leaderboard numbers are placeholder sample data and must never be used as expected values.
 - Scope discipline: build only what is specified. Scoring errors are one of the failure modes this app exists to prevent.
 
