@@ -55,7 +55,7 @@
 </thead>
 {{$count := .ColumnCount}}{{range .Rows}}<tbody class="cmp-category">
 <tr class="cmp-label-row"><th colspan="{{$count}}" scope="rowgroup" class="cmp-label">{{.Label}}</th></tr>
-<tr class="cmp-values{{if .Stacked}} cmp-values--stacked{{end}}">{{range .Cells}}<td class="{{.CSS}}">{{range .Values}}<span class="cmp-value">{{.}}</span>{{end}}</td>{{end}}</tr>
+<tr class="cmp-values{{if .Stacked}} cmp-values--stacked{{end}}">{{range .Cells}}<td class="{{.CSS}}">{{range .Values}}<span class="{{.CSS}}">{{.Text}}</span>{{end}}</td>{{end}}</tr>
 </tbody>
 {{end}}</table>
 {{end}}
@@ -115,7 +115,7 @@
       <div class="compare-selector">
         {{range .Compare.Groups}}{{template "compare-group" .}}{{end}}
       </div>
-      {{with .Compare.Table}}{{template "compare-table" .}}{{end}}
+      {{if .Compare.Table}}{{template "compare-table" .Compare.Table}}{{else if .Compare.Note}}<p class="cmp-note-dashed">{{.Compare.Note}}</p>{{end}}
     </section>
     {{end}}
   </main>

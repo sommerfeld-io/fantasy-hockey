@@ -32,6 +32,20 @@ const compareYouLabel = `<span class="cmp-you">You</span>`
 // compareStalePlayerID is a session player id no seeded player has.
 const compareStalePlayerID = "ghost"
 
+// Compare value CSS classes (styles.css), duplicated here rather than
+// imported so this black-box HTTP suite can never reach into internal/web -
+// they must match compare.go's own compareValueTagCSS/compareValueCSS/
+// compareValueEmptyCSS constants exactly, or the tag/plain/faint scenarios
+// stop proving anything.
+const (
+	compareValueTagCSS   = "cmp-value cmp-tag"
+	compareValuePlainCSS = "cmp-value"
+	compareValueEmptyCSS = "cmp-value cmp-value--empty"
+)
+
+// compareNoteDashedCSS is the gated-round note's CSS class (styles.css).
+const compareNoteDashedCSS = "cmp-note-dashed"
+
 // Markup patterns for the rendered Compare section: selector groups and
 // their chips, the deadline, the player header and the category rows.
 var (
@@ -42,7 +56,7 @@ var (
 	compareLabelPattern      = regexp.MustCompile(`<th colspan="\d+" scope="rowgroup" class="cmp-label">([^<]+)</th>`)
 	compareValueRowPattern   = regexp.MustCompile(`(?s)<tr class="cmp-values[^"]*">(.*?)</tr>`)
 	compareCellPattern       = regexp.MustCompile(`(?s)<td class="cmp-cell( cmp-cell--own)?">(.*?)</td>`)
-	compareCellValuePattern  = regexp.MustCompile(`<span class="cmp-value">([^<]*)</span>`)
+	compareCellValuePattern  = regexp.MustCompile(`<span class="([^"]*)">([^<]*)</span>`)
 	compareSectionHeaderText = regexp.MustCompile(`<div class="section-header">.*?<span>([^<]+)</span></div>`)
 )
 
@@ -318,7 +332,7 @@ func (s *compareScenarioState) renderedRows() (labels []string, rows [][]compare
 		for _, c := range compareCellPattern.FindAllStringSubmatch(m[1], -1) {
 			var values []string
 			for _, v := range compareCellValuePattern.FindAllStringSubmatch(c[2], -1) {
-				values = append(values, html.UnescapeString(v[1]))
+				values = append(values, html.UnescapeString(v[2]))
 			}
 			cells = append(cells, compareCell{values: values, own: c[1] != ""})
 		}
@@ -327,9 +341,24 @@ func (s *compareScenarioState) renderedRows() (labels []string, rows [][]compare
 	return labels, rows
 }
 
+// flattenCellValues joins a cell's rendered values into one string for the
+// feature table: a leading space (a series row's " in N" suffix, glued to
+// the winner tag right before it) is concatenated directly, while every
+// other value is a distinct item and gets a ", " separator.
+func flattenCellValues(values []string) string {
+	var b strings.Builder
+	for i, v := range values {
+		if i > 0 && !strings.HasPrefix(v, " ") {
+			b.WriteString(", ")
+		}
+		b.WriteString(v)
+	}
+	return b.String()
+}
+
 // renderedTable flattens the header and category rows into the same shape
 // as a feature table: a "category" header row, then one row per category
-// with multiple values joined by ", ".
+// with each cell's values flattened by flattenCellValues.
 func (s *compareScenarioState) renderedTable() [][]string {
 	names, _ := s.renderedHeader()
 	table := [][]string{append([]string{"category"}, names...)}
@@ -338,7 +367,7 @@ func (s *compareScenarioState) renderedTable() [][]string {
 		row := []string{label}
 		if i < len(rows) {
 			for _, c := range rows[i] {
-				row = append(row, strings.Join(c.values, ", "))
+				row = append(row, flattenCellValues(c.values))
 			}
 		}
 		table = append(table, row)
@@ -399,6 +428,56 @@ func (s *compareScenarioState) onlyTheColumnIsOwn(name string) error {
 	return nil
 }
 
+// noChipIsSelected fails if any rendered chip is selected - the gated-round
+// note's chips/groups still render (Boundaries), but none is selected since
+// the id they were requested with never became the selection.
+func (s *compareScenarioState) noChipIsSelected() error {
+	for _, c := range parseChips(s.lastBody) {
+		if c.selected {
+			return fmt.Errorf("expected no chip selected, got %q selected", c.title)
+		}
+	}
+	return nil
+}
+
+// showsValueSpan reports whether s.lastBody contains a Compare value span
+// with exactly css as its class and text as its content - this suite's
+// mirror of theSheetShows's strings.Contains, scoped to one rendered value.
+func (s *compareScenarioState) showsValueSpan(css, text string) bool {
+	return strings.Contains(s.lastBody, fmt.Sprintf(`<span class="%s">%s</span>`, css, html.EscapeString(text)))
+}
+
+func (s *compareScenarioState) theValueIsTagStyled(text string) error {
+	if !s.showsValueSpan(compareValueTagCSS, text) {
+		return fmt.Errorf("expected %q tag-styled, got %q", text, s.lastBody)
+	}
+	return nil
+}
+
+func (s *compareScenarioState) theValueIsPlainText(text string) error {
+	if !s.showsValueSpan(compareValuePlainCSS, text) {
+		return fmt.Errorf("expected %q as plain text, got %q", text, s.lastBody)
+	}
+	return nil
+}
+
+func (s *compareScenarioState) theValueIsFaint(text string) error {
+	if !s.showsValueSpan(compareValueEmptyCSS, text) {
+		return fmt.Errorf("expected %q rendered faint, got %q", text, s.lastBody)
+	}
+	return nil
+}
+
+// theNoteReads checks the gated-round dashed note (shell.html's
+// {{else if .Compare.Note}} branch, which replaces the table entirely).
+func (s *compareScenarioState) theNoteReads(text string) error {
+	want := fmt.Sprintf(`<p class="%s">%s</p>`, compareNoteDashedCSS, html.EscapeString(text))
+	if !strings.Contains(s.lastBody, want) {
+		return fmt.Errorf("expected the Compare note %q, got %q", text, s.lastBody)
+	}
+	return nil
+}
+
 func (s *compareScenarioState) noColumnIsOwn() error {
 	marked, err := s.ownColumns()
 	if err != nil {
@@ -446,4 +525,9 @@ func InitializeCompareScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the Compare table shows:$`, s.theTableShows)
 	ctx.Step(`^only the Compare column for "([^"]*)" is marked as the signed-in player's own$`, s.onlyTheColumnIsOwn)
 	ctx.Step(`^no Compare column is marked as the signed-in player's own$`, s.noColumnIsOwn)
+	ctx.Step(`^no chip is selected on Compare$`, s.noChipIsSelected)
+	ctx.Step(`^the Compare value "([^"]*)" is tag-styled$`, s.theValueIsTagStyled)
+	ctx.Step(`^the Compare value "([^"]*)" is plain text$`, s.theValueIsPlainText)
+	ctx.Step(`^the Compare value "([^"]*)" is faint$`, s.theValueIsFaint)
+	ctx.Step(`^the Compare note reads "([^"]*)"$`, s.theNoteReads)
 }

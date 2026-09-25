@@ -1106,3 +1106,25 @@ a.compare-chip {
   display: block;
   margin-right: 0;
 }
+
+.cmp-tag {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.cmp-value--empty {
+  color: var(--faint);
+}
+
+.cmp-note-dashed {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--faint);
+  font-size: 13px;
+  text-align: center;
+}

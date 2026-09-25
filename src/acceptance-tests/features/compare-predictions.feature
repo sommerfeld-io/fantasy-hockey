@@ -105,10 +105,11 @@ Feature: Compare Predictions Side by Side
     Then only the "Cup champion" chip is selected on Compare
     And the Compare deadline is the deadline of "cup"
 
-  Scenario: A still-gated round's id falls back to the default selection
+  Scenario: A still-gated round's id shows the dashed note instead of the table
     When "Basti" opens Compare with the set "r2"
-    Then only the "Cup champion" chip is selected on Compare
-    And the Compare deadline is the deadline of "cup"
+    Then no chip is selected on Compare
+    And the Compare "Playoffs" row shows the chips "Playoffs Cup pick, Playoff round 1"
+    And the Compare note reads "Matchups not set."
 
   Scenario: A set with an unparseable deadline is left out of the chips
     Given a compare Prediction Set "broken" titled "Broken set" in phase "before_season" with the raw deadline "not-a-date"
@@ -119,3 +120,26 @@ Feature: Compare Predictions Side by Side
     When a player whose account no longer exists opens Compare
     Then the Compare section header reads "Everyone's picks."
     And no Compare column is marked as the signed-in player's own
+
+  Scenario: Team abbreviations render as a consistent tag
+    Given "Sadl" picked "FLA, TOR, BOS, TBL" as the compare "Atlantic" playoff teams
+    And "Sadl" picked "FLA" as the compare "Atlantic" division winner
+    When "Basti" opens Compare with the set "divisions"
+    Then the Compare value "FLA" is tag-styled
+    And the Compare value "TOR" is tag-styled
+
+  Scenario: Full team names never render as a tag
+    Given "Sadl" picked "FLA" for the compare "cup" pick
+    When "Basti" opens Compare with the set "cup"
+    Then the Compare value "Team FLA" is plain text
+
+  Scenario: A series row shows the winner as a tag plus plain " in N" text
+    Given the round 1 matchups for compare are "s1: FLA vs TOR" and "s2: COL vs VGK"
+    And "Sadl" picked "FLA" in 5 games for compare round 1 series "s1"
+    When "Basti" opens Compare with the set "r1"
+    Then the Compare value "FLA" is tag-styled
+    And the Compare value " in 5" is plain text
+
+  Scenario: A value nobody entered renders as a faint em dash
+    When "Basti" opens Compare with the set "cup"
+    Then the Compare value "—" is faint

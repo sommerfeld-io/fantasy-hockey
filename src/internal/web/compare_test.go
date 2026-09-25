@@ -114,13 +114,13 @@ func rowLabels(table *compareTableView) []string {
 	return labels
 }
 
-// cellValues returns every player's values for the row labelled label, in
-// column order.
-func cellValues(t *testing.T, table *compareTableView, label string) [][]string {
+// cellValueViews returns every player's compareValueView slice for the row
+// labelled label, in column order.
+func cellValueViews(t *testing.T, table *compareTableView, label string) [][]compareValueView {
 	t.Helper()
 	for _, r := range table.Rows {
 		if r.Label == label {
-			values := make([][]string, 0, len(r.Cells))
+			values := make([][]compareValueView, 0, len(r.Cells))
 			for _, c := range r.Cells {
 				values = append(values, c.Values)
 			}
@@ -129,6 +129,30 @@ func cellValues(t *testing.T, table *compareTableView, label string) [][]string 
 	}
 	t.Fatalf("no row labelled %q in %v", label, rowLabels(table))
 	return nil
+}
+
+// cellValues returns every player's value text (CSS dropped) for the row
+// labelled label, in column order.
+func cellValues(t *testing.T, table *compareTableView, label string) [][]string {
+	t.Helper()
+	values := make([][]string, 0)
+	for _, cell := range cellValueViews(t, table, label) {
+		texts := make([]string, 0, len(cell))
+		for _, v := range cell {
+			texts = append(texts, v.Text)
+		}
+		values = append(values, texts)
+	}
+	return values
+}
+
+// valueCSS returns every value's CSS in values, in order.
+func valueCSS(values []compareValueView) []string {
+	css := make([]string, len(values))
+	for i, v := range values {
+		css[i] = v.CSS
+	}
+	return css
 }
 
 func TestBuildCompareShouldGroupSelectableSetsIntoTwoLabelledRows(t *testing.T) {
@@ -235,14 +259,89 @@ func TestBuildCompareShouldSelectTheRequestedSetOnly(t *testing.T) {
 func TestBuildCompareShouldFallBackToTheDefaultForAnUnselectableID(t *testing.T) {
 	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups)
 
-	for _, id := range []string{"nope", "r2", ""} {
+	for _, id := range []string{"nope", ""} {
 		t.Run(id, func(t *testing.T) {
 			v := buildCompare(st, "basti", id, compareNow)
 
 			if got := selectedChips(v); !slices.Equal(got, []string{"cup"}) {
 				t.Errorf("expected %q to fall back to cup, got %v", id, got)
 			}
+			if v.Note != "" {
+				t.Errorf("expected no gated-round note for %q, got %q", id, v.Note)
+			}
 		})
+	}
+}
+
+func TestBuildCompareShouldShowTheGatedRoundNoteInsteadOfFallingBackForAStillGatedSet(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups)
+
+	v := buildCompare(st, "basti", "r2", compareNow)
+
+	if v.Table != nil {
+		t.Errorf("expected no table for a still-gated round, got %+v", v.Table)
+	}
+	if v.Note != compareGatedRoundNote {
+		t.Errorf("expected the gated-round note %q, got %q", compareGatedRoundNote, v.Note)
+	}
+	if got := selectedChips(v); len(got) != 0 {
+		t.Errorf("expected no chip selected, got %v", got)
+	}
+	if got := groupChips(t, v, "Playoffs"); !slices.Equal(got, []string{"playoffcup", "r1", "scf"}) {
+		t.Errorf("expected the Playoffs chips to still render, got %v", got)
+	}
+}
+
+func TestBuildCompareShouldFallBackNormallyForABeforeSeasonSetMarkedUpcoming(t *testing.T) {
+	sets := compareSetSeed("cup", "Cup champion", phaseBeforeSeason, "2026-10-06T17:00:00Z", true) +
+		compareSetSeed("presidents", "Presidents' Trophy", phaseBeforeSeason, "2026-10-08T17:00:00Z", false)
+	st := newCompareStore(t, sets, "")
+
+	v := buildCompare(st, "basti", "cup", compareNow)
+
+	if v.Note != "" {
+		t.Errorf("expected no gated-round note for an Upcoming before-season set, got %q", v.Note)
+	}
+	if got := selectedChips(v); !slices.Equal(got, []string{"presidents"}) {
+		t.Errorf("expected fallback to presidents, got %v", got)
+	}
+}
+
+func TestBuildCompareShouldFallBackNormallyForANonRoundGatedIDMarkedUpcoming(t *testing.T) {
+	sets := compareSetSeed("cup", "Cup champion", phaseBeforeSeason, "2026-10-06T17:00:00Z", false) +
+		compareSetSeed("r1", "Playoff round 1", phasePlayoffs, "2027-04-18T16:00:00Z", true)
+	st := newCompareStore(t, sets, "")
+
+	v := buildCompare(st, "basti", "r1", compareNow)
+
+	if v.Note != "" {
+		t.Errorf("expected no gated-round note for r1 (hand-gated by its own upcoming flag, not roundGatedSetIDs), got %q", v.Note)
+	}
+	if got := selectedChips(v); !slices.Equal(got, []string{"cup"}) {
+		t.Errorf("expected fallback to cup, got %v", got)
+	}
+}
+
+func TestIsGatedRoundShouldReportTrueOnlyForARealStillUpcomingSet(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups)
+
+	if !isGatedRound(st, "r2") {
+		t.Errorf("expected r2 (no matchups recorded yet) to report gated")
+	}
+	if isGatedRound(st, "cup") {
+		t.Errorf("expected a selectable set not to report gated")
+	}
+}
+
+func TestIsGatedRoundShouldReportFalseForAnUnknownBadDeadlineOrUnknownPhaseID(t *testing.T) {
+	sets := compareSetSeed("broken", "Broken", phaseBeforeSeason, "not-a-date", false) +
+		compareSetSeed("odd", "Odd", "midseason", "2026-10-06T17:00:00Z", false)
+	st := newCompareStore(t, sets, "")
+
+	for _, id := range []string{"nope", "broken", "odd", ""} {
+		if isGatedRound(st, id) {
+			t.Errorf("expected %q not to report gated", id)
+		}
 	}
 }
 
@@ -398,6 +497,92 @@ func TestBuildCompareShouldShowDivisionPicksAsAbbreviationsPerDivision(t *testin
 	}
 }
 
+func TestBuildCompareShouldRenderFullTeamNamesPlain(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
+		comparePick("sadl", "kind: cup, team_id: FLA"),
+	)
+
+	v := buildCompare(st, "basti", "cup", compareNow)
+
+	got := cellValueViews(t, v.Table, "Stanley Cup winner")[0]
+	if want := []string{compareValueCSS}; !slices.Equal(valueCSS(got), want) {
+		t.Errorf("expected the Cup pick plain (%v), got %v", want, valueCSS(got))
+	}
+}
+
+func TestBuildCompareShouldTagDivisionPlayoffTeamsAndWinner(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
+		comparePick("sadl", "kind: division_playoff_teams, division: Atlantic, team_ids: [FLA, TOR]"),
+		comparePick("sadl", "kind: division_winner, division: Atlantic, team_id: FLA"),
+	)
+
+	v := buildCompare(st, "basti", "divisions", compareNow)
+
+	teams := cellValueViews(t, v.Table, "Atlantic — playoff teams")[0]
+	if want := []string{compareValueTagCSS, compareValueTagCSS}; !slices.Equal(valueCSS(teams), want) {
+		t.Errorf("expected both playoff teams tagged (%v), got %v", want, valueCSS(teams))
+	}
+	winner := cellValueViews(t, v.Table, "Atlantic — winner")[0]
+	if want := []string{compareValueTagCSS}; !slices.Equal(valueCSS(winner), want) {
+		t.Errorf("expected the division winner tagged (%v), got %v", want, valueCSS(winner))
+	}
+}
+
+func TestBuildCompareShouldShowAnEmptyDashForASavedButEmptyDivisionPlayoffTeamsPick(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
+		comparePick("sadl", "kind: division_playoff_teams, division: Atlantic, team_ids: []"),
+	)
+
+	v := buildCompare(st, "basti", "divisions", compareNow)
+
+	got := cellValueViews(t, v.Table, "Atlantic — playoff teams")[0]
+	if len(got) != 1 || got[0].Text != emptyCellValue || got[0].CSS != compareValueEmptyCSS {
+		t.Errorf("expected a faint empty value for a saved-but-empty pick, got %+v", got)
+	}
+}
+
+func TestBuildCompareShouldTagTheSeriesWinnerAndKeepTheGamesCountPlain(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
+		comparePick("sadl", "kind: series, series_key: r1.s1, team_id: FLA, games: \"5\""),
+	)
+
+	v := buildCompare(st, "basti", "r1", compareNow)
+
+	got := cellValueViews(t, v.Table, "Eastern · FLA vs TOR")[0]
+	want := []string{compareValueTagCSS, compareValueCSS}
+	if !slices.Equal(valueCSS(got), want) {
+		t.Errorf("expected the winner tagged and games plain (%v), got %v", want, valueCSS(got))
+	}
+	if len(got) != 2 || got[0].Text != "FLA" || got[1].Text != " in 5" {
+		t.Errorf("expected [FLA, \" in 5\"], got %+v", got)
+	}
+}
+
+func TestBuildCompareShouldKeepAwardFinalistsPlain(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
+		comparePick("basti", "kind: award, award: hart, finalist_slugs: [mcdavid-connor, mackinnon-nathan]"),
+	)
+
+	v := buildCompare(st, "basti", "awards", compareNow)
+
+	got := cellValueViews(t, v.Table, "Hart Trophy finalists")[1]
+	want := []string{compareValueCSS, compareValueCSS}
+	if !slices.Equal(valueCSS(got), want) {
+		t.Errorf("expected finalists plain (%v), got %v", want, valueCSS(got))
+	}
+}
+
+func TestBuildCompareShouldRenderAnUnfilledValueFaint(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups)
+
+	v := buildCompare(st, "basti", "cup", compareNow)
+
+	got := cellValueViews(t, v.Table, "Stanley Cup winner")[0]
+	if len(got) != 1 || got[0].Text != emptyCellValue || got[0].CSS != compareValueEmptyCSS {
+		t.Errorf("expected a faint empty value, got %+v", got)
+	}
+}
+
 func TestBuildCompareShouldShowFinalistsByDisplayNameOnePerLine(t *testing.T) {
 	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
 		comparePick("basti", "kind: award, award: hart, finalist_slugs: [mcdavid-connor, mackinnon-nathan, gone-player]"),
@@ -438,10 +623,10 @@ func TestBuildCompareShouldShowSeriesPicksAsWinnerAndGames(t *testing.T) {
 
 	v := buildCompare(st, "basti", "r1", compareNow)
 
-	if got, want := cellValues(t, v.Table, "Eastern · FLA vs TOR"), [][]string{{"FLA in 5"}, {emptyCellValue}, {emptyCellValue}}; !slices.EqualFunc(got, want, slices.Equal[[]string]) {
+	if got, want := cellValues(t, v.Table, "Eastern · FLA vs TOR"), [][]string{{"FLA", " in 5"}, {emptyCellValue}, {emptyCellValue}}; !slices.EqualFunc(got, want, slices.Equal[[]string]) {
 		t.Errorf("expected %v, got %v", want, got)
 	}
-	if got, want := cellValues(t, v.Table, "Western · COL vs VGK"), [][]string{{emptyCellValue}, {emptyCellValue}, {"VGK in 7"}}; !slices.EqualFunc(got, want, slices.Equal[[]string]) {
+	if got, want := cellValues(t, v.Table, "Western · COL vs VGK"), [][]string{{emptyCellValue}, {emptyCellValue}, {"VGK", " in 7"}}; !slices.EqualFunc(got, want, slices.Equal[[]string]) {
 		t.Errorf("expected %v, got %v", want, got)
 	}
 }
@@ -589,6 +774,39 @@ func TestCompareRouteShouldStackOnlyAwardRows(t *testing.T) {
 	}
 	if !strings.Contains(cup, `<tr class="cmp-values">`) {
 		t.Errorf("expected a plain value row for cup, got %q", cup)
+	}
+}
+
+func TestCompareRouteShouldShowTheGatedRoundNoteForAHandTypedGatedSet(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups)
+
+	body := getCompare(t, st, "basti", "/compare?set=r2")
+
+	if !strings.Contains(body, `<p class="cmp-note-dashed">Matchups not set.</p>`) {
+		t.Errorf("expected the gated-round note, got %q", body)
+	}
+	if strings.Contains(body, `<table class="cmp-table">`) {
+		t.Errorf("expected no table for a gated round, got %q", body)
+	}
+	if strings.Contains(body, `chip--selected`) {
+		t.Errorf("expected no chip selected for a gated round, got %q", body)
+	}
+}
+
+func TestCompareRouteShouldRenderTagAndFaintValueClasses(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
+		comparePick("sadl", "kind: division_winner, division: Atlantic, team_id: FLA"),
+	)
+
+	body := getCompare(t, st, "basti", "/compare?set=divisions")
+
+	for _, want := range []string{
+		`<span class="cmp-value cmp-tag">FLA</span>`,
+		`<span class="cmp-value cmp-value--empty">—</span>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("expected the Compare page to contain %q, got %q", want, body)
+		}
 	}
 }
 
