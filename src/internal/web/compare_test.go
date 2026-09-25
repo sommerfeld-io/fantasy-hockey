@@ -292,6 +292,31 @@ func TestBuildCompareShouldShowTheGatedRoundNoteInsteadOfFallingBackForAStillGat
 	}
 }
 
+// TestBuildCompareShouldNotShowTheEmptyGroupNoteWhenTheGatedRoundNoteIsShown
+// guards against a live bug: when a hand-typed ?set= is a gated round whose
+// own phase group has no other selectable set, the page must not also show
+// the per-group "Nothing to compare yet." note underneath the gated-round
+// note - two contradictory explanations for the same state.
+func TestBuildCompareShouldNotShowTheEmptyGroupNoteWhenTheGatedRoundNoteIsShown(t *testing.T) {
+	sets := compareSetSeed("cup", "Cup champion", phaseBeforeSeason, "2026-10-06T17:00:00Z", false) +
+		compareSetSeed("r2", "Playoff round 2", phasePlayoffs, "2027-04-30T16:00:00Z", false)
+	st := newCompareStore(t, sets, "")
+
+	v := buildCompare(st, "basti", "r2", compareNow)
+
+	if v.Note != compareGatedRoundNote {
+		t.Errorf("expected the gated-round note %q, got %q", compareGatedRoundNote, v.Note)
+	}
+	if got := groupChips(t, v, "Playoffs"); len(got) != 0 {
+		t.Errorf("expected no Playoffs chips (r2 is the only playoffs set and it's gated), got %v", got)
+	}
+	for _, g := range v.Groups {
+		if g.ShowEmptyNote {
+			t.Errorf("expected no group to show its own empty note once the gated-round note already explains the state, got %q showing one", g.Label)
+		}
+	}
+}
+
 func TestBuildCompareShouldFallBackNormallyForABeforeSeasonSetMarkedUpcoming(t *testing.T) {
 	sets := compareSetSeed("cup", "Cup champion", phaseBeforeSeason, "2026-10-06T17:00:00Z", true) +
 		compareSetSeed("presidents", "Presidents' Trophy", phaseBeforeSeason, "2026-10-08T17:00:00Z", false)
@@ -807,6 +832,21 @@ func TestCompareRouteShouldShowTheGatedRoundNoteForAHandTypedGatedSet(t *testing
 	}
 	if strings.Contains(body, `chip--selected`) {
 		t.Errorf("expected no chip selected for a gated round, got %q", body)
+	}
+}
+
+func TestCompareRouteShouldNotShowTheEmptyGroupNoteWhenTheGatedRoundNoteIsShown(t *testing.T) {
+	sets := compareSetSeed("cup", "Cup champion", phaseBeforeSeason, "2026-10-06T17:00:00Z", false) +
+		compareSetSeed("r2", "Playoff round 2", phasePlayoffs, "2027-04-30T16:00:00Z", false)
+	st := newCompareStore(t, sets, "")
+
+	body := getCompare(t, st, "basti", "/compare?set=r2")
+
+	if !strings.Contains(body, `<p class="cmp-note-dashed">Matchups not set.</p>`) {
+		t.Errorf("expected the gated-round note, got %q", body)
+	}
+	if strings.Contains(body, `compare-none">Nothing to compare yet.`) {
+		t.Errorf("expected no redundant empty-group note alongside the gated-round note, got %q", body)
 	}
 }
 

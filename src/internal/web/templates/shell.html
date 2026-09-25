@@ -35,10 +35,13 @@
 */}}
 {{define "compare-chip"}}<a id="compare-chip-{{.ID}}" href="{{.Href}}" class="{{.CSS}}"{{if .Selected}} aria-current="true"{{end}}>{{.Title}}</a>{{end}}
 {{/*
-  compare-group renders one labelled selector row of chips.
+  compare-group renders one labelled selector row of chips. Its "Nothing to
+  compare yet." fallback only shows when ShowEmptyNote is true, so an empty
+  group never states a second, contradictory reason alongside
+  compareView.Note (e.g. the gated-round note).
 */}}
 {{define "compare-group"}}
-<div class="compare-group"><span id="{{.LabelID}}" class="compare-group-label">{{.Label}}</span><span class="chip-group compare-chips" role="group" aria-labelledby="{{.LabelID}}">{{range .Chips}}{{template "compare-chip" .}}{{else}}<span class="compare-none">Nothing to compare yet.</span>{{end}}</span></div>
+<div class="compare-group"><span id="{{.LabelID}}" class="compare-group-label">{{.Label}}</span><span class="chip-group compare-chips" role="group" aria-labelledby="{{.LabelID}}">{{range .Chips}}{{template "compare-chip" .}}{{else}}{{if .ShowEmptyNote}}<span class="compare-none">Nothing to compare yet.</span>{{end}}{{end}}</span></div>
 {{end}}
 {{/*
   compare-table renders one compareTableView: a header of bold player names

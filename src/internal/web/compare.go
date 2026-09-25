@@ -81,10 +81,14 @@ type compareChipView struct {
 
 // compareGroupView is one labelled selector row of chips. LabelID is the
 // label's element id, which the chips' group references for assistive tech.
+// ShowEmptyNote gates the "Nothing to compare yet." text for an empty group:
+// false when compareView.Note already explains why nothing is shown, so the
+// page never states two different reasons for the same empty state.
 type compareGroupView struct {
-	Label   string
-	LabelID string
-	Chips   []compareChipView
+	Label         string
+	LabelID       string
+	Chips         []compareChipView
+	ShowEmptyNote bool
 }
 
 // compareColumnView is one player's column header.
@@ -191,13 +195,13 @@ func buildCompare(st *store.Store, playerID, selectedID string, now time.Time) c
 	sets := selectableCompareSets(st)
 	selected, ok := findCompareSet(sets, selectedID)
 	if !ok && isGatedRound(st, selectedID) {
-		return compareView{Groups: newCompareGroups(sets, ""), Note: compareGatedRoundNote}
+		return compareView{Groups: newCompareGroups(sets, "", false), Note: compareGatedRoundNote}
 	}
 	if !ok {
 		selected, ok = defaultCompareSet(sets)
 	}
 
-	v := compareView{Groups: newCompareGroups(sets, selected.set.ID)}
+	v := compareView{Groups: newCompareGroups(sets, selected.set.ID, true)}
 	if ok {
 		table := newCompareTable(st, playerID, selected, now)
 		v.Table = &table
@@ -285,10 +289,10 @@ func defaultCompareSet(sets []compareSet) (compareSet, bool) {
 	return best, found
 }
 
-func newCompareGroups(sets []compareSet, selectedID string) []compareGroupView {
+func newCompareGroups(sets []compareSet, selectedID string, showEmptyNote bool) []compareGroupView {
 	groups := []compareGroupView{
-		{Label: compareGroupBeforeSeason, LabelID: compareGroupLabelID(phaseBeforeSeason)},
-		{Label: compareGroupPlayoffs, LabelID: compareGroupLabelID(phasePlayoffs)},
+		{Label: compareGroupBeforeSeason, LabelID: compareGroupLabelID(phaseBeforeSeason), ShowEmptyNote: showEmptyNote},
+		{Label: compareGroupPlayoffs, LabelID: compareGroupLabelID(phasePlayoffs), ShowEmptyNote: showEmptyNote},
 	}
 	for _, s := range sets {
 		i := 0
