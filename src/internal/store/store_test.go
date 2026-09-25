@@ -35,8 +35,8 @@ func TestNewShouldBootstrapCreateAMissingFile(t *testing.T) {
 		t.Fatalf("unmarshal bootstrapped file: %v", err)
 	}
 
-	if doc.Season != "2026-27" {
-		t.Errorf("expected season %q, got %q", "2026-27", doc.Season)
+	if doc.Season != DefaultSeason {
+		t.Errorf("expected season %q, got %q", DefaultSeason, doc.Season)
 	}
 	if len(doc.Players) != 0 {
 		t.Errorf("expected an empty players list, got %v", doc.Players)
@@ -180,8 +180,8 @@ func TestFindPlayerByIDShouldNotMatchOnCaseAlone(t *testing.T) {
 func TestSeasonShouldReturnTheSeededSeason(t *testing.T) {
 	st := newTestStore(t)
 
-	if got := st.Season(); got != "2026-27" {
-		t.Errorf("expected season %q, got %q", "2026-27", got)
+	if got := st.Season(); got != DefaultSeason {
+		t.Errorf("expected season %q, got %q", DefaultSeason, got)
 	}
 }
 

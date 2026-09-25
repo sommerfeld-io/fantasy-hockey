@@ -15,7 +15,7 @@ The pool must be able to restart cleanly for a new NHL season without losing any
 - Each NHL season must get its own pool: fresh season, fresh set of predictions, results, and standings, not layered on top of the previous season's data.
 - Prior seasons' data must be retained, never deleted or overwritten by a rollover.
 - There is no in-app season-selector, cross-season query, or history/Hall-of-Fame view in v1 — rollover is a filesystem-level, out-of-band operation performed by a human, not an in-app action or admin screen.
-- On startup against a data file path that does not exist yet, the app must bootstrap a fresh skeleton (current season + the fixed player list) rather than failing or trying to inherit anything from an old file.
+- On startup against a data file path that does not exist yet, the app must bootstrap a fresh skeleton (current season, empty player list) rather than failing or trying to inherit anything from an old file; the real player list is sourced out-of-band, hand-edited into the file afterward (AD-23) — the same model Epic 1's own first run uses.
 - Once a season's file exists, the running app must only ever read and write that one file — no code path reads from or writes to an archived/previous season's file.
 - Every screen (Predict, Leaderboard, Compare) must show only the current season's data throughout; nothing carries over visibly or silently from a prior season.
 - Whether the manual archive-and-repoint process is an acceptable long-term operator workflow is an open question the team should keep validating, not something to over-engineer around in this epic.
