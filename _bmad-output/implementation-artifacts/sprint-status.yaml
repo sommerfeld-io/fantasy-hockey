@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-25-2026 21:30
+last_updated: 09-25-2026 21:50
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -70,7 +70,7 @@ development_status:
 
   epic-6: in-progress
   6-1-season-rollover-with-retained-history: done
-  epic-6-retrospective: optional
+  epic-6-retrospective: done
 
   epic-7: backlog
   7-1-log-data-changing-writes: backlog
@@ -403,3 +403,55 @@ action_items:
     owner: "whoever plans the next Compare-touching story"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-42-document-the-defaultseason-staleness-ris"
+    epic: 6
+    action: "Document the DefaultSeason staleness risk: add a note (epic-6-context.md
+      and/or an operator runbook) that store.DefaultSeason must be bumped in Go source
+      and the binary rebuilt/redeployed before repointing DATA_FILE at a genuinely
+      new season; consider a lightweight format-only regression test (e.g. a YYYY-YY
+      pattern check) as a partial backstop, since a value-equality test is inherently
+      tautological against its own source constant"
+    owner: "whoever picks up the next season-rollover-adjacent story"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-43-add-a-bootstrap-log-line-openstore-s-mis"
+    epic: 6
+    action: "Add a bootstrap log line: openStore's missing-path branch should log
+      at info level when it creates a fresh file (path + season), so a mistyped rollover
+      path doesn't silently produce an empty pool with no diagnostic trail"
+    owner: "next dev touching main.go/internal/store"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-44-correct-epic-6-context-md-s-read-only-hi"
+    epic: 6
+    action: "Correct epic-6-context.md's \"read-only history\" overstatement: reword
+      to reflect that this is procedural, not OS-enforced, and note what happens if
+      DATA_FILE is ever pointed back at an archived file (it becomes writable current
+      state, by design)"
+    owner: "whoever next edits epic-6-context.md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-45-tighten-main_test-go-s-two-rollover-test"
+    epic: 6
+    action: "Tighten main_test.go's two rollover tests: correct the doc comment overclaiming
+      resolveConfig/run() coverage; colocate the archived and fresh files in one shared
+      t.TempDir() for a realistic same-directory topology; assert log silence on a
+      clean bootstrap, matching the sibling test convention"
+    owner: "next dev touching main_test.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-46-add-a-nonexistent-parent-directory-test"
+    epic: 6
+    action: "Add a nonexistent-parent-directory test for openStore/store.New, and
+      check the resulting error is operator-legible"
+    owner: "next dev touching internal/store"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-47-add-a-godoc-guardrail-on-defaultseason-w"
+    epic: 6
+    action: "Add a GoDoc guardrail on DefaultSeason warning against branching on it
+      outside store/test code, to close the door on future cross-season-aware logic
+      the epic explicitly forbids"
+    owner: "next dev touching internal/store/store.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
