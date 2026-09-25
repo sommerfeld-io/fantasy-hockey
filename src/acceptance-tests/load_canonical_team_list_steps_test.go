@@ -27,8 +27,9 @@ const (
 // with fantasy-hockey.yml's own teams: section as that roster is
 // hand-edited over time. This scenario only proves a well-formed teams
 // section doesn't break store.New's parsing or the Predict screen's
-// rendering - it never asserts on the teams themselves, since no UI reads
-// Store.Teams() yet (Story 2.2's Boundaries: "renders nothing itself").
+// rendering - it never asserts on the teams themselves. Store.Teams() is
+// read by the cup/presidents sheet, the division sheet and the series
+// roster.
 const loadCanonicalTeamListSeed = `season: "2026-27"
 players:
     - id: basti

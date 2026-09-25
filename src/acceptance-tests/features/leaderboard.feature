@@ -69,6 +69,25 @@ Feature: Leaderboard
       | 1    | Sadl   | 0       | 20      | 20    | yes  |
       | 3    | Tobbi  | 0       | 0       | 0     | no   |
 
+  Scenario: Division, award and series points reach the Leaderboard in the right column
+    Given the recorded "Atlantic" playoff teams for the leaderboard are "FLA,TOR"
+    And the recorded "Atlantic" division winner for the leaderboard is "FLA"
+    And the recorded "hart" finalists for the leaderboard are "mcdavid-connor,mackinnon-nathan,matthews-auston"
+    And the recorded round 1 series "s1" for the leaderboard between "FLA" and "TOR" was won by "FLA" in 5 games
+    And "Basti" picked "FLA,TOR" as the "Atlantic" playoff teams
+    And "Basti" picked "FLA" as the "Atlantic" division winner
+    And "Basti" picked "mcdavid-connor,mackinnon-nathan,kucherov-nikita" as the "hart" finalists
+    And "Basti" picked "FLA" in 5 games for round 1 series "s1"
+    And "Sadl" picked "TOR" as the "Atlantic" playoff teams
+    And "Sadl" picked "TOR" as the "Atlantic" division winner
+    And "Sadl" picked "FLA" in 6 games for round 1 series "s1"
+    When "Basti" opens the Leaderboard
+    Then the Leaderboard shows these rows in order:
+      | rank | player | regular | playoff | total | gold |
+      | 1    | Basti  | 30      | 25      | 55    | yes  |
+      | 2    | Sadl   | 5       | 15      | 20    | no   |
+      | 3    | Tobbi  | 0       | 0       | 0     | no   |
+
   Scenario: A hand-recorded result shows up after the app restarts
     Given "Basti" picked "FLA" for the "cup" pick
     And "Sadl" picked "TOR" for the "cup" pick

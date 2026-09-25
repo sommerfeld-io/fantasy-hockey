@@ -53,6 +53,10 @@ If none of the `SMTP_*` variables below are set, the app still starts, but login
 
 The `--port`/`-p` flag (default `8080`) sets the listening port. On first run, if the data file doesn't exist yet, the app creates it with an empty player list — the pool's actual players are then added by hand-editing that file, since there is no in-app way to create an account. With the named-volume setup above, reach the file with `docker cp fantasy-hockey:/data/fantasy-hockey.yml .`, edit it, then copy it back with `docker cp ./fantasy-hockey.yml fantasy-hockey:/data/fantasy-hockey.yml`.
 
+### Recording results and playoffs
+
+Results, playoff matchups and the opening of each playoff round are also recorded by hand in the data file. Follow the [results and playoffs runbook](docs/recording-results-and-playoffs.md) for the exact YAML shape, when to open each round and how to read the startup warnings.
+
 ## Licensing
 
 The application source code is released under the [MIT License](https://github.com/sommerfeld-io/fantasy-hockey/blob/main/LICENSE.md).

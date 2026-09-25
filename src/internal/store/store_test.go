@@ -2290,11 +2290,97 @@ func TestSavingAPredictionShouldPreserveTheHandRecordedResults(t *testing.T) {
 		t.Fatalf("New returned error: %v", err)
 	}
 
-	if got := reopened.StanleyCupWinner(); got != "FLA" {
-		t.Errorf("StanleyCupWinner after a save = %q, want FLA", got)
+	assertFixtureResultsRecorded(t, reopened)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read data file: %v", err)
 	}
-	if got := reopened.RecordedAwardFinalists(AwardHart); len(got) != 4 {
-		t.Errorf("RecordedAwardFinalists after a save = %v, want 4 slugs", got)
+	for _, injected := range []string{`position: ""`, `display_name: ""`} {
+		if strings.Contains(string(raw), injected) {
+			t.Errorf("expected a save not to inject %s, got:\n%s", injected, raw)
+		}
+	}
+}
+
+// assertFixtureResultsRecorded checks that st holds every one of the five
+// result kinds resultsFixtureResults records, with no result problems.
+func assertFixtureResultsRecorded(t *testing.T, st *Store) {
+	t.Helper()
+	checks := []struct {
+		name string
+		ok   func() bool
+	}{
+		{"StanleyCupWinner = FLA", func() bool { return st.StanleyCupWinner() == "FLA" }},
+		{"PresidentsTrophyWinner = TOR", func() bool { return st.PresidentsTrophyWinner() == "TOR" }},
+		{"DivisionResult(Atlantic) = [FLA TOR], FLA", func() bool {
+			playoffs, winner := st.DivisionResult("Atlantic")
+			return slices.Equal(playoffs, []string{"FLA", "TOR"}) && winner == "FLA"
+		}},
+		{"SeriesResult(r1.s1) = FLA in 5", func() bool {
+			winner, games, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1"))
+			return ok && winner == "FLA" && games == "5"
+		}},
+		{"SeriesResult(cf.s1) = BOS in 7", func() bool {
+			winner, games, ok := st.SeriesResult(JoinSeriesKey(ConferenceFinalsSetID, "s1"))
+			return ok && winner == "BOS" && games == "7"
+		}},
+		{"RecordedAwardFinalists(hart) has 4 slugs", func() bool { return len(st.RecordedAwardFinalists(AwardHart)) == 4 }},
+		{"ResultProblems is empty", func() bool { return len(st.ResultProblems()) == 0 }},
+	}
+	for _, c := range checks {
+		if !c.ok() {
+			t.Errorf("after a save, expected %s", c.name)
+		}
+	}
+}
+
+// resultsFixtureMatchups is resultsFixtureBase's playoff_matchups section.
+const resultsFixtureMatchups = "playoff_matchups:\n    r1:\n        - {key: s1, a: FLA, b: TOR}\n    cf:\n        - {key: s1, a: FLA, b: BOS}\n"
+
+// resultRoundNames is the results.series round name a human records for
+// each round Prediction Set id - the store's own mapping stays unexported,
+// so this test-side copy is what pins it.
+var resultRoundNames = map[string]string{
+	Round1SetID:           "round1",
+	Round2SetID:           "round2",
+	ConferenceFinalsSetID: "round3",
+	StanleyCupFinalSetID:  "round4",
+}
+
+func TestSeriesResultShouldRoundTripEveryRoundSetID(t *testing.T) {
+	if !strings.Contains(resultsFixtureBase, resultsFixtureMatchups) {
+		t.Fatal("resultsFixtureMatchups no longer matches resultsFixtureBase's playoff_matchups section; update it")
+	}
+	for setID, round := range resultRoundNames {
+		t.Run(setID, func(t *testing.T) {
+			seed := strings.Replace(resultsFixtureBase, resultsFixtureMatchups, "playoff_matchups:\n    "+setID+":\n        - {key: x1, a: FLA, b: TOR}\n", 1) +
+				"results:\n    series:\n        " + round + ":\n            x1: {winner: TOR, games: 6}\n"
+			st, _ := newResultsStore(t, seed)
+
+			winner, games, ok := st.SeriesResult(JoinSeriesKey(setID, "x1"))
+			if !ok || winner != "TOR" || games != "6" {
+				t.Errorf("SeriesResult(%s.x1) = %q, %q, %v, want TOR, 6, true", setID, winner, games, ok)
+			}
+			if problems := st.ResultProblems(); len(problems) != 0 {
+				t.Errorf("ResultProblems = %v, want none", problems)
+			}
+		})
+	}
+}
+
+func TestSeriesResultShouldNotReadARoundRecordedUnderAnotherRoundsName(t *testing.T) {
+	seed := strings.Replace(resultsFixtureBase, "playoff_matchups:\n", "playoff_matchups:\n    r2:\n        - {key: s1, a: FLA, b: TOR}\n", 1) +
+		"results:\n    series:\n        round2:\n            s1: {winner: FLA, games: 5}\n"
+	st, _ := newResultsStore(t, seed)
+
+	if problems := st.ResultProblems(); len(problems) != 0 {
+		t.Fatalf("ResultProblems = %v, want none", problems)
+	}
+	if winner, games, ok := st.SeriesResult(JoinSeriesKey(Round2SetID, "s1")); !ok || winner != "FLA" || games != "5" {
+		t.Errorf("SeriesResult(r2.s1) = %q, %q, %v, want FLA, 5, true", winner, games, ok)
+	}
+	if _, _, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1")); ok {
+		t.Error("SeriesResult(r1.s1) ok = true for a result recorded under round2, want false")
 	}
 }
 

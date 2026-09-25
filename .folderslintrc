@@ -9,6 +9,8 @@
     ".task/**",
     ".vscode",
 
+    "docs",
+
     "_bmad/**",
     "_bmad-output/**",
 

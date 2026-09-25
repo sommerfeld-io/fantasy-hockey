@@ -126,13 +126,50 @@ func TestPredictShouldShowAClosedPillAndCountdownForASetPastItsDeadline(t *testi
 	if !strings.Contains(body, `class="status-pill status-pill--closed">Closed</span>`) {
 		t.Errorf("expected a Closed status pill, got %q", body)
 	}
-	if !strings.Contains(body, "closed") {
+	if !strings.Contains(body, `<span class="set-row-countdown">&nbsp;&middot; closed</span>`) {
 		t.Errorf("expected the countdown to read \"closed\", got %q", body)
 	}
 	// A Closed set is still actionable (AC: "an Open, Submitted, or Closed
 	// set... shows a chevron and links").
 	if !strings.Contains(body, `<a id="predict-row-cup" href="/predict/cup" class="set-row set-row--open">`) {
 		t.Errorf("expected a Closed row to still be actionable, got %q", body)
+	}
+}
+
+// A Closed set with a saved pick deliberately keeps the Submitted accent
+// border while its pill reads Closed (epic-2-retro-2026-09-18.md): the
+// border says "you made a pick", the pill says "it can no longer change".
+func TestPredictShouldKeepTheSubmittedAccentWithAClosedPillForASubmittedSetPastItsDeadline(t *testing.T) {
+	deadline := time.Now().UTC().Add(-24 * time.Hour)
+	seed := fmt.Sprintf(`    - id: cup
+      title: Cup champion
+      subtitle: Your Stanley Cup winner
+      deadline_utc: %q
+      phase: before_season
+      upcoming: false
+predictions:
+    - id: p1
+      player_id: basti
+      kind: cup
+      team_id: TOR
+      submitted_at: %q
+`, deadline.Format(time.RFC3339), deadline.Add(-time.Hour).Format(time.RFC3339))
+
+	req := httptest.NewRequest("GET", "/predict", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `<a id="predict-row-cup" href="/predict/cup" class="set-row set-row--submitted">`) {
+		t.Errorf("expected a Closed, submitted row to keep the submitted accent, got %q", body)
+	}
+	if !strings.Contains(body, `class="status-pill status-pill--closed">Closed</span>`) {
+		t.Errorf("expected a Closed status pill, got %q", body)
+	}
+	if strings.Contains(body, `status-pill--submitted`) {
+		t.Errorf("expected no Submitted pill on a Closed set, got %q", body)
 	}
 }
 

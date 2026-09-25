@@ -154,7 +154,7 @@ graph TD
 
 - **Binds:** FR-1 (login codes), FR-17 (award finalists), FR-33 (NHL Player list), all Prediction FRs, `fantasy-hockey.yml` schema
 - **Prevents:** two builders picking different ID shapes for the same entity kind; requiring a human hand-editing `fantasy-hockey.yml` to invent and paste UUIDs; a correct award-finalist pick silently failing to match its recorded result because the prediction side and the results side used different identity vocabularies (name string vs. slug) — the exact "name-typo scoring gap" this rebuild exists to fix.
-- **Rule:** entities created at runtime by `internal/store` (Prediction, LoginCode) get an application-generated UUID string. Entities written by hand — Player, Team, Deadline, Result, AwardFinalist-the-winner-record, playoff matchup, **and NHL Player** — use a short, human-readable string key: a player slug (`basti`), a team abbreviation (`TOR`), a deadline key (`preseason`), a round/series key (`round1.s1`), and an **NHL Player slug** (e.g. `mcdavid-connor`), generated once when that player's name is first added to the season's hand-maintained NHL Player list (FR-33) and never regenerated. Every place an NHL Player is referenced — the FR-33 candidate list, the FR-17 autocomplete widget's submitted value (AD-19), a saved `Prediction`'s finalist picks, and the hand-maintained `award_finalists` result section (AD-23) — uses this same slug, never the free-text display name, as the value actually compared for scoring. Nothing a human types by hand is ever a UUID. [ADOPTED, NHL Player identity gap closed at spine review]
+- **Rule:** entities created at runtime by `internal/store` (Prediction, LoginCode) get an application-generated UUID string. Entities written by hand — Player, Team, Deadline, Result, AwardFinalist-the-winner-record, playoff matchup, **and NHL Player** — use a short, human-readable string key: a player slug (`basti`), a team abbreviation (`TOR`), a deadline key (`preseason`), a round/series key (`round1` and `s1`, nested as `results.series.round1.s1`, never one flat `round1.s1` key), and an **NHL Player slug** (e.g. `mcdavid-connor`), generated once when that player's name is first added to the season's hand-maintained NHL Player list (FR-33) and never regenerated. Every place an NHL Player is referenced — the FR-33 candidate list, the FR-17 autocomplete widget's submitted value (AD-19), a saved `Prediction`'s finalist picks, and the hand-maintained `award_finalists` result section (AD-23) — uses this same slug, never the free-text display name, as the value actually compared for scoring. Nothing a human types by hand is ever a UUID. [ADOPTED, NHL Player identity gap closed at spine review]
 
 ### AD-18 — Error wrapping, no custom error envelope
 
@@ -362,7 +362,8 @@ results:
     presidents_trophy: "DAL"
     stanley_cup_winner: "EDM"
     series:
-        round1.s1: { winner: "FLA", games: 5 }
+        round1:                    # round1..round4 = r1, r2, cf, scf
+            s1: { winner: "FLA", games: 5 }   # nested: round, then playoff_matchups key -- never a flat "round1.s1" key
 
 award_finalists:                   # AwardFinalist struct: {slug, display_name} -- slug is the compared value (AD-17)
     hart:

@@ -152,6 +152,43 @@ func TestPlayerPointsShouldScoreEachRule(t *testing.T) {
 	}
 }
 
+// resultRoundNames is the results.series round name a human records for
+// each round Prediction Set id. The store keeps its own copy unexported, so
+// this test-side copy is what ties seriesPoints to it.
+var resultRoundNames = map[string]string{
+	store.Round1SetID:           "round1",
+	store.Round2SetID:           "round2",
+	store.ConferenceFinalsSetID: "round3",
+	store.StanleyCupFinalSetID:  "round4",
+}
+
+func TestSeriesPointsShouldCoverEveryRecordedRound(t *testing.T) {
+	for setID := range resultRoundNames {
+		if _, ok := seriesPoints[setID]; !ok {
+			t.Errorf("seriesPoints has no entry for round set %q, so its series would score 0", setID)
+		}
+	}
+	for setID := range seriesPoints {
+		if _, ok := resultRoundNames[setID]; !ok {
+			t.Errorf("seriesPoints key %q is not a round the store records results for", setID)
+		}
+	}
+}
+
+func TestPlayerPointsShouldScoreACorrectSeriesPickInEveryRound(t *testing.T) {
+	for setID, round := range resultRoundNames {
+		t.Run(setID, func(t *testing.T) {
+			st, _ := newScoringStore(t, []string{seriesPick(setID, "FLA", "5")}, seriesResult(round, "FLA", "5"))
+
+			got := PlayerPoints(st, "basti")
+
+			if got.Playoff == 0 || got.Regular != 0 {
+				t.Errorf("PlayerPoints for an exact %s pick = %+v, want non-zero Playoff and zero Regular", setID, got)
+			}
+		})
+	}
+}
+
 func TestPlayerPointsShouldScoreEveryAwardTheSameWay(t *testing.T) {
 	for _, award := range []string{store.AwardHart, store.AwardNorris, store.AwardVezina, store.AwardArtRoss, store.AwardRocketRichard} {
 		t.Run(award, func(t *testing.T) {

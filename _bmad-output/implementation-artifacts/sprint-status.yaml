@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-25-2026 12:00
+last_updated: 09-25-2026 12:26
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -162,7 +162,7 @@ action_items:
       (claims no UI reads Store.Teams() yet, contradicted by Story 2.3 in the same
       diff)"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-2-retro-item-12-hoist-the-duplicated-setrowfragment-acce"
     epic: 2
@@ -190,14 +190,14 @@ action_items:
     action: "Fix TestPredictShouldShowAClosedPillAndCountdownForASetPastItsDeadline's
       vacuous closed-substring assertion to scope to the countdown span specifically"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-2-retro-item-16-add-a-regression-test-locking-in-the-del"
     epic: 2
     action: "Add a regression test locking in the deliberate Closed+Submitted accent-vs-pill
       rendering (behavior stays as-is, only test coverage is added)"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-2-retro-item-17-factor-the-duplicated-acceptance-test-fi"
     epic: 2
@@ -238,7 +238,7 @@ action_items:
       the playoff_matchups shape with a unique key per series, and stop the app before
       editing fantasy-hockey.yml"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
   - id: "epic-3-retro-item-22-hoist-the-duplicated-acceptance-test-hel"
     epic: 3
@@ -276,7 +276,7 @@ action_items:
       correct spec-4-1's approved-shape wording and the architecture's illustrative
       data-file shape (flat round1.s1 key does not load)"
     owner: "Winston (Architect) / dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
   - id: "epic-4-retro-item-27-reconcile-specs-to-as-built-standings-re"
     epic: 4
@@ -302,7 +302,7 @@ action_items:
       stop the app, exact nested YAML shape with a commented example, restart, read
       startup warnings; extends epic-3 item 21"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
   - id: "epic-4-retro-item-30-extend-testsavingapredictionshouldpreser"
     epic: 4
@@ -310,21 +310,21 @@ action_items:
       five result kinds and assert no injected position/display_name empty strings
       in the raw bytes"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
   - id: "epic-4-retro-item-31-add-a-leaderboard-scenario-seeding-divis"
     epic: 4
     action: "Add a Leaderboard scenario seeding division, award and series results
       with matching picks, asserting the rendered Regular and Playoff cells"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
   - id: "epic-4-retro-item-32-add-a-test-tying-scoring-seriespoints-ke"
     epic: 4
     action: "Add a test tying scoring.seriesPoints keys to the store's round mapping
       so a renamed round cannot silently score 0"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
   - id: "epic-4-retro-item-33-adopt-depguard-for-ad-8-import-rules-ad"
     epic: 4

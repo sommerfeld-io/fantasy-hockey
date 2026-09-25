@@ -3,6 +3,7 @@ package acceptance_test
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 	"regexp"
 	"slices"
@@ -10,6 +11,8 @@ import (
 	"time"
 
 	"github.com/cucumber/godog"
+
+	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
 // leaderboardSubmittedAt stamps every seeded prediction row; neither
@@ -20,6 +23,11 @@ const leaderboardSubmittedAt = "2026-09-20T10:00:00Z"
 // declared under teams: so the store never flags one as unknown.
 var leaderboardTeams = []string{"FLA", "TOR"}
 
+// leaderboardNHLPlayers is every finalist slug the Leaderboard scenarios
+// record, declared under nhl_players: so the store never flags one as
+// unknown.
+var leaderboardNHLPlayers = []string{"mcdavid-connor", "mackinnon-nathan", "kucherov-nikita", "matthews-auston"}
+
 // leaderboardRowPattern isolates one rendered Leaderboard row: the player
 // id from its element id, and everything up to its closing tag.
 var leaderboardRowPattern = regexp.MustCompile(`(?s)<tr id="leaderboard-row-([^"]+)" class="lb-row">(.*?)</tr>`)
@@ -29,9 +37,17 @@ var leaderboardRowPattern = regexp.MustCompile(`(?s)<tr id="leaderboard-row-([^"
 // its optional gold modifier).
 var leaderboardCellsPattern = regexp.MustCompile(`(?s)<span class="rank-badge( rank-badge--gold)?">(\d+)</span>\s*<span class="lb-name">([^<]+)</span>.*?<td class="lb-num">(\d+)</td>\s*<td class="lb-num">(\d+)</td>\s*<td class="lb-total( lb-total--gold)?">(\d+)</td>`)
 
-// leaderboardPick is one seeded single-team prediction row.
+// leaderboardPick is one seeded prediction row: its player and its
+// kind-specific fields as YAML flow-mapping entries (e.g. "kind: cup,
+// team_id: FLA").
 type leaderboardPick struct {
-	playerID, kind, teamID string
+	playerID, fields string
+}
+
+// leaderboardSeries is one recorded round 1 series: its matchup and result.
+type leaderboardSeries struct {
+	key, teamA, teamB, winner string
+	games                     int
 }
 
 // leaderboardRow is one Leaderboard row as rendered.
@@ -44,16 +60,35 @@ type leaderboardRow struct {
 // requests /leaderboard over HTTP as one of those players.
 type leaderboardScenarioState struct {
 	lazyFixture
-	poolNames  []string
-	picks      []leaderboardPick
-	cupWinner  string
-	presidents string
+	poolNames     []string
+	picks         []leaderboardPick
+	cupWinner     string
+	presidents    string
+	divisionMarks map[string]*leaderboardDivisionMarks
+	finalists     map[string][]string
+	round1Series  []leaderboardSeries
+}
+
+// leaderboardDivisionMarks is one division's recorded playoff teams and
+// winner.
+type leaderboardDivisionMarks struct {
+	playoffs []string
+	winner   string
 }
 
 func newLeaderboardScenarioState() *leaderboardScenarioState {
 	s := &leaderboardScenarioState{}
-	s.lazyFixture = newLazyFixture("leaderboard", "basti", "Basti", testSessionSecret, s.seedBody, nil)
+	s.lazyFixture = newLazyFixture("leaderboard", "basti", "Basti", testSessionSecret, s.seedBody, requireNoResultProblems)
 	return s
+}
+
+// requireNoResultProblems fails a scenario whose seeded results the store
+// would ignore, so a fixture typo can't pass as a legitimate 0.
+func requireNoResultProblems(st *store.Store) error {
+	if problems := st.ResultProblems(); len(problems) != 0 {
+		return fmt.Errorf("leaderboard fixture has result problems: %v", problems)
+	}
+	return nil
 }
 
 // leaderboardPlayerID derives a pool player's id from their display name.
@@ -84,14 +119,116 @@ func (s *leaderboardScenarioState) seedBody() (string, error) {
 	for _, id := range leaderboardTeams {
 		fmt.Fprintf(&b, "    - id: %s\n      name: Team %s\n      conference: Eastern\n      division: Atlantic\n", id, id)
 	}
+	b.WriteString("nhl_players:\n")
+	for _, slug := range leaderboardNHLPlayers {
+		fmt.Fprintf(&b, "    - {slug: %s, display_name: Player %s, position: skater}\n", slug, slug)
+	}
+	s.writeMatchups(&b)
 	b.WriteString("predictions:\n")
 	for i, p := range s.picks {
-		fmt.Fprintf(&b, "    - id: p%d\n      player_id: %s\n      submitted_at: %q\n      kind: %s\n      team_id: %s\n",
-			i+1, p.playerID, leaderboardSubmittedAt, p.kind, p.teamID)
+		fmt.Fprintf(&b, "    - {id: p%d, player_id: %s, submitted_at: %q, %s}\n", i+1, p.playerID, leaderboardSubmittedAt, p.fields)
 	}
 	b.WriteString("results:\n")
 	fmt.Fprintf(&b, "    presidents_trophy: %s\n    stanley_cup_winner: %s\n", s.presidents, s.cupWinner)
+	s.writeRecordedResults(&b)
 	return b.String(), nil
+}
+
+func (s *leaderboardScenarioState) writeMatchups(b *strings.Builder) {
+	if len(s.round1Series) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "playoff_matchups:\n    %s:\n", store.Round1SetID)
+	for _, series := range s.round1Series {
+		fmt.Fprintf(b, "        - {key: %s, a: %s, b: %s}\n", series.key, series.teamA, series.teamB)
+	}
+}
+
+// writeRecordedResults writes the team_marks and series entries under the
+// results: section already begun, then the top-level award_finalists.
+func (s *leaderboardScenarioState) writeRecordedResults(b *strings.Builder) {
+	if len(s.divisionMarks) > 0 {
+		b.WriteString("    team_marks:\n")
+		for _, division := range slices.Sorted(maps.Keys(s.divisionMarks)) {
+			marks := s.divisionMarks[division]
+			fmt.Fprintf(b, "        %s: {playoffs: [%s], division_winner: %q}\n", strings.ToLower(division), strings.Join(marks.playoffs, ", "), marks.winner)
+		}
+	}
+	if len(s.round1Series) > 0 {
+		b.WriteString("    series:\n        round1:\n")
+		for _, series := range s.round1Series {
+			fmt.Fprintf(b, "            %s: {winner: %s, games: %d}\n", series.key, series.winner, series.games)
+		}
+	}
+	if len(s.finalists) > 0 {
+		b.WriteString("award_finalists:\n")
+		for _, award := range slices.Sorted(maps.Keys(s.finalists)) {
+			fmt.Fprintf(b, "    %s:\n", award)
+			for _, slug := range s.finalists[award] {
+				fmt.Fprintf(b, "        - {slug: %s, display_name: Player %s}\n", slug, slug)
+			}
+		}
+	}
+}
+
+// divisionMarksFor returns division's recorded marks, creating them.
+func (s *leaderboardScenarioState) divisionMarksFor(division string) *leaderboardDivisionMarks {
+	if s.divisionMarks == nil {
+		s.divisionMarks = map[string]*leaderboardDivisionMarks{}
+	}
+	if s.divisionMarks[division] == nil {
+		s.divisionMarks[division] = &leaderboardDivisionMarks{}
+	}
+	return s.divisionMarks[division]
+}
+
+func (s *leaderboardScenarioState) theRecordedPlayoffTeamsAre(division, list string) error {
+	s.divisionMarksFor(division).playoffs = splitList(list)
+	return nil
+}
+
+func (s *leaderboardScenarioState) theRecordedDivisionWinnerIs(division, team string) error {
+	s.divisionMarksFor(division).winner = team
+	return nil
+}
+
+func (s *leaderboardScenarioState) theRecordedFinalistsAre(award, list string) error {
+	if s.finalists == nil {
+		s.finalists = map[string][]string{}
+	}
+	s.finalists[award] = splitList(list)
+	return nil
+}
+
+func (s *leaderboardScenarioState) theRecordedRound1SeriesWasWonBy(key, teamA, teamB, winner string, games int) error {
+	s.round1Series = append(s.round1Series, leaderboardSeries{key: key, teamA: teamA, teamB: teamB, winner: winner, games: games})
+	return nil
+}
+
+// addPick appends one of name's prediction rows from its kind-specific
+// flow-mapping fields.
+func (s *leaderboardScenarioState) addPick(name, fields string) error {
+	if err := s.requirePoolPlayer(name); err != nil {
+		return err
+	}
+	s.picks = append(s.picks, leaderboardPick{playerID: leaderboardPlayerID(name), fields: fields})
+	return nil
+}
+
+func (s *leaderboardScenarioState) pickedPlayoffTeams(name, list, division string) error {
+	return s.addPick(name, fmt.Sprintf("kind: %s, division: %s, team_ids: [%s]", store.KindDivisionPlayoffTeams, division, strings.Join(splitList(list), ", ")))
+}
+
+func (s *leaderboardScenarioState) pickedDivisionWinner(name, team, division string) error {
+	return s.addPick(name, fmt.Sprintf("kind: %s, division: %s, team_id: %s", store.KindDivisionWinner, division, team))
+}
+
+func (s *leaderboardScenarioState) pickedFinalists(name, list, award string) error {
+	return s.addPick(name, fmt.Sprintf("kind: %s, award: %s, finalist_slugs: [%s]", store.KindAward, award, strings.Join(splitList(list), ", ")))
+}
+
+func (s *leaderboardScenarioState) pickedRound1Series(name, team string, games int, key string) error {
+	return s.addPick(name, fmt.Sprintf("kind: %s, series_key: %s, team_id: %s, games: \"%d\"", store.KindSeries, store.JoinSeriesKey(store.Round1SetID, key), team, games))
 }
 
 func (s *leaderboardScenarioState) thePoolPlayersAre(first, second, third string) error {
@@ -110,11 +247,7 @@ func (s *leaderboardScenarioState) theRecordedPresidentsTrophyWinnerIs(team stri
 }
 
 func (s *leaderboardScenarioState) pickedFor(name, team, kind string) error {
-	if err := s.requirePoolPlayer(name); err != nil {
-		return err
-	}
-	s.picks = append(s.picks, leaderboardPick{playerID: leaderboardPlayerID(name), kind: kind, teamID: team})
-	return nil
+	return s.addPick(name, fmt.Sprintf("kind: %s, team_id: %s", kind, team))
 }
 
 // opensTheLeaderboard signs in as name and requests /leaderboard. The first
@@ -279,6 +412,14 @@ func InitializeLeaderboardScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the recorded Stanley Cup winner for the leaderboard is "([^"]*)"$`, s.theRecordedStanleyCupWinnerIs)
 	ctx.Step(`^the recorded Presidents' Trophy winner for the leaderboard is "([^"]*)"$`, s.theRecordedPresidentsTrophyWinnerIs)
 	ctx.Step(`^"([^"]*)" picked "([^"]*)" for the "([^"]*)" pick$`, s.pickedFor)
+	ctx.Step(`^"([^"]*)" picked "([^"]*)" as the "([^"]*)" playoff teams$`, s.pickedPlayoffTeams)
+	ctx.Step(`^"([^"]*)" picked "([^"]*)" as the "([^"]*)" division winner$`, s.pickedDivisionWinner)
+	ctx.Step(`^"([^"]*)" picked "([^"]*)" as the "([^"]*)" finalists$`, s.pickedFinalists)
+	ctx.Step(`^"([^"]*)" picked "([^"]*)" in (\d+) games for round 1 series "([^"]*)"$`, s.pickedRound1Series)
+	ctx.Step(`^the recorded "([^"]*)" playoff teams for the leaderboard are "([^"]*)"$`, s.theRecordedPlayoffTeamsAre)
+	ctx.Step(`^the recorded "([^"]*)" division winner for the leaderboard is "([^"]*)"$`, s.theRecordedDivisionWinnerIs)
+	ctx.Step(`^the recorded "([^"]*)" finalists for the leaderboard are "([^"]*)"$`, s.theRecordedFinalistsAre)
+	ctx.Step(`^the recorded round 1 series "([^"]*)" for the leaderboard between "([^"]*)" and "([^"]*)" was won by "([^"]*)" in (\d+) games$`, s.theRecordedRound1SeriesWasWonBy)
 	ctx.Step(`^"([^"]*)" opens the Leaderboard$`, s.opensTheLeaderboard)
 	ctx.Step(`^the recorded Stanley Cup winner is changed by hand to "([^"]*)" and the app restarts$`, s.theCupWinnerIsChangedByHandAndTheAppRestarts)
 	ctx.Step(`^"([^"]*)" saves "([^"]*)" for the "([^"]*)" pick while the app runs$`, s.savesWhileTheAppRuns)
