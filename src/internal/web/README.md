@@ -10,7 +10,7 @@ The presentation layer: serves the app shell (Predict/Leaderboard/Compare), the 
 |----------------------------|------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `GET /{$}`, `GET /predict` | yes  | App shell with Predict active: the phase-grouped Prediction Set lists (Before the season / Playoffs), each row with its status pill and countdown. Upcoming rows are dimmed and not linked.                 |
 | `GET /leaderboard`         | yes  | App shell with Leaderboard active: every player ranked by Total (Player, Regular, Playoff, Total), recomputed from the store on every request. Leaders are gold, but nobody is while the top Total is 0.    |
-| `GET /compare`             | yes  | App shell with Compare active ("Coming soon" placeholder).                                                                                                                                                  |
+| `GET /compare`             | yes  | App shell with Compare active: selectable Prediction Sets as chips (Before the season / Playoffs) and every player's picks for the chosen `?set=` side by side. Read-only.                                  |
 | `GET /predict/{id}`        | yes  | The sheet for one Prediction Set: the cup/presidents team dropdown, the divisions chip form, the awards finalist form, or a static stub for every other id. Closed sets render read-only.                   |
 | `POST /predict/{id}`       | yes  | Submits a pickable set (cup, presidents, divisions, awards). Revalidates every id server-side, saves, and redirects to `/predict`. A rejected submission re-renders with an inline error and saves nothing. |
 | `GET /login`               | no   | Email-entry step. An already-valid session is redirected into the shell.                                                                                                                                    |
@@ -44,6 +44,7 @@ An unknown id and an id whose set is marked `upcoming: true` get the same generi
 | `shell.go`           | Bottom-nav tabs, shell view data, `handleShell`.                                                                 |
 | `predict.go`         | The Predict list view model: row status, pill, accent, and phase grouping.                                       |
 | `leaderboard.go`     | The Leaderboard view model: `internal/standings` rows with precomputed rank-badge and Total classes.             |
+| `compare.go`         | The Compare view model: set chips, default selection, and per-category rows of every player's values.            |
 | `options.go`         | The shared `{id, label}` autocomplete embed shape.                                                               |
 | `roster.go`          | `roster[T]`, the one id-keyed membership lookup behind every server-side team and NHL Player check.              |
 | `sheet.go`           | Sheet-kind registry, `sheetData`, `handleSheet`, `handleSheetSubmit`, and the cup/presidents sheet.              |
@@ -56,6 +57,7 @@ Each file has a matching `*_test.go`. General test helpers (base store fixtures,
 ## Design notes
 
 - `requireSession` guards every authenticated route. A valid, unexpired cookie (`auth.ValidateSession`) is re-issued with a fresh `issued_at` before the request proceeds, sliding the idle timeout forward. Anything else redirects (302) to `/login` with no distinguishing message. Every response it lets through also carries `Cache-Control: no-store`, since a shared cache in front of the app could otherwise serve one player's page to another.
+- Compare is display-only: it reads picks through the store's `Find…` methods, maps ids to team names, abbreviations and NHL Player display names only at render time, and never imports `internal/scoring` or `internal/standings` (guarded by `TestCompareShouldNotImportScoringOrStandings`). A set that is effectively Upcoming, or whose deadline fails to parse, gets no chip. An unknown or unselectable `?set=`, or no `?set=` at all, falls back to the earliest-deadline Before the season set (the first listed on a tie). When no Before the season set is selectable it falls back to the first selectable Playoffs set. When nothing is selectable, both selector rows render with a "Nothing to compare yet." note and no table is shown.
 - The Leaderboard computes no points or ranks. It renders `internal/standings.Rows` and never imports `internal/scoring` (guarded by `TestWebShouldNotImportScoring`).
 - Every submitted team id or NHL Player slug is revalidated against the store's canonical lists through `roster` (AD-10), whatever the client allowed.
 - This package is exercised by its unit tests and by the GoDog acceptance tests in `src/acceptance-tests/`.

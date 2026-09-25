@@ -5,8 +5,8 @@
   nav. Mounted on GET /{$} (aliased to Predict), /predict, /leaderboard,
   and /compare. Predict renders its real, phase-grouped Prediction Set
   lists (.Predict, Story 2.1); Leaderboard renders the ranked standings
-  (.Leaderboard, Story 4.2); Compare still renders a short static "Coming
-  soon" .Message - Epic 5 builds its real content.
+  (.Leaderboard, Story 4.2); Compare renders everyone's picks for one
+  selected Prediction Set (.Compare, Story 5.1).
 */}}
 {{/*
   predict-row renders one predictSetView (internal/web.go): an actionable
@@ -27,6 +27,37 @@
 <td class="lb-num">{{.Playoff}}</td>
 <td class="{{.TotalCSS}}">{{.Total}}</td>
 </tr>
+{{end}}
+{{/*
+  compare-chip renders one compareChipView (compare.go): a plain link that
+  reloads /compare with its set selected - no JS. Its classes and href are
+  precomputed.
+*/}}
+{{define "compare-chip"}}<a id="compare-chip-{{.ID}}" href="{{.Href}}" class="{{.CSS}}"{{if .Selected}} aria-current="true"{{end}}>{{.Title}}</a>{{end}}
+{{/*
+  compare-group renders one labelled selector row of chips.
+*/}}
+{{define "compare-group"}}
+<div class="compare-group"><span id="{{.LabelID}}" class="compare-group-label">{{.Label}}</span><span class="chip-group compare-chips" role="group" aria-labelledby="{{.LabelID}}">{{range .Chips}}{{template "compare-chip" .}}{{else}}<span class="compare-none">Nothing to compare yet.</span>{{end}}</span></div>
+{{end}}
+{{/*
+  compare-table renders one compareTableView: a header of bold player names
+  (the signed-in player's marked with an ice border and a "You" label), then
+  per category its own <tbody> holding a full-width rowgroup label above
+  one cell per player, so each value is tied to its category. Every
+  value, class and the colspan are precomputed.
+*/}}
+{{define "compare-table"}}
+<p class="compare-deadline"><svg class="row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg><span>{{.Title}} deadline:&nbsp;</span><span class="compare-deadline-text">{{.DeadlineText}}</span><span class="compare-countdown">&nbsp;&middot; {{.Countdown}}</span></p>
+<table class="cmp-table">
+<thead>
+<tr>{{range .Columns}}<th scope="col" class="{{.CSS}}"><span class="cmp-player-name">{{.Name}}</span>{{if .Own}}<span class="cmp-you">You</span>{{end}}</th>{{end}}</tr>
+</thead>
+{{$count := .ColumnCount}}{{range .Rows}}<tbody class="cmp-category">
+<tr class="cmp-label-row"><th colspan="{{$count}}" scope="rowgroup" class="cmp-label">{{.Label}}</th></tr>
+<tr class="cmp-values{{if .Stacked}} cmp-values--stacked{{end}}">{{range .Cells}}<td class="{{.CSS}}">{{range .Values}}<span class="cmp-value">{{.}}</span>{{end}}</td>{{end}}</tr>
+</tbody>
+{{end}}</table>
 {{end}}
 {{define "predict-row"}}
 {{if .Actionable}}<a id="predict-row-{{.ID}}" href="/predict/{{.ID}}" class="set-row {{.AccentCSS}}">{{else}}<div id="predict-row-{{.ID}}" class="set-row {{.AccentCSS}}">{{end}}<span class="set-row-body">
@@ -78,8 +109,14 @@
       </table>
       <p class="lb-footer">Regular-season picks feed the Regular column, playoff-round picks feed Playoff, and Total is what decides the standings.</p>
     </section>
-    {{else}}
-    <p class="coming-soon">{{.Message}}</p>
+    {{else if .Compare}}
+    <section class="compare">
+      <div class="section-header"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M4 19c0-3 2.2-5 5-5s5 2 5 5"/><circle cx="17" cy="9" r="2.3"/><path d="M14.5 19c.3-2.2 1.7-3.8 3.5-3.8 2 0 3.5 1.7 4 4"/></svg><span>Everyone's picks.</span></div>
+      <div class="compare-selector">
+        {{range .Compare.Groups}}{{template "compare-group" .}}{{end}}
+      </div>
+      {{with .Compare.Table}}{{template "compare-table" .}}{{end}}
+    </section>
     {{end}}
   </main>
   <nav class="shell-nav">

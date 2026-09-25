@@ -52,6 +52,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeSeriesPredictionsScenario(ctx)
 			InitializeAutomaticScoringScenario(ctx)
 			InitializeLeaderboardScenario(ctx)
+			InitializeCompareScenario(ctx)
 		},
 		Options: &opts,
 	}

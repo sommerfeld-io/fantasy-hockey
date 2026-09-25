@@ -21,7 +21,7 @@ Feature: Persistent App Shell With Player Identity and Navigation
   Scenario: The Compare destination shows the shell with Compare active
     When the player visits the Compare destination
     Then the shell shows "Compare" as the active tab
-    And the shell shows the Compare placeholder content
+    And the shell shows the Compare content
 
   Scenario: The root path aliases to Predict
     When the player visits the root path

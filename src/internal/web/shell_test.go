@@ -23,7 +23,7 @@ func TestNewServerShouldReturnOKForTheHomePage(t *testing.T) {
 
 // shellRouteTests is every shell route this server registers, alongside the
 // bottom-nav tab that should render active and a unique fragment of that
-// route's content (real content, or Compare's "Coming soon" placeholder).
+// route's real content.
 // "/" aliases to Predict.
 var shellRouteTests = []struct {
 	path       string
@@ -34,7 +34,7 @@ var shellRouteTests = []struct {
 	{"/", "predict", "Predict", "Before the season"},
 	{"/predict", "predict", "Predict", "Before the season"},
 	{"/leaderboard", "leaderboard", "Leaderboard", "Ranked by total points."},
-	{"/compare", "compare", "Compare", "Player comparison is coming soon."},
+	{"/compare", "compare", "Compare", "Everyone's picks."},
 }
 
 func TestNewServerShouldRenderTheShellForEveryDestination(t *testing.T) {
