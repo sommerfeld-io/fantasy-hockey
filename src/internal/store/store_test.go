@@ -47,22 +47,13 @@ func TestNewShouldBootstrapCreateAMissingFile(t *testing.T) {
 }
 
 func TestNewShouldNotOverwriteAnExistingFile(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2025-26"
 players:
     - id: basti
       name: Basti
       email: basti@example.com
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New(%q) returned error: %v", path, err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	player, ok := st.FindPlayerByEmail("basti@example.com")
 	if !ok {
@@ -195,8 +186,6 @@ func TestSeasonShouldReturnTheSeededSeason(t *testing.T) {
 }
 
 func TestPredictionSetsShouldReturnTheSeededList(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -214,13 +203,7 @@ prediction_sets:
       phase: playoffs
       upcoming: true
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	sets := st.PredictionSets()
 	if len(sets) != 2 {
@@ -244,8 +227,6 @@ func TestPredictionSetsShouldReturnAnEmptyListWhenNoneAreSeeded(t *testing.T) {
 }
 
 func TestPredictionSetsShouldReturnACopyThatCannotMutateTheStore(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -257,13 +238,7 @@ prediction_sets:
       phase: before_season
       upcoming: false
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	sets := st.PredictionSets()
 	sets[0].Title = "Tampered"
@@ -275,8 +250,6 @@ prediction_sets:
 }
 
 func TestTeamsShouldReturnTheSeededList(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -290,13 +263,7 @@ teams:
       conference: Western
       division: Pacific
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	want := []Team{
 		{ID: "TOR", Name: "Toronto Maple Leafs", Conference: "Eastern", Division: "Atlantic"},
@@ -323,8 +290,6 @@ func TestTeamsShouldReturnAnEmptyListWhenNoneAreSeeded(t *testing.T) {
 }
 
 func TestTeamsShouldReturnACopyThatCannotMutateTheStore(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -334,13 +299,7 @@ teams:
       conference: Eastern
       division: Atlantic
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	teams := st.Teams()
 	teams[0].Name = "Tampered"
@@ -352,8 +311,6 @@ teams:
 }
 
 func TestNHLPlayersShouldReturnTheSeededList(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -365,13 +322,7 @@ nhl_players:
       display_name: Connor Hellebuyck
       position: goalie
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	want := []AwardFinalist{
 		{Slug: "mcdavid-connor", DisplayName: "Connor McDavid", Position: PositionSkater},
@@ -398,8 +349,6 @@ func TestNHLPlayersShouldReturnAnEmptyListWhenNoneAreSeeded(t *testing.T) {
 }
 
 func TestNHLPlayersShouldReturnACopyThatCannotMutateTheStore(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -408,13 +357,7 @@ nhl_players:
       display_name: Connor McDavid
       position: skater
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	players := st.NHLPlayers()
 	players[0].DisplayName = "Tampered"
@@ -426,8 +369,6 @@ nhl_players:
 }
 
 func TestNHLPlayersByPositionShouldReturnOnlyThatPositionsEntries(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -445,13 +386,7 @@ nhl_players:
       display_name: Connor Hellebuyck
       position: goalie
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	want := []AwardFinalist{
 		{Slug: "hughes-quinn", DisplayName: "Quinn Hughes", Position: PositionDefenseman},
@@ -469,8 +404,6 @@ nhl_players:
 }
 
 func TestNHLPlayersByPositionShouldReturnAnEmptyListWhenThatPositionHasNoMatches(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -479,13 +412,7 @@ nhl_players:
       display_name: Connor McDavid
       position: skater
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	got := st.NHLPlayersByPosition(PositionGoalie)
 	if len(got) != 0 {
@@ -494,8 +421,6 @@ nhl_players:
 }
 
 func TestPlayoffMatchupsShouldReturnTheSeededListForAPresentKey(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -506,13 +431,7 @@ playoff_matchups:
         - a: EDM
           b: VGK
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	want := []PlayoffMatchup{
 		{TeamA: "FLA", TeamB: "TOR"},
@@ -530,8 +449,6 @@ playoff_matchups:
 }
 
 func TestPlayoffMatchupsShouldReturnAnEmptyListForAnAbsentKey(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -540,13 +457,7 @@ playoff_matchups:
         - a: FLA
           b: TOR
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	got := st.PlayoffMatchups("scf")
 	if len(got) != 0 {
@@ -564,21 +475,13 @@ func TestPlayoffMatchupsShouldReturnAnEmptyListWhenNoSectionIsSeeded(t *testing.
 }
 
 func TestPlayoffMatchupsShouldReturnAnEmptyListForAnEmptySeededList(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
 playoff_matchups:
     cf: []
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	got := st.PlayoffMatchups("cf")
 	if len(got) != 0 {
@@ -587,8 +490,6 @@ playoff_matchups:
 }
 
 func TestPlayoffMatchupsShouldReturnACopyThatCannotMutateTheStore(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -597,13 +498,7 @@ playoff_matchups:
         - a: FLA
           b: TOR
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	matchups := st.PlayoffMatchups("cf")
 	matchups[0].TeamA = "Tampered"
@@ -1602,8 +1497,6 @@ func TestSaveAwardPicksShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 // alongside TeamA/TeamB, extending TestPlayoffMatchupsShouldReturnThe
 // SeededListForAPresentKey's own seeded-list coverage to the new field.
 func TestPlayoffMatchupShouldRoundTripItsKeyThroughYAML(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, DataFileName)
 	seed := `season: "2026-27"
 players: []
 login_codes: []
@@ -1613,13 +1506,7 @@ playoff_matchups:
           a: FLA
           b: TOR
 `
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := New(path)
-	if err != nil {
-		t.Fatalf("New() returned error: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 
 	got := st.PlayoffMatchups("r1")
 	if len(got) != 1 {
@@ -1921,6 +1808,10 @@ func TestDivisionsShouldNotBeMutatedByACaller(t *testing.T) {
 	}
 }
 
+// seedSubmittedAt stamps every seeded prediction row; no results test
+// reads it.
+const seedSubmittedAt = "2026-09-20T10:00:00Z"
+
 // resultsFixtureBase is the canonical data every results test builds on:
 // three Atlantic teams and one Pacific team, four NHL players and one matchup in round 1 and in
 // the conference finals.
@@ -1953,12 +1844,12 @@ predictions:
       kind: division_playoff_teams
       division: Atlantic
       team_ids: [FLA, TOR]
-      submitted_at: "2026-09-20T10:00:00Z"
+      submitted_at: "` + seedSubmittedAt + `"
     - id: p2
       player_id: kim
       kind: cup
       team_id: TOR
-      submitted_at: "2026-09-20T10:00:00Z"
+      submitted_at: "` + seedSubmittedAt + `"
 `
 
 // resultsFixtureResults is a well-formed results and award_finalists
@@ -1983,11 +1874,12 @@ award_finalists:
         - {slug: matthews-auston, display_name: Auston Matthews}
 `
 
-// newResultsStore writes seed to a temp data file and opens a store on it,
-// so New's own parsing of the results section is exercised.
-func newResultsStore(t *testing.T, seed string) (*Store, string) {
+// newSeededStore writes seed to a temp data file and opens st on it, so
+// New's own parsing of the seeded document is exercised. path is the data
+// file's path (not its directory), for tests that inspect or reopen it.
+func newSeededStore(t *testing.T, seed string) (st *Store, path string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), DataFileName)
+	path = filepath.Join(t.TempDir(), DataFileName)
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
@@ -1999,7 +1891,7 @@ func newResultsStore(t *testing.T, seed string) (*Store, string) {
 }
 
 func TestNewShouldLoadAFileWithNeitherResultsNorAwardFinalists(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase)
+	st, _ := newSeededStore(t, resultsFixtureBase)
 
 	if playoffs, winner := st.DivisionResult("Atlantic"); len(playoffs) != 0 || winner != "" {
 		t.Errorf("DivisionResult = %v, %q, want nothing recorded", playoffs, winner)
@@ -2022,7 +1914,7 @@ func TestNewShouldLoadAFileWithNeitherResultsNorAwardFinalists(t *testing.T) {
 }
 
 func TestDivisionResultShouldReadTheLowercaseDivisionKeyForTheCapitalisedName(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+	st, _ := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
 	playoffs, winner := st.DivisionResult("Atlantic")
 	if !slices.Equal(playoffs, []string{"FLA", "TOR"}) || winner != "FLA" {
@@ -2031,7 +1923,7 @@ func TestDivisionResultShouldReadTheLowercaseDivisionKeyForTheCapitalisedName(t 
 }
 
 func TestDivisionResultShouldNotMatchTheLowercaseNameOrAnotherDivision(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+	st, _ := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
 	for _, division := range []string{"atlantic", "Metropolitan"} {
 		if playoffs, winner := st.DivisionResult(division); len(playoffs) != 0 || winner != "" {
@@ -2041,7 +1933,7 @@ func TestDivisionResultShouldNotMatchTheLowercaseNameOrAnotherDivision(t *testin
 }
 
 func TestTrophyWinnersShouldReturnTheRecordedTeams(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+	st, _ := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
 	if got := st.PresidentsTrophyWinner(); got != "TOR" {
 		t.Errorf("PresidentsTrophyWinner = %q, want TOR", got)
@@ -2052,7 +1944,7 @@ func TestTrophyWinnersShouldReturnTheRecordedTeams(t *testing.T) {
 }
 
 func TestSeriesResultShouldMapRoundNamesToSetIDsAndLoadUnquotedGames(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+	st, _ := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
 	tests := []struct {
 		seriesKey, wantWinner, wantGames string
@@ -2069,7 +1961,7 @@ func TestSeriesResultShouldMapRoundNamesToSetIDsAndLoadUnquotedGames(t *testing.
 }
 
 func TestSeriesResultShouldNotReturnAnUnrecordedOrMalformedKey(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+	st, _ := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
 	for _, key := range []string{JoinSeriesKey(Round2SetID, "s1"), JoinSeriesKey(Round1SetID, "s2"), "round1.s1", "r1"} {
 		if _, _, ok := st.SeriesResult(key); ok {
@@ -2080,7 +1972,7 @@ func TestSeriesResultShouldNotReturnAnUnrecordedOrMalformedKey(t *testing.T) {
 
 func TestSeriesResultShouldNotReturnAHalfRecordedSeries(t *testing.T) {
 	seed := resultsFixtureBase + "results:\n    series:\n        round1:\n            s1: {winner: FLA}\n"
-	st, _ := newResultsStore(t, seed)
+	st, _ := newSeededStore(t, seed)
 
 	if _, _, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1")); ok {
 		t.Error("SeriesResult ok = true for a series with no games recorded, want false")
@@ -2091,7 +1983,7 @@ func TestSeriesResultShouldNotReturnAHalfRecordedSeries(t *testing.T) {
 }
 
 func TestRecordedAwardFinalistsShouldReturnEverySlugIncludingATie(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+	st, _ := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
 	want := []string{"mcdavid-connor", "mackinnon-nathan", "kucherov-nikita", "matthews-auston"}
 	if got := st.RecordedAwardFinalists(AwardHart); !slices.Equal(got, want) {
@@ -2103,7 +1995,7 @@ func TestRecordedAwardFinalistsShouldReturnEverySlugIncludingATie(t *testing.T) 
 }
 
 func TestPlayersShouldReturnEveryPlayer(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase)
+	st, _ := newSeededStore(t, resultsFixtureBase)
 
 	got := st.Players()
 	if len(got) != 2 || got[0].ID != "basti" || got[1].ID != "kim" {
@@ -2112,7 +2004,7 @@ func TestPlayersShouldReturnEveryPlayer(t *testing.T) {
 }
 
 func TestPredictionsForPlayerShouldReturnOnlyThatPlayersRows(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase)
+	st, _ := newSeededStore(t, resultsFixtureBase)
 
 	got := st.PredictionsForPlayer("basti")
 	if len(got) != 1 || got[0].ID != "p1" {
@@ -2124,7 +2016,7 @@ func TestPredictionsForPlayerShouldReturnOnlyThatPlayersRows(t *testing.T) {
 }
 
 func TestResultReadMethodsShouldReturnCopiesThatDoNotAliasTheStore(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+	st, _ := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
 	playoffs, _ := st.DivisionResult("Atlantic")
 	playoffs[0] = "XXX"
@@ -2258,7 +2150,7 @@ func TestResultProblemsShouldReportEachMalformedEntryAndIgnoreIt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			st, _ := newResultsStore(t, resultsFixtureBase+tt.results)
+			st, _ := newSeededStore(t, resultsFixtureBase+tt.results)
 
 			problems := st.ResultProblems()
 			if len(problems) != 1 || !strings.Contains(problems[0], tt.want) {
@@ -2272,7 +2164,7 @@ func TestResultProblemsShouldReportEachMalformedEntryAndIgnoreIt(t *testing.T) {
 }
 
 func TestResultProblemsShouldReportNothingForAWellFormedFile(t *testing.T) {
-	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+	st, _ := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
 	if got := st.ResultProblems(); len(got) != 0 {
 		t.Errorf("ResultProblems = %v, want none", got)
@@ -2280,7 +2172,7 @@ func TestResultProblemsShouldReportNothingForAWellFormedFile(t *testing.T) {
 }
 
 func TestSavingAPredictionShouldPreserveTheHandRecordedResults(t *testing.T) {
-	st, path := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+	st, path := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
 	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
@@ -2355,7 +2247,7 @@ func TestSeriesResultShouldRoundTripEveryRoundSetID(t *testing.T) {
 		t.Run(setID, func(t *testing.T) {
 			seed := strings.Replace(resultsFixtureBase, resultsFixtureMatchups, "playoff_matchups:\n    "+setID+":\n        - {key: x1, a: FLA, b: TOR}\n", 1) +
 				"results:\n    series:\n        " + round + ":\n            x1: {winner: TOR, games: 6}\n"
-			st, _ := newResultsStore(t, seed)
+			st, _ := newSeededStore(t, seed)
 
 			winner, games, ok := st.SeriesResult(JoinSeriesKey(setID, "x1"))
 			if !ok || winner != "TOR" || games != "6" {
@@ -2371,7 +2263,7 @@ func TestSeriesResultShouldRoundTripEveryRoundSetID(t *testing.T) {
 func TestSeriesResultShouldNotReadARoundRecordedUnderAnotherRoundsName(t *testing.T) {
 	seed := strings.Replace(resultsFixtureBase, "playoff_matchups:\n", "playoff_matchups:\n    r2:\n        - {key: s1, a: FLA, b: TOR}\n", 1) +
 		"results:\n    series:\n        round2:\n            s1: {winner: FLA, games: 5}\n"
-	st, _ := newResultsStore(t, seed)
+	st, _ := newSeededStore(t, seed)
 
 	if problems := st.ResultProblems(); len(problems) != 0 {
 		t.Fatalf("ResultProblems = %v, want none", problems)
@@ -2385,7 +2277,7 @@ func TestSeriesResultShouldNotReadARoundRecordedUnderAnotherRoundsName(t *testin
 }
 
 func TestSavingAPredictionShouldNotAddAResultsSectionToAFileWithoutOne(t *testing.T) {
-	st, path := newResultsStore(t, resultsFixtureBase)
+	st, path := newSeededStore(t, resultsFixtureBase)
 
 	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
@@ -2405,7 +2297,7 @@ func TestSavingAPredictionShouldNotAddAResultsSectionToAFileWithoutOne(t *testin
 func TestSeriesResultShouldNormalizeAHandEditedGameCount(t *testing.T) {
 	for _, games := range []string{"05", "+5"} {
 		seed := resultsFixtureBase + "results:\n    series:\n        round1:\n            s1: {winner: FLA, games: " + games + "}\n"
-		st, _ := newResultsStore(t, seed)
+		st, _ := newSeededStore(t, seed)
 
 		_, got, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1"))
 		if !ok || got != "5" {
@@ -2420,7 +2312,7 @@ func TestSeriesResultShouldNormalizeAHandEditedGameCount(t *testing.T) {
 func TestResultProblemsShouldAcceptEitherMatchupTeamAsSeriesWinner(t *testing.T) {
 	for _, winner := range []string{"FLA", "TOR"} {
 		seed := resultsFixtureBase + "results:\n    series:\n        round1:\n            s1: {winner: " + winner + ", games: 5}\n"
-		st, _ := newResultsStore(t, seed)
+		st, _ := newSeededStore(t, seed)
 
 		if problems := st.ResultProblems(); len(problems) != 0 {
 			t.Errorf("ResultProblems for winner %q = %v, want none", winner, problems)
@@ -2433,7 +2325,7 @@ func TestResultProblemsShouldAcceptEitherMatchupTeamAsSeriesWinner(t *testing.T)
 
 func TestResultProblemsShouldAcceptTeamMarksFromTheirOwnDivision(t *testing.T) {
 	seed := resultsFixtureBase + "results:\n    team_marks:\n        atlantic: {playoffs: [FLA, TOR, BOS], division_winner: BOS}\n        pacific: {playoffs: [EDM], division_winner: EDM}\n"
-	st, _ := newResultsStore(t, seed)
+	st, _ := newSeededStore(t, seed)
 
 	if problems := st.ResultProblems(); len(problems) != 0 {
 		t.Errorf("ResultProblems = %v, want none", problems)

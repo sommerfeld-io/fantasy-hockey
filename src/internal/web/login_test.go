@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -95,21 +94,13 @@ func TestPostLoginShouldRenderAnIdenticalBodyRegardlessOfAMatch(t *testing.T) {
 }
 
 func TestPostLoginShouldReturn500WhenTheStoreWriteFails(t *testing.T) {
-	dir := t.TempDir()
 	seed := `season: "2026-27"
 players:
     - id: basti
       name: Basti
       email: basti@example.com
 `
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
+	st, dir := newSeededStore(t, seed)
 	// Remove the directory out from under the store so the atomic
 	// write-and-rename that CreateLoginCode performs fails, simulating a
 	// disk write failure. Unlike a read-only permission bit, this fails

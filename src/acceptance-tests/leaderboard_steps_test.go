@@ -3,10 +3,10 @@ package acceptance_test
 import (
 	"context"
 	"fmt"
-	"maps"
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,13 +15,10 @@ import (
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
-// leaderboardSubmittedAt stamps every seeded prediction row; neither
-// scoring nor the Leaderboard reads it.
-const leaderboardSubmittedAt = "2026-09-20T10:00:00Z"
-
-// leaderboardTeams is every team the Leaderboard scenarios pick or record,
-// declared under teams: so the store never flags one as unknown.
-var leaderboardTeams = []string{"FLA", "TOR"}
+// leaderboardTeams maps every team the Leaderboard scenarios pick or record
+// to its division, declared under teams: so the store never flags one as
+// unknown.
+var leaderboardTeams = map[string]string{"FLA": "Atlantic", "TOR": "Atlantic"}
 
 // leaderboardNHLPlayers is every finalist slug the Leaderboard scenarios
 // record, declared under nhl_players: so the store never flags one as
@@ -36,13 +33,6 @@ var leaderboardRowPattern = regexp.MustCompile(`(?s)<tr id="leaderboard-row-([^"
 // optional gold modifier), the name, Regular, Playoff and the Total (with
 // its optional gold modifier).
 var leaderboardCellsPattern = regexp.MustCompile(`(?s)<span class="rank-badge( rank-badge--gold)?">(\d+)</span>\s*<span class="lb-name">([^<]+)</span>.*?<td class="lb-num">(\d+)</td>\s*<td class="lb-num">(\d+)</td>\s*<td class="lb-total( lb-total--gold)?">(\d+)</td>`)
-
-// leaderboardPick is one seeded prediction row: its player and its
-// kind-specific fields as YAML flow-mapping entries (e.g. "kind: cup,
-// team_id: FLA").
-type leaderboardPick struct {
-	playerID, fields string
-}
 
 // leaderboardSeries is one recorded round 1 series: its matchup and result.
 type leaderboardSeries struct {
@@ -61,19 +51,12 @@ type leaderboardRow struct {
 type leaderboardScenarioState struct {
 	lazyFixture
 	poolNames     []string
-	picks         []leaderboardPick
+	picks         []seedPrediction
 	cupWinner     string
 	presidents    string
-	divisionMarks map[string]*leaderboardDivisionMarks
+	divisionMarks map[string]*seedDivisionMarks
 	finalists     map[string][]string
 	round1Series  []leaderboardSeries
-}
-
-// leaderboardDivisionMarks is one division's recorded playoff teams and
-// winner.
-type leaderboardDivisionMarks struct {
-	playoffs []string
-	winner   string
 }
 
 func newLeaderboardScenarioState() *leaderboardScenarioState {
@@ -115,69 +98,49 @@ func (s *leaderboardScenarioState) seedBody() (string, error) {
 		}
 		fmt.Fprintf(&b, "    - id: %s\n      name: %s\n      email: %s@pool.example\n", id, name, id)
 	}
-	b.WriteString("teams:\n")
-	for _, id := range leaderboardTeams {
-		fmt.Fprintf(&b, "    - id: %s\n      name: Team %s\n      conference: Eastern\n      division: Atlantic\n", id, id)
-	}
-	b.WriteString("nhl_players:\n")
-	for _, slug := range leaderboardNHLPlayers {
-		fmt.Fprintf(&b, "    - {slug: %s, display_name: Player %s, position: skater}\n", slug, slug)
-	}
-	s.writeMatchups(&b)
-	b.WriteString("predictions:\n")
-	for i, p := range s.picks {
-		fmt.Fprintf(&b, "    - {id: p%d, player_id: %s, submitted_at: %q, %s}\n", i+1, p.playerID, leaderboardSubmittedAt, p.fields)
-	}
-	b.WriteString("results:\n")
-	fmt.Fprintf(&b, "    presidents_trophy: %s\n    stanley_cup_winner: %s\n", s.presidents, s.cupWinner)
-	s.writeRecordedResults(&b)
+	writeSeedTeams(&b, leaderboardTeams)
+	writeSeedNHLPlayers(&b, leaderboardNHLPlayers)
+	writeSeedMatchups(&b, s.matchups())
+	writeSeedPredictions(&b, s.picks)
+	writeSeedResults(&b, seedResults{
+		teamMarks:  s.divisionMarks,
+		presidents: s.presidents,
+		cupWinner:  s.cupWinner,
+		series:     s.seriesResults(),
+	})
+	writeSeedFinalists(&b, s.finalists)
 	return b.String(), nil
 }
 
-func (s *leaderboardScenarioState) writeMatchups(b *strings.Builder) {
-	if len(s.round1Series) == 0 {
-		return
-	}
-	fmt.Fprintf(b, "playoff_matchups:\n    %s:\n", store.Round1SetID)
+// leaderboardRound1 is round 1's prediction-side set id and results-side
+// round name.
+var leaderboardRound1 = mustSeedRound("round 1")
+
+// matchups declares every recorded round 1 series under playoff_matchups.
+func (s *leaderboardScenarioState) matchups() map[string][]seedMatchup {
+	bySet := map[string][]seedMatchup{}
 	for _, series := range s.round1Series {
-		fmt.Fprintf(b, "        - {key: %s, a: %s, b: %s}\n", series.key, series.teamA, series.teamB)
+		bySet[leaderboardRound1.setID] = append(bySet[leaderboardRound1.setID], seedMatchup{key: series.key, a: series.teamA, b: series.teamB})
 	}
+	return bySet
 }
 
-// writeRecordedResults writes the team_marks and series entries under the
-// results: section already begun, then the top-level award_finalists.
-func (s *leaderboardScenarioState) writeRecordedResults(b *strings.Builder) {
-	if len(s.divisionMarks) > 0 {
-		b.WriteString("    team_marks:\n")
-		for _, division := range slices.Sorted(maps.Keys(s.divisionMarks)) {
-			marks := s.divisionMarks[division]
-			fmt.Fprintf(b, "        %s: {playoffs: [%s], division_winner: %q}\n", strings.ToLower(division), strings.Join(marks.playoffs, ", "), marks.winner)
-		}
+// seriesResults records every round 1 series' outcome under results.series.
+func (s *leaderboardScenarioState) seriesResults() map[string][]seedSeriesResult {
+	byRound := map[string][]seedSeriesResult{}
+	for _, series := range s.round1Series {
+		byRound[leaderboardRound1.resultRound] = append(byRound[leaderboardRound1.resultRound], seedSeriesResult{key: series.key, winner: series.winner, games: strconv.Itoa(series.games)})
 	}
-	if len(s.round1Series) > 0 {
-		b.WriteString("    series:\n        round1:\n")
-		for _, series := range s.round1Series {
-			fmt.Fprintf(b, "            %s: {winner: %s, games: %d}\n", series.key, series.winner, series.games)
-		}
-	}
-	if len(s.finalists) > 0 {
-		b.WriteString("award_finalists:\n")
-		for _, award := range slices.Sorted(maps.Keys(s.finalists)) {
-			fmt.Fprintf(b, "    %s:\n", award)
-			for _, slug := range s.finalists[award] {
-				fmt.Fprintf(b, "        - {slug: %s, display_name: Player %s}\n", slug, slug)
-			}
-		}
-	}
+	return byRound
 }
 
 // divisionMarksFor returns division's recorded marks, creating them.
-func (s *leaderboardScenarioState) divisionMarksFor(division string) *leaderboardDivisionMarks {
+func (s *leaderboardScenarioState) divisionMarksFor(division string) *seedDivisionMarks {
 	if s.divisionMarks == nil {
-		s.divisionMarks = map[string]*leaderboardDivisionMarks{}
+		s.divisionMarks = map[string]*seedDivisionMarks{}
 	}
 	if s.divisionMarks[division] == nil {
-		s.divisionMarks[division] = &leaderboardDivisionMarks{}
+		s.divisionMarks[division] = &seedDivisionMarks{}
 	}
 	return s.divisionMarks[division]
 }
@@ -211,7 +174,7 @@ func (s *leaderboardScenarioState) addPick(name, fields string) error {
 	if err := s.requirePoolPlayer(name); err != nil {
 		return err
 	}
-	s.picks = append(s.picks, leaderboardPick{playerID: leaderboardPlayerID(name), fields: fields})
+	s.picks = append(s.picks, seedPrediction{playerID: leaderboardPlayerID(name), fields: fields})
 	return nil
 }
 
@@ -228,7 +191,7 @@ func (s *leaderboardScenarioState) pickedFinalists(name, list, award string) err
 }
 
 func (s *leaderboardScenarioState) pickedRound1Series(name, team string, games int, key string) error {
-	return s.addPick(name, fmt.Sprintf("kind: %s, series_key: %s, team_id: %s, games: \"%d\"", store.KindSeries, store.JoinSeriesKey(store.Round1SetID, key), team, games))
+	return s.addPick(name, fmt.Sprintf("kind: %s, series_key: %s, team_id: %s, games: \"%d\"", store.KindSeries, store.JoinSeriesKey(leaderboardRound1.setID, key), team, games))
 }
 
 func (s *leaderboardScenarioState) thePoolPlayersAre(first, second, third string) error {

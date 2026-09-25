@@ -6,8 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/cucumber/godog"
@@ -40,24 +38,13 @@ var navHrefsByTab = map[string]string{
 // since (unlike newTempStore, which starts with an empty player list) the
 // shell's header needs a real player to resolve the session's id against.
 func newAppShellStore() *store.Store {
-	dir, err := os.MkdirTemp("", "fantasy-hockey-app-shell-*")
-	if err != nil {
-		panic(fmt.Sprintf("create temp dir: %v", err))
-	}
 	seed := `season: "2026-27"
 players:
     - id: basti
       name: Basti
       email: basti@example.com
 `
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		panic(fmt.Sprintf("seed file: %v", err))
-	}
-	st, err := store.New(path)
-	if err != nil {
-		panic(fmt.Sprintf("store.New: %v", err))
-	}
+	st, _ := newSeededStore("app-shell", seed)
 	return st
 }
 

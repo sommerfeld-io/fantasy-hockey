@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -21,51 +22,24 @@ const (
 	automaticScoringPlayerName = "Basti"
 )
 
-// automaticScoringSubmittedAt stamps every seeded prediction row; scoring
-// never reads it.
-const automaticScoringSubmittedAt = "2026-09-20T10:00:00Z"
-
-// automaticScoringRound is one playoff round as the feature names it
-// ("round 1"), with the prediction-side set id and the results-side round
-// name it maps to.
-type automaticScoringRound struct {
-	setID, resultRound string
-}
-
-// automaticScoringRounds maps the feature's round wording to the ids the
-// seeded YAML needs on each side.
-var automaticScoringRounds = map[string]automaticScoringRound{
-	"round 1": {store.Round1SetID, "round1"},
-	"round 2": {store.Round2SetID, "round2"},
-	"round 3": {store.ConferenceFinalsSetID, "round3"},
-	"round 4": {store.StanleyCupFinalSetID, "round4"},
-}
-
 // automaticScoringSeries is one recorded (or picked) series outcome.
 type automaticScoringSeries struct {
-	round  automaticScoringRound
+	round  seedRound
 	key    string
 	winner string
 	games  string
-}
-
-// automaticScoringDivision is one division's recorded team marks.
-type automaticScoringDivision struct {
-	playoffs []string
-	winner   string
 }
 
 // automaticScoringScenarioState accumulates one scenario's picks and
 // results, writes them as seeded YAML on the first scoring run, and records
 // each run's points.
 type automaticScoringScenarioState struct {
-	teams       []string
 	teamDiv     map[string]string
 	slugs       []string
-	predictions []string
+	predictions []seedPrediction
 	pickSeries  []automaticScoringSeries
 	resSeries   []automaticScoringSeries
-	divisions   map[string]*automaticScoringDivision
+	divisions   map[string]*seedDivisionMarks
 	finalists   map[string][]string
 	presidents  string
 	cupWinner   string
@@ -79,7 +53,7 @@ type automaticScoringScenarioState struct {
 func newAutomaticScoringScenarioState() *automaticScoringScenarioState {
 	return &automaticScoringScenarioState{
 		teamDiv:       map[string]string{},
-		divisions:     map[string]*automaticScoringDivision{},
+		divisions:     map[string]*seedDivisionMarks{},
 		finalists:     map[string][]string{},
 		fileUntouched: true,
 	}
@@ -94,7 +68,6 @@ func (s *automaticScoringScenarioState) addTeam(id, division string) {
 	if division == "" {
 		division = store.Divisions()[0]
 	}
-	s.teams = append(s.teams, id)
 	s.teamDiv[id] = division
 }
 
@@ -106,16 +79,16 @@ func (s *automaticScoringScenarioState) addSlugs(slugs []string) {
 	}
 }
 
+// addPrediction appends one of the scoring player's prediction rows from its
+// kind-specific flow-mapping fields.
 func (s *automaticScoringScenarioState) addPrediction(fields string) {
-	id := fmt.Sprintf("p%d", len(s.predictions)+1)
-	s.predictions = append(s.predictions, fmt.Sprintf(
-		"    - id: %s\n      player_id: %s\n      submitted_at: %q\n%s", id, automaticScoringPlayerID, automaticScoringSubmittedAt, fields))
+	s.predictions = append(s.predictions, seedPrediction{playerID: automaticScoringPlayerID, fields: fields})
 }
 
-func (s *automaticScoringScenarioState) division(name string) *automaticScoringDivision {
+func (s *automaticScoringScenarioState) division(name string) *seedDivisionMarks {
 	d, ok := s.divisions[name]
 	if !ok {
-		d = &automaticScoringDivision{}
+		d = &seedDivisionMarks{}
 		s.divisions[name] = d
 	}
 	return d
@@ -134,34 +107,34 @@ func (s *automaticScoringScenarioState) pickedPlayoffTeams(list, division string
 	for _, t := range teams {
 		s.addTeam(t, division)
 	}
-	s.addPrediction(fmt.Sprintf("      kind: %s\n      division: %s\n      team_ids: [%s]\n",
+	s.addPrediction(fmt.Sprintf("kind: %s, division: %s, team_ids: [%s]",
 		store.KindDivisionPlayoffTeams, division, strings.Join(teams, ", ")))
 	return nil
 }
 
 func (s *automaticScoringScenarioState) pickedDivisionWinner(team, division string) error {
 	s.addTeam(team, division)
-	s.addPrediction(fmt.Sprintf("      kind: %s\n      division: %s\n      team_id: %s\n",
+	s.addPrediction(fmt.Sprintf("kind: %s, division: %s, team_id: %s",
 		store.KindDivisionWinner, division, team))
 	return nil
 }
 
 func (s *automaticScoringScenarioState) pickedTeamFor(team, kind string) error {
 	s.addTeam(team, "")
-	s.addPrediction(fmt.Sprintf("      kind: %s\n      team_id: %s\n", kind, team))
+	s.addPrediction(fmt.Sprintf("kind: %s, team_id: %s", kind, team))
 	return nil
 }
 
 func (s *automaticScoringScenarioState) pickedFinalists(list, award string) error {
 	slugs := splitList(list)
 	s.addSlugs(slugs)
-	s.addPrediction(fmt.Sprintf("      kind: %s\n      award: %s\n      finalist_slugs: [%s]\n",
+	s.addPrediction(fmt.Sprintf("kind: %s, award: %s, finalist_slugs: [%s]",
 		store.KindAward, award, strings.Join(slugs, ", ")))
 	return nil
 }
 
 func (s *automaticScoringScenarioState) series(team, games, key, roundName string) (automaticScoringSeries, error) {
-	round, ok := automaticScoringRounds[roundName]
+	round, ok := seedRounds[roundName]
 	if !ok {
 		return automaticScoringSeries{}, fmt.Errorf("unknown round %q", roundName)
 	}
@@ -175,7 +148,7 @@ func (s *automaticScoringScenarioState) pickedSeries(team, games, key, roundName
 		return err
 	}
 	s.pickSeries = append(s.pickSeries, pick)
-	s.addPrediction(fmt.Sprintf("      kind: %s\n      series_key: %s\n      team_id: %s\n      games: %q\n",
+	s.addPrediction(fmt.Sprintf("kind: %s, series_key: %s, team_id: %s, games: %q",
 		store.KindSeries, store.JoinSeriesKey(pick.round.setID, key), team, games))
 	return nil
 }
@@ -301,7 +274,8 @@ func (s *automaticScoringScenarioState) pickedAllTrophiesCorrectly(champion stri
 // series of every round.
 func (s *automaticScoringScenarioState) pickedAllSeriesCorrectly(champion string) error {
 	seriesPerRound := map[string]int{"round 1": 8, "round 2": 4, "round 3": 2, "round 4": 1}
-	for roundName, count := range seriesPerRound {
+	for _, roundName := range slices.Sorted(maps.Keys(seriesPerRound)) {
+		count := seriesPerRound[roundName]
 		for i := 1; i <= count; i++ {
 			key := fmt.Sprintf("s%d", i)
 			if err := runAll(
@@ -319,36 +293,24 @@ func (s *automaticScoringScenarioState) pickedAllSeriesCorrectly(champion string
 func (s *automaticScoringScenarioState) seed() string {
 	var b strings.Builder
 	b.WriteString(seedHeader(automaticScoringPlayerID, automaticScoringPlayerName))
-	s.writeTeams(&b)
-	s.writeNHLPlayers(&b)
-	s.writeMatchups(&b)
-	b.WriteString("predictions:\n")
-	for _, p := range s.predictions {
-		b.WriteString(p)
-	}
-	s.writeResults(&b)
-	s.writeFinalists(&b)
+	writeSeedTeams(&b, s.teamDiv)
+	writeSeedNHLPlayers(&b, s.slugs)
+	writeSeedMatchups(&b, s.matchups())
+	writeSeedPredictions(&b, s.predictions)
+	writeSeedResults(&b, seedResults{
+		teamMarks:  s.divisions,
+		presidents: s.presidents,
+		cupWinner:  s.cupWinner,
+		series:     s.seriesResults(),
+	})
+	writeSeedFinalists(&b, s.finalists)
 	return b.String()
 }
 
-func (s *automaticScoringScenarioState) writeTeams(b *strings.Builder) {
-	b.WriteString("teams:\n")
-	for _, id := range s.teams {
-		fmt.Fprintf(b, "    - id: %s\n      name: Team %s\n      conference: Eastern\n      division: %s\n", id, id, s.teamDiv[id])
-	}
-}
-
-func (s *automaticScoringScenarioState) writeNHLPlayers(b *strings.Builder) {
-	b.WriteString("nhl_players:\n")
-	for _, slug := range s.slugs {
-		fmt.Fprintf(b, "    - slug: %s\n      display_name: Player %s\n      position: skater\n", slug, slug)
-	}
-}
-
-// writeMatchups declares a playoff_matchups entry for every series that is
+// matchups declares a playoff_matchups entry for every series that is
 // picked or recorded, with every team picked or recorded for it as one of
 // its two sides, so no series key or winner is flagged as a problem.
-func (s *automaticScoringScenarioState) writeMatchups(b *strings.Builder) {
+func (s *automaticScoringScenarioState) matchups() map[string][]seedMatchup {
 	keysBySet := map[string][]string{}
 	teamsByKey := map[string][]string{}
 	for _, series := range slices.Concat(s.pickSeries, s.resSeries) {
@@ -360,71 +322,23 @@ func (s *automaticScoringScenarioState) writeMatchups(b *strings.Builder) {
 			teamsByKey[seriesKey] = append(teamsByKey[seriesKey], series.winner)
 		}
 	}
-	if len(keysBySet) == 0 {
-		return
-	}
-	b.WriteString("playoff_matchups:\n")
+	bySet := map[string][]seedMatchup{}
 	for setID, keys := range keysBySet {
-		fmt.Fprintf(b, "    %s:\n", setID)
 		for _, key := range keys {
 			teams := teamsByKey[store.JoinSeriesKey(setID, key)]
-			fmt.Fprintf(b, "        - key: %s\n          a: %s\n          b: %s\n", key, teams[0], teams[len(teams)-1])
+			bySet[setID] = append(bySet[setID], seedMatchup{key: key, a: teams[0], b: teams[len(teams)-1]})
 		}
 	}
+	return bySet
 }
 
-func (s *automaticScoringScenarioState) writeResults(b *strings.Builder) {
-	if len(s.divisions) == 0 && s.presidents == "" && s.cupWinner == "" && len(s.resSeries) == 0 {
-		return
-	}
-	b.WriteString("results:\n")
-	if len(s.divisions) > 0 {
-		b.WriteString("    team_marks:\n")
-		for name, d := range s.divisions {
-			fmt.Fprintf(b, "        %s:\n            playoffs: [%s]\n", strings.ToLower(name), strings.Join(d.playoffs, ", "))
-			if d.winner != "" {
-				fmt.Fprintf(b, "            division_winner: %s\n", d.winner)
-			}
-		}
-	}
-	if s.presidents != "" {
-		fmt.Fprintf(b, "    presidents_trophy: %s\n", s.presidents)
-	}
-	if s.cupWinner != "" {
-		fmt.Fprintf(b, "    stanley_cup_winner: %s\n", s.cupWinner)
-	}
-	s.writeSeriesResults(b)
-}
-
-// writeSeriesResults writes games unquoted, the way a human hand-edits it.
-func (s *automaticScoringScenarioState) writeSeriesResults(b *strings.Builder) {
-	if len(s.resSeries) == 0 {
-		return
-	}
-	byRound := map[string][]automaticScoringSeries{}
+// seriesResults groups the recorded series by results-side round name.
+func (s *automaticScoringScenarioState) seriesResults() map[string][]seedSeriesResult {
+	byRound := map[string][]seedSeriesResult{}
 	for _, r := range s.resSeries {
-		byRound[r.round.resultRound] = append(byRound[r.round.resultRound], r)
+		byRound[r.round.resultRound] = append(byRound[r.round.resultRound], seedSeriesResult{key: r.key, winner: r.winner, games: r.games})
 	}
-	b.WriteString("    series:\n")
-	for round, results := range byRound {
-		fmt.Fprintf(b, "        %s:\n", round)
-		for _, r := range results {
-			fmt.Fprintf(b, "            %s: {winner: %s, games: %s}\n", r.key, r.winner, r.games)
-		}
-	}
-}
-
-func (s *automaticScoringScenarioState) writeFinalists(b *strings.Builder) {
-	if len(s.finalists) == 0 {
-		return
-	}
-	b.WriteString("award_finalists:\n")
-	for award, slugs := range s.finalists {
-		fmt.Fprintf(b, "    %s:\n", award)
-		for _, slug := range slugs {
-			fmt.Fprintf(b, "        - slug: %s\n          display_name: Player %s\n", slug, slug)
-		}
-	}
+	return byRound
 }
 
 // ensureStore writes the seed and opens the store once per scenario.

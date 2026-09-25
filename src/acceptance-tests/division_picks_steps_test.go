@@ -37,17 +37,6 @@ var divisionPicksTeamsByDivision = map[string][]string{
 	"Pacific":      {"ANA", "CGY", "EDM", "LAK", "SJS", "SEA", "VAN", "VGK"},
 }
 
-// divisionPicksConferenceByDivision names each division's own conference,
-// matching each seeded team's own Team.Conference field - used only to seed
-// the fixture; production code never hardcodes this mapping (see
-// internal/web's groupDivisionsByConference).
-var divisionPicksConferenceByDivision = map[string]string{
-	"Atlantic":     "Eastern",
-	"Metropolitan": "Eastern",
-	"Central":      "Western",
-	"Pacific":      "Western",
-}
-
 // validDivisionPicksFixture is one valid, 4/4-split submission across both
 // conferences (Atlantic+Metropolitan == 8, Central+Pacific == 8).
 func validDivisionPicksFixture() map[string][]string {
@@ -141,9 +130,9 @@ func (s *divisionPicksScenarioState) seedBody() (string, error) {
 		if !ok {
 			return "", fmt.Errorf("no fixture teams for division %q - divisionPicksTeamsByDivision has drifted from store.Divisions()", division)
 		}
-		conference, ok := divisionPicksConferenceByDivision[division]
+		conference, ok := seedConferenceByDivision[division]
 		if !ok {
-			return "", fmt.Errorf("no fixture conference for division %q - divisionPicksConferenceByDivision has drifted from store.Divisions()", division)
+			return "", fmt.Errorf("no fixture conference for division %q - seedConferenceByDivision has drifted from store.Divisions()", division)
 		}
 		for _, id := range teamIDs {
 			fmt.Fprintf(&yamlTeams, "    - id: %q\n      name: %q\n      conference: %q\n      division: %q\n",

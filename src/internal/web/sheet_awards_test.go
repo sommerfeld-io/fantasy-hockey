@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -78,7 +77,6 @@ func newTestStoreWithAwardsRoster(t *testing.T, predictionSetsYAML string) *stor
 // mirrors newTestStoreWithDivisionTeamsAndDir's own reason for existing.
 func newTestStoreWithAwardsRosterAndDir(t *testing.T, predictionSetsYAML string) (*store.Store, string) {
 	t.Helper()
-	dir := t.TempDir()
 	seed := `season: "2026-27"
 players:
     - id: basti
@@ -86,15 +84,7 @@ players:
       email: basti@example.com
 prediction_sets:
 ` + predictionSetsYAML + awardsNHLPlayersYAML
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
-	return st, dir
+	return newSeededStore(t, seed)
 }
 
 // awardSlot is a small constructor for awardSlotSubmission, for tests that

@@ -36,18 +36,20 @@ playoff_matchups:
     scf: [{key: s1, a: FLA, b: TOR}]
 `
 
+// seedSubmittedAt stamps every seeded Prediction row; scoring never reads
+// it.
+const seedSubmittedAt = "2026-09-20T10:00:00Z"
+
 // pick renders one of basti's Prediction rows from its kind-specific fields.
 func pick(fields string) string {
-	return "    - {player_id: basti, submitted_at: \"2026-09-20T10:00:00Z\", " + fields + "}\n"
+	return "    - {player_id: basti, submitted_at: \"" + seedSubmittedAt + "\", " + fields + "}\n"
 }
 
-// newScoringStore opens a store on scoringFixtureBase plus picks (Prediction
-// rows) and results (raw results/award_finalists YAML), returning it with
-// its data file's path.
-func newScoringStore(t *testing.T, picks []string, results string) (*store.Store, string) {
+// openSeededStore writes seed to a temp data file and opens st on it. path
+// is the data file's path (not its directory).
+func openSeededStore(t *testing.T, seed string) (st *store.Store, path string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), store.DataFileName)
-	seed := scoringFixtureBase + "predictions:\n" + strings.Join(picks, "") + results
+	path = filepath.Join(t.TempDir(), store.DataFileName)
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
@@ -55,6 +57,15 @@ func newScoringStore(t *testing.T, picks []string, results string) (*store.Store
 	if err != nil {
 		t.Fatalf("store.New returned error: %v", err)
 	}
+	return st, path
+}
+
+// newScoringStore opens a store on scoringFixtureBase plus picks (Prediction
+// rows) and results (raw results/award_finalists YAML), returning it with
+// its data file's path.
+func newScoringStore(t *testing.T, picks []string, results string) (*store.Store, string) {
+	t.Helper()
+	st, path := openSeededStore(t, scoringFixtureBase+"predictions:\n"+strings.Join(picks, "")+results)
 	if problems := st.ResultProblems(); len(problems) != 0 {
 		t.Fatalf("fixture has result problems: %v", problems)
 	}

@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -150,7 +149,6 @@ func scfPredictionSetSeed(deadline time.Time) string {
 // own precedent).
 func newTestStoreWithSeriesFixtureAndDir(t *testing.T, predictionSetsYAML, matchupsYAML string) (*store.Store, string) {
 	t.Helper()
-	dir := t.TempDir()
 	seed := `season: "2026-27"
 players:
     - id: basti
@@ -160,15 +158,7 @@ prediction_sets:
 ` + predictionSetsYAML + `teams:
 ` + r1SeriesTeamsYAML + `playoff_matchups:
 ` + matchupsYAML
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
-	return st, dir
+	return newSeededStore(t, seed)
 }
 
 func newTestStoreWithSeriesFixture(t *testing.T, predictionSetsYAML, matchupsYAML string) *store.Store {

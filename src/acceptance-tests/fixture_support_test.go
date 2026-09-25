@@ -3,11 +3,13 @@ package acceptance_test
 import (
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -58,6 +60,197 @@ func parseRelativeDeadline(phrase string, now time.Time) (time.Time, error) {
 // with: the season plus the one player the scenario signs in as.
 func seedHeader(playerID, playerName string) string {
 	return fmt.Sprintf("season: \"2026-27\"\nplayers:\n    - id: %s\n      name: %s\n      email: basti@example.com\n", playerID, playerName)
+}
+
+// seedSubmittedAt stamps every prediction row a step file seeds; neither
+// scoring nor any page reads it.
+const seedSubmittedAt = "2026-09-20T10:00:00Z"
+
+// seedConferenceByDivision names each division's own conference, matching
+// each seeded team's own Team.Conference field - used only to seed fixtures;
+// production code never hardcodes this mapping (see internal/web's
+// groupDivisionsByConference).
+var seedConferenceByDivision = map[string]string{
+	"Atlantic":     "Eastern",
+	"Metropolitan": "Eastern",
+	"Central":      "Western",
+	"Pacific":      "Western",
+}
+
+// seedRound is one playoff round's prediction-side set id and the
+// results-side round name it maps to.
+type seedRound struct {
+	setID, resultRound string
+}
+
+// seedRounds maps the features' round wording ("round 1") to the ids the
+// seeded YAML needs on each side.
+var seedRounds = map[string]seedRound{
+	"round 1": {store.Round1SetID, "round1"},
+	"round 2": {store.Round2SetID, "round2"},
+	"round 3": {store.ConferenceFinalsSetID, "round3"},
+	"round 4": {store.StanleyCupFinalSetID, "round4"},
+}
+
+// mustSeedRound returns seedRounds[name], panicking when name is not a
+// known round so a typo can't silently seed empty ids.
+func mustSeedRound(name string) seedRound {
+	round, ok := seedRounds[name]
+	if !ok {
+		panic(fmt.Sprintf("unknown round %q - seedRounds has no entry for it", name))
+	}
+	return round
+}
+
+// seedPrediction is one seeded prediction row: its player and its
+// kind-specific fields as YAML flow-mapping entries (e.g. "kind: cup,
+// team_id: FLA").
+type seedPrediction struct {
+	playerID, fields string
+}
+
+// seedMatchup is one playoff_matchups entry: a series key and its two sides.
+type seedMatchup struct {
+	key, a, b string
+}
+
+// seedDivisionMarks is one division's recorded playoff teams and winner.
+type seedDivisionMarks struct {
+	playoffs []string
+	winner   string
+}
+
+// seedSeriesResult is one recorded series outcome; games is written
+// unquoted, the way a human hand-edits it.
+type seedSeriesResult struct {
+	key, winner, games string
+}
+
+// seedResults is everything a step file records under results:.
+// teamMarks is keyed by division name and series by results-side round name
+// ("round1").
+type seedResults struct {
+	teamMarks  map[string]*seedDivisionMarks
+	presidents string
+	cupWinner  string
+	series     map[string][]seedSeriesResult
+}
+
+// isEmpty reports whether r records nothing, so results: can be left out.
+func (r seedResults) isEmpty() bool {
+	return len(r.teamMarks) == 0 && r.presidents == "" && r.cupWinner == "" && len(r.series) == 0
+}
+
+// writeSeedTeams writes teams: with one team per id in sorted order, each
+// in the division teamDivisions maps it to and that division's conference.
+// It panics on a division seedConferenceByDivision doesn't know.
+func writeSeedTeams(b *strings.Builder, teamDivisions map[string]string) {
+	b.WriteString("teams:\n")
+	for _, id := range slices.Sorted(maps.Keys(teamDivisions)) {
+		division := teamDivisions[id]
+		conference, ok := seedConferenceByDivision[division]
+		if !ok {
+			panic(fmt.Sprintf("no fixture conference for division %q - seedConferenceByDivision has drifted from store.Divisions()", division))
+		}
+		fmt.Fprintf(b, "    - {id: %s, name: Team %s, conference: %s, division: %s}\n", id, id, conference, division)
+	}
+}
+
+// writeSeedNHLPlayers writes nhl_players: with one skater per slug, sorted.
+func writeSeedNHLPlayers(b *strings.Builder, slugs []string) {
+	b.WriteString("nhl_players:\n")
+	for _, slug := range slices.Sorted(slices.Values(slugs)) {
+		fmt.Fprintf(b, "    - {slug: %s, display_name: Player %s, position: skater}\n", slug, slug)
+	}
+}
+
+// writeSeedMatchups writes playoff_matchups: with every set in sorted order
+// and each set's matchups in the order given, or nothing when there are none.
+func writeSeedMatchups(b *strings.Builder, matchupsBySet map[string][]seedMatchup) {
+	if len(matchupsBySet) == 0 {
+		return
+	}
+	b.WriteString("playoff_matchups:\n")
+	for _, setID := range slices.Sorted(maps.Keys(matchupsBySet)) {
+		fmt.Fprintf(b, "    %s:\n", setID)
+		for _, m := range matchupsBySet[setID] {
+			fmt.Fprintf(b, "        - {key: %s, a: %s, b: %s}\n", m.key, m.a, m.b)
+		}
+	}
+}
+
+// writeSeedPredictions writes predictions: with ids p1, p2, ... in the order
+// given.
+func writeSeedPredictions(b *strings.Builder, predictions []seedPrediction) {
+	b.WriteString("predictions:\n")
+	for i, p := range predictions {
+		fmt.Fprintf(b, "    - {id: p%d, player_id: %s, submitted_at: %q, %s}\n", i+1, p.playerID, seedSubmittedAt, p.fields)
+	}
+}
+
+// writeSeedResults writes results: (team_marks, trophies, series), or
+// nothing when r records nothing.
+func writeSeedResults(b *strings.Builder, r seedResults) {
+	if r.isEmpty() {
+		return
+	}
+	b.WriteString("results:\n")
+	writeSeedTeamMarks(b, r.teamMarks)
+	if r.presidents != "" {
+		fmt.Fprintf(b, "    presidents_trophy: %s\n", r.presidents)
+	}
+	if r.cupWinner != "" {
+		fmt.Fprintf(b, "    stanley_cup_winner: %s\n", r.cupWinner)
+	}
+	writeSeedSeriesResults(b, r.series)
+}
+
+// writeSeedTeamMarks writes results.team_marks with every division in sorted
+// order, or nothing when there are none.
+func writeSeedTeamMarks(b *strings.Builder, teamMarks map[string]*seedDivisionMarks) {
+	if len(teamMarks) == 0 {
+		return
+	}
+	b.WriteString("    team_marks:\n")
+	for _, division := range slices.Sorted(maps.Keys(teamMarks)) {
+		marks := teamMarks[division]
+		fmt.Fprintf(b, "        %s:\n            playoffs: [%s]\n", strings.ToLower(division), strings.Join(marks.playoffs, ", "))
+		if marks.winner != "" {
+			fmt.Fprintf(b, "            division_winner: %s\n", marks.winner)
+		}
+	}
+}
+
+// writeSeedSeriesResults writes results.series with every round in sorted
+// order and each round's series in the order given, or nothing when there
+// are none.
+func writeSeedSeriesResults(b *strings.Builder, series map[string][]seedSeriesResult) {
+	if len(series) == 0 {
+		return
+	}
+	b.WriteString("    series:\n")
+	for _, round := range slices.Sorted(maps.Keys(series)) {
+		fmt.Fprintf(b, "        %s:\n", round)
+		for _, r := range series[round] {
+			fmt.Fprintf(b, "            %s: {winner: %s, games: %s}\n", r.key, r.winner, r.games)
+		}
+	}
+}
+
+// writeSeedFinalists writes award_finalists: with every award in sorted
+// order and each award's finalists in the order given, or nothing when there
+// are none.
+func writeSeedFinalists(b *strings.Builder, finalists map[string][]string) {
+	if len(finalists) == 0 {
+		return
+	}
+	b.WriteString("award_finalists:\n")
+	for _, award := range slices.Sorted(maps.Keys(finalists)) {
+		fmt.Fprintf(b, "    %s:\n", award)
+		for _, slug := range finalists[award] {
+			fmt.Fprintf(b, "        - {slug: %s, display_name: Player %s}\n", slug, slug)
+		}
+	}
 }
 
 // newScenarioDataFile creates a fresh temp directory named after prefix and

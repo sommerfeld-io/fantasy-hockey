@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-25-2026 12:26
+last_updated: 09-25-2026 12:49
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -339,7 +339,7 @@ action_items:
       acceptance seed builders and the submitted_at literal into shared test support
       before Epic 5 adds step files"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
   - id: "epic-4-retro-item-35-put-the-story-id-in-the-final-git-traile"
     epic: 4

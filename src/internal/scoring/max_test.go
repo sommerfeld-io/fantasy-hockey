@@ -2,8 +2,6 @@ package scoring
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -67,14 +65,7 @@ func fullSeasonSeed() string {
 }
 
 func TestPlayerPointsShouldReachTheMaximumForAPerfectSeason(t *testing.T) {
-	path := filepath.Join(t.TempDir(), store.DataFileName)
-	if err := os.WriteFile(path, []byte(fullSeasonSeed()), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New returned error: %v", err)
-	}
+	st, _ := openSeededStore(t, fullSeasonSeed())
 	if problems := st.ResultProblems(); len(problems) != 0 {
 		t.Fatalf("fixture has result problems: %v", problems)
 	}

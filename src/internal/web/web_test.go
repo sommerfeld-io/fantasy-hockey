@@ -27,15 +27,15 @@ const testSecret = "test-session-secret"
 // care about the outgoing email itself.
 func noopSender(_, _, _ string) error { return nil }
 
-func newTestStore(t *testing.T) *store.Store {
+// seedSubmittedAt stamps every seeded Prediction row; no page reads it.
+const seedSubmittedAt = "2026-09-20T10:00:00Z"
+
+// newSeededStore writes seed to a data file in a new temp directory and
+// opens st on it. dir is that temp directory (not the data file's path), so
+// a write-failure test can remove it out from under the store.
+func newSeededStore(t *testing.T, seed string) (st *store.Store, dir string) {
 	t.Helper()
-	dir := t.TempDir()
-	seed := `season: "2026-27"
-players:
-    - id: basti
-      name: Basti
-      email: basti@example.com
-`
+	dir = t.TempDir()
 	path := filepath.Join(dir, store.DataFileName)
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
@@ -44,6 +44,18 @@ players:
 	if err != nil {
 		t.Fatalf("store.New: %v", err)
 	}
+	return st, dir
+}
+
+func newTestStore(t *testing.T) *store.Store {
+	t.Helper()
+	seed := `season: "2026-27"
+players:
+    - id: basti
+      name: Basti
+      email: basti@example.com
+`
+	st, _ := newSeededStore(t, seed)
 	return st
 }
 
@@ -52,7 +64,6 @@ players:
 // entry), for tests exercising Predict's phase-grouped rendering.
 func newTestStoreWithPredictionSets(t *testing.T, predictionSetsYAML string) *store.Store {
 	t.Helper()
-	dir := t.TempDir()
 	seed := `season: "2026-27"
 players:
     - id: basti
@@ -60,14 +71,7 @@ players:
       email: basti@example.com
 prediction_sets:
 ` + predictionSetsYAML
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 	return st
 }
 
@@ -79,7 +83,6 @@ prediction_sets:
 // hand-maintained upcoming flag.
 func newTestStoreWithPredictionSetsAndMatchups(t *testing.T, predictionSetsYAML, playoffMatchupsYAML string) *store.Store {
 	t.Helper()
-	dir := t.TempDir()
 	seed := `season: "2026-27"
 players:
     - id: basti
@@ -88,14 +91,7 @@ players:
 prediction_sets:
 ` + predictionSetsYAML + `playoff_matchups:
 ` + playoffMatchupsYAML
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 	return st
 }
 
@@ -105,7 +101,6 @@ prediction_sets:
 // presidents pick-entry sheet's dropdown grouping.
 func newTestStoreWithPredictionSetsAndTeams(t *testing.T, predictionSetsYAML string) *store.Store {
 	t.Helper()
-	dir := t.TempDir()
 	seed := `season: "2026-27"
 players:
     - id: basti
@@ -130,14 +125,7 @@ prediction_sets:
       conference: Western
       division: Pacific
 `
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
+	st, _ := newSeededStore(t, seed)
 	return st
 }
 

@@ -4,7 +4,6 @@ import (
 	"go/parser"
 	"go/token"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -35,21 +34,14 @@ predictions:
 
 // leaderboardPick renders one saved single-team pick.
 func leaderboardPick(playerID, kind, teamID string) string {
-	return "    - {player_id: " + playerID + ", submitted_at: \"2026-09-20T10:00:00Z\", kind: " + kind + ", team_id: " + teamID + "}\n"
+	return "    - {player_id: " + playerID + ", submitted_at: \"" + seedSubmittedAt + "\", kind: " + kind + ", team_id: " + teamID + "}\n"
 }
 
 // newTestStoreWithLeaderboard opens a store on leaderboardSeedBase plus the
 // given picks.
 func newTestStoreWithLeaderboard(t *testing.T, picks ...string) *store.Store {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), store.DataFileName)
-	if err := os.WriteFile(path, []byte(leaderboardSeedBase+strings.Join(picks, "")), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
+	st, _ := newSeededStore(t, leaderboardSeedBase+strings.Join(picks, ""))
 	return st
 }
 

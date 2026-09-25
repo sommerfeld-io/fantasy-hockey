@@ -29,6 +29,7 @@ func TestAcceptanceSuite(t *testing.T) {
 	opts := godog.Options{
 		Format: "pretty",
 		Paths:  []string{"features"},
+		Strict: true,
 	}
 
 	suite := godog.TestSuite{

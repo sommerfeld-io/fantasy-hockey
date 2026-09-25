@@ -35,6 +35,10 @@ type fixturePlayer struct {
 	picks    []string
 }
 
+// seedSubmittedAt stamps every seeded Prediction row; standings never reads
+// it.
+const seedSubmittedAt = "2026-09-20T10:00:00Z"
+
 // newStandingsStore opens a store holding players in the given file order,
 // their picks and standingsFixtureResults.
 func newStandingsStore(t *testing.T, players []fixturePlayer) *store.Store {
@@ -50,7 +54,7 @@ func newStandingsStore(t *testing.T, players []fixturePlayer) *store.Store {
 	b.WriteString("predictions:\n")
 	for _, p := range players {
 		for _, pick := range p.picks {
-			fmt.Fprintf(&b, "    - {player_id: %s, submitted_at: \"2026-09-20T10:00:00Z\", %s}\n", p.id, pick)
+			fmt.Fprintf(&b, "    - {player_id: %s, submitted_at: %q, %s}\n", p.id, seedSubmittedAt, pick)
 		}
 	}
 	b.WriteString(standingsFixtureResults)

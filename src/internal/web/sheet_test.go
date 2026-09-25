@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -543,7 +542,6 @@ func TestPostPredictSheetShouldReturn500ForAMalformedRequestBody(t *testing.T) {
 }
 
 func TestPostPredictSheetShouldReturn500WhenTheStoreWriteFails(t *testing.T) {
-	dir := t.TempDir()
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	seed := `season: "2026-27"
 players:
@@ -557,14 +555,7 @@ prediction_sets:
       conference: Eastern
       division: Atlantic
 `
-	path := filepath.Join(dir, store.DataFileName)
-	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
-		t.Fatalf("seed file: %v", err)
-	}
-	st, err := store.New(path)
-	if err != nil {
-		t.Fatalf("store.New: %v", err)
-	}
+	st, dir := newSeededStore(t, seed)
 	handler := NewServer(st, noopSender, testSecret)
 
 	// Remove the directory out from under the store so SavePrediction's
