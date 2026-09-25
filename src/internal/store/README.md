@@ -1,21 +1,45 @@
 # Package: `store`
 
-Owns all database access for the application: the PostgreSQL connection pool, embedded schema migrations, and the shared entity types (`Participant`, `LoginCode`). No package above it in the dependency graph (`auth`, `mailer`, `web`) redefines its own version of a store-owned entity - they consume these types through their own consumer-defined interfaces instead.
+The data-access layer: owns all reads and writes to the single `fantasy-hockey.yml` data file (AD-9). No other package touches that file directly.
 
 ## Responsibilities
 
-- `NewStore` opens and verifies a `pgxpool.Pool` connection for a given DSN.
-- `Migrate` applies every embedded `migrations/*.sql` file via `golang-migrate`, using a short-lived `database/sql` connection as required by that library's driver contract.
-- `ParticipantByEmail`, `InsertLoginCode`, `UnusedLoginCodesForParticipant`, `MarkLoginCodeUsed`, and `UpsertParticipants` are the only queries the rest of the application needs for the login-code and session flow.
-- `UnusedLoginCodesForParticipant` returns every still-unused code issued for a Participant after a given cutoff, so `internal/auth` can match a submitted code against all of them. `MarkLoginCodeUsed` then consumes the matching one, returning the sentinel `ErrLoginCodeAlreadyUsed` when zero rows were affected (already used - possibly by a concurrent request racing to claim it - or an unknown id), so a caller mid-redemption can detect it lost that race instead of assuming success.
+- `New(path)` loads `path` into memory, bootstrap-creating it with an empty `players` list and the current default season if it doesn't exist yet (AD-25, AD-26).
+- `FindPlayerByEmail` looks up a hand-maintained `Player` by email.
+- `CreateLoginCode` appends a new `LoginCode` row - one per issued code, hashed (`code_hash`), never plaintext - and persists it. Existing rows are never mutated or removed.
+
+## Results (read-only)
+
+The hand-maintained `results` and `award_finalists` sections record real-world outcomes for `internal/scoring`. No code path changes them, but every save re-marshals the whole document: their values are preserved, while comments, flow style and quoting are not. A file without them loads fine and never gains them. The store reads them only at startup: stop the app before editing them by hand and start it again afterwards. An edit made while the app runs is not seen, and the next prediction save overwrites it with the values loaded at startup.
+
+```yaml
+results:
+    team_marks:
+        atlantic:                       # lowercase Divisions() name
+            playoffs: [FLA, TOR, TBL, BOS]
+            division_winner: FLA
+    presidents_trophy: FLA
+    stanley_cup_winner: FLA
+    series:
+        round1:                         # round1..round4 = r1, r2, cf, scf
+            s1: {winner: FLA, games: 5} # key = a playoff_matchups key
+award_finalists:
+    hart:                               # more than 3 entries on a tie
+        - {slug: mcdavid-connor, display_name: Connor McDavid}
+```
+
+Read methods, each returning copies under the read lock:
+
+- `Players()` and `PredictionsForPlayer(playerID)`.
+- `DivisionResult(division)` takes the capitalised `Divisions()` name and returns the recorded playoff teams and winner.
+- `PresidentsTrophyWinner()` and `StanleyCupWinner()`.
+- `SeriesResult(seriesKey)` takes the prediction-side key (`r1.s1`); `ok` is false until both winner and games are recorded.
+- `RecordedAwardFinalists(award)` returns the finalist slugs.
+- `ResultProblems()` lists each malformed entry: an unknown team abbreviation, finalist slug, division, award or round, a series key with no matching `playoff_matchups` entry, games outside 4-7, a series winner that is not one of its matchup's two teams, or a `team_marks` team from another division. The read methods ignore every such entry, so it scores 0. The store only reports them; `main.go` logs each one as a warning at startup.
 
 ## Design notes
 
-- `ParticipantByEmail` returns the sentinel `ErrParticipantNotFound`, and `MarkLoginCodeUsed` returns `ErrLoginCodeAlreadyUsed`, rather than a generic "not found" string, so callers can match on them explicitly with `errors.Is`.
-- `UpsertParticipants` is idempotent (`ON CONFLICT (slot) DO UPDATE`) so it can run on every application startup - changing a Participant's name or email in the environment just needs a redeploy, no manual migration. All given seeds are applied in one transaction, so a failure partway through never leaves some slots updated and others not.
-- Email lookups and writes both normalize (trim + lowercase) via an internal `normalizeEmail` helper, so a Participant matches regardless of the casing they or the deploying operator used.
-- Store depends on nothing above it in the architecture; it has no knowledge of HTTP, email, or the login flow itself.
-
-## Testing
-
-`store_test.go` runs against a real PostgreSQL instance identified by the `POSTGRES_TEST_DSN` environment variable and skips gracefully when it is unset, so `task go:test` and `task go:build` never require a live database. Run `docker compose up postgres -d` and set `POSTGRES_TEST_DSN` to exercise these tests locally.
+- `Store`'s in-memory document and mutex stay unexported; every access goes through an exported method (AD-29).
+- Every write serializes the whole in-memory document and atomically replaces the file on disk via write-to-temp-file-then-rename (AD-27).
+- `Player`/`LoginCode` are the canonical structs for these entities; other packages import and use them as-is (AD-24).
+- The store owns the persisted series-key format (`JoinSeriesKey`/`SplitSeriesKey`, `"<setID>.<matchupKey>"`), the playoff round-set ids (`Round1SetID`, `Round2SetID`, `ConferenceFinalsSetID`, `StanleyCupFinalSetID`) and the division vocabulary (`Divisions()`), so feature packages never redefine them (AD-24).

@@ -1,29 +1,36 @@
-Feature: Request Login Code
-  As a Participant,
-  I want to request a one-time login code by submitting my email,
-  so that I can log in without a password.
+Feature: Request a Login Code
+  As a player,
+  I want to request a login code by email,
+  so that I can log in without a password, and without anything revealing whether my email is part of the pool.
 
   Background:
-    Given a Participant "Basti" is seeded with email "basti@example.com"
+    Given a player "Basti" with email "basti@example.com" is registered
 
-  Scenario: Opening the login page for the first time
-    When a visitor opens the login page
-    Then the login page shows an empty email field
-
-  Scenario: Requesting a login code with a registered email
+  Scenario: A matching email gets a persisted, emailed code
     When a visitor requests a login code for "basti@example.com"
-    Then the response shows the generic confirmation "Check the entered email address."
-    And a login code is persisted for "basti@example.com"
-    And a login code email is sent to "basti@example.com"
+    Then the response status is 200
+    And a login code is persisted whose hash matches the emailed code
+    And the email is sent to "basti@example.com"
 
-  Scenario: Requesting a login code with an unregistered email
-    When a visitor requests a login code for "stranger@example.com"
-    Then the response shows the generic confirmation "Check the entered email address."
-    And no login code is persisted for "stranger@example.com"
-    And no login code email is sent
+  Scenario: A non-matching email produces an identical response and no side effects
+    When a visitor requests a login code for "basti@example.com"
+    And a visitor requests a login code for "unknown@example.com"
+    Then the two responses are identical
+    And only 1 email was sent in total
 
-  Scenario: Requesting a second login code before the first expires
-    Given a visitor has already requested a login code for "basti@example.com"
-    When a visitor requests a login code for "basti@example.com" again
-    Then 2 login codes are persisted for "basti@example.com"
-    And the first login code for "basti@example.com" is still unused
+  Scenario: Requesting a second code leaves the first one untouched
+    When a visitor requests a login code for "basti@example.com"
+    And a visitor requests a login code for "basti@example.com"
+    Then 2 login codes are persisted
+    And the first login code is unchanged
+
+  Scenario: A mailer failure does not affect the response
+    Given sending email is configured to fail
+    When a visitor requests a login code for "basti@example.com"
+    Then the response status is 200
+    And an error was logged
+
+  Scenario: An already-logged-in player visiting the login page is sent straight to the shell
+    Given the player has an active session
+    When the player visits the login page
+    Then the login-page response redirects to "/"

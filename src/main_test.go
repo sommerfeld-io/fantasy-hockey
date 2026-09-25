@@ -1,172 +1,228 @@
 package main
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sommerfeld-io/fantasy-hockey/internal/server"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
-func fakeGetenv(values map[string]string) func(string) string {
-	return func(key string) string {
-		return values[key]
-	}
-}
+// testSessionSecret is set on every test that needs resolveConfig to
+// succeed but doesn't itself exercise SESSION_SECRET's value.
+const testSessionSecret = "test-session-secret"
 
-func TestResolveDatabaseURLShouldPreferTheFlagWhenBothAreSet(t *testing.T) {
-	getenv := fakeGetenv(map[string]string{"DATABASE_URL": "postgres://env"})
+func TestResolveConfigShouldApplyDefaultsWithNoArgsOrEnv(t *testing.T) {
+	t.Setenv("DATA_FILE", "")
+	t.Setenv("SESSION_SECRET", testSessionSecret)
 
-	got, err := resolveDatabaseURL([]string{"--database-url=postgres://flag"}, getenv)
-
+	cfg, err := resolveConfig(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("resolveConfig returned error: %v", err)
 	}
-	if got != "postgres://flag" {
-		t.Errorf("expected the flag value to win, got %q", got)
+	if cfg.port != server.DefaultPort {
+		t.Errorf("expected default port %d, got %d", server.DefaultPort, cfg.port)
+	}
+	if cfg.dataFile != store.DataFileName {
+		t.Errorf("expected default data file %q, got %q", store.DataFileName, cfg.dataFile)
+	}
+	if cfg.secret != testSessionSecret {
+		t.Errorf("expected secret %q, got %q", testSessionSecret, cfg.secret)
 	}
 }
 
-func TestResolveDatabaseURLShouldUseTheEnvVarWhenOnlyItIsSet(t *testing.T) {
-	getenv := fakeGetenv(map[string]string{"DATABASE_URL": "postgres://env"})
+func TestResolveConfigShouldParsePortAndDataFileFlagsTogetherOnTheSharedFlagSet(t *testing.T) {
+	t.Setenv("DATA_FILE", "")
+	t.Setenv("SESSION_SECRET", testSessionSecret)
 
-	got, err := resolveDatabaseURL(nil, getenv)
+	tests := []struct {
+		name     string
+		args     []string
+		wantPort int
+	}{
+		{"long form --port", []string{"--port=9090", "--data-file=/tmp/x.yml"}, 9090},
+		{"shorthand -p", []string{"-p", "9091", "--data-file=/tmp/x.yml"}, 9091},
+	}
 
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := resolveConfig(tt.args)
+			if err != nil {
+				t.Fatalf("resolveConfig returned error: %v", err)
+			}
+			if cfg.port != tt.wantPort {
+				t.Errorf("expected port %d, got %d", tt.wantPort, cfg.port)
+			}
+			if cfg.dataFile != "/tmp/x.yml" {
+				t.Errorf("expected data file %q, got %q", "/tmp/x.yml", cfg.dataFile)
+			}
+		})
+	}
+}
+
+func TestResolveConfigShouldFallBackToDataFileEnvWhenNoFlagIsGiven(t *testing.T) {
+	t.Setenv("DATA_FILE", "/tmp/env.yml")
+	t.Setenv("SESSION_SECRET", testSessionSecret)
+
+	cfg, err := resolveConfig(nil)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("resolveConfig returned error: %v", err)
 	}
-	if got != "postgres://env" {
-		t.Errorf("expected the env var value, got %q", got)
+	if cfg.dataFile != "/tmp/env.yml" {
+		t.Errorf("expected data file %q, got %q", "/tmp/env.yml", cfg.dataFile)
 	}
 }
 
-func TestResolveDatabaseURLShouldUseTheFlagWhenOnlyItIsSet(t *testing.T) {
-	getenv := fakeGetenv(nil)
+func TestResolveConfigShouldReturnAnErrorForAnUnrecognizedFlag(t *testing.T) {
+	t.Setenv("SESSION_SECRET", testSessionSecret)
 
-	got, err := resolveDatabaseURL([]string{"--database-url=postgres://flag"}, getenv)
+	if _, err := resolveConfig([]string{"--not-a-real-flag"}); err == nil {
+		t.Fatal("expected an error for an unrecognized flag, got nil")
+	}
+}
 
+func TestResolveConfigShouldPreferDataFileFlagOverEnvWhenBothAreSet(t *testing.T) {
+	t.Setenv("DATA_FILE", "/tmp/env.yml")
+	t.Setenv("SESSION_SECRET", testSessionSecret)
+
+	cfg, err := resolveConfig([]string{"--data-file=/tmp/flag.yml"})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("resolveConfig returned error: %v", err)
 	}
-	if got != "postgres://flag" {
-		t.Errorf("expected the flag value, got %q", got)
-	}
-}
-
-func TestResolveDatabaseURLShouldFailFastWhenNeitherIsSet(t *testing.T) {
-	getenv := fakeGetenv(nil)
-
-	_, err := resolveDatabaseURL(nil, getenv)
-
-	if err == nil {
-		t.Fatal("expected an error when neither DATABASE_URL nor --database-url is set")
+	if cfg.dataFile != "/tmp/flag.yml" {
+		t.Errorf("expected the --data-file flag to win over DATA_FILE, got %q", cfg.dataFile)
 	}
 }
 
-func TestRequireEnvShouldReturnTheValueWhenSet(t *testing.T) {
-	getenv := fakeGetenv(map[string]string{"SESSION_SECRET": "super-secret"})
+func TestResolveConfigShouldReturnAnErrorWhenSessionSecretIsUnset(t *testing.T) {
+	t.Setenv("SESSION_SECRET", "")
 
-	got, err := requireEnv(getenv, "SESSION_SECRET")
+	if _, err := resolveConfig(nil); err == nil {
+		t.Fatal("expected an error when SESSION_SECRET is unset, got nil")
+	}
+}
 
+func TestResolveConfigShouldReturnAnErrorWhenSessionSecretIsWhitespaceOnly(t *testing.T) {
+	t.Setenv("SESSION_SECRET", "   ")
+
+	if _, err := resolveConfig(nil); err == nil {
+		t.Fatal("expected an error when SESSION_SECRET is whitespace-only, got nil")
+	}
+}
+
+func TestOpenStoreShouldWarnAboutAMalformedResultAndStillSucceed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	seed := "season: \"2026-27\"\nresults:\n    presidents_trophy: YYY\n    stanley_cup_winner: XXX\n"
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	st, err := openStore(path, logger)
+
+	if err != nil || st == nil {
+		t.Fatalf("openStore = %v, %v, want a store and no error", st, err)
+	}
+	if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), "XXX") {
+		t.Errorf("expected a warning naming the bad entry, got %q", logs.String())
+	}
+	if got := strings.Count(logs.String(), "level=WARN"); got != 2 {
+		t.Errorf("expected one warning per bad entry (2), got %d in %q", got, logs.String())
+	}
+}
+
+func TestOpenStoreShouldNotWarnForAWellFormedFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	seed := "season: \"2026-27\"\nteams:\n    - {id: FLA, name: Florida Panthers, conference: Eastern, division: Atlantic}\nresults:\n    presidents_trophy: FLA\n    stanley_cup_winner: FLA\n"
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	if _, err := openStore(path, logger); err != nil {
+		t.Fatalf("openStore returned error: %v", err)
+	}
+	if logs.Len() != 0 {
+		t.Errorf("expected no log output, got %q", logs.String())
+	}
+}
+
+func TestOpenStoreShouldReturnAnErrorForAnUnreadableFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	if err := os.WriteFile(path, []byte("not: valid: yaml: at all"), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+
+	if _, err := openStore(path, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))); err == nil {
+		t.Fatal("expected an error for invalid YAML, got nil")
+	}
+}
+
+// TestOpenStoreShouldBootstrapAFreshSeasonWhenTheResolvedPathDoesNotExist
+// proves the season-rollover entry point end-to-end through main's actual
+// startup path: repointing DATA_FILE/--data-file at a path that doesn't
+// exist yet must bootstrap a clean season skeleton, not fail or inherit
+// anything from elsewhere (I/O matrix row 1).
+func TestOpenStoreShouldBootstrapAFreshSeasonWhenTheResolvedPathDoesNotExist(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+
+	st, err := openStore(path, logger)
+
+	if err != nil || st == nil {
+		t.Fatalf("openStore(%q) = %v, %v, want a store and no error", path, st, err)
+	}
+	if _, statErr := os.Stat(path); statErr != nil {
+		t.Fatalf("expected %q to be created, got error: %v", path, statErr)
+	}
+	if got := st.Season(); got != store.DefaultSeason {
+		t.Errorf("expected bootstrapped season %q, got %q", store.DefaultSeason, got)
+	}
+	if got := st.Players(); len(got) != 0 {
+		t.Errorf("expected an empty players list, got %v", got)
+	}
+}
+
+// TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath proves the
+// second half of a season rollover: once a human archives the prior
+// season's file and repoints the app at a fresh path, the archived file is
+// never read from or written to (I/O matrix row 2).
+func TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath(t *testing.T) {
+	archivedPath := filepath.Join(t.TempDir(), "fantasy-hockey-2025-26.yml")
+	archivedSeed := "season: \"2025-26\"\nplayers:\n    - id: basti\n      name: Basti\n      email: basti@example.com\nresults:\n    presidents_trophy: FLA\n    stanley_cup_winner: FLA\n"
+	if err := os.WriteFile(archivedPath, []byte(archivedSeed), 0o600); err != nil {
+		t.Fatalf("seed archived file: %v", err)
+	}
+	before, err := os.ReadFile(archivedPath)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("read archived file before openStore: %v", err)
 	}
-	if got != "super-secret" {
-		t.Errorf("expected %q, got %q", "super-secret", got)
-	}
-}
 
-func TestRequireEnvShouldFailFastWhenUnset(t *testing.T) {
-	getenv := fakeGetenv(nil)
+	freshPath := filepath.Join(t.TempDir(), store.DataFileName)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 
-	_, err := requireEnv(getenv, "SESSION_SECRET")
-
-	if err == nil {
-		t.Fatal("expected an error when the environment variable is unset")
-	}
-	if !strings.Contains(err.Error(), "SESSION_SECRET") {
-		t.Errorf("expected the error to name the missing variable, got %q", err.Error())
-	}
-}
-
-func TestReadParticipantsShouldReturnAllThreeSlotsWhenFullySet(t *testing.T) {
-	getenv := fakeGetenv(map[string]string{
-		"PARTICIPANT_1_NAME": "Basti", "PARTICIPANT_1_EMAIL": "basti@example.com",
-		"PARTICIPANT_2_NAME": "Sadl", "PARTICIPANT_2_EMAIL": "sadl@example.com",
-		"PARTICIPANT_3_NAME": "Tobbi", "PARTICIPANT_3_EMAIL": "tobbi@example.com",
-	})
-
-	got, err := readParticipants(getenv)
-
+	st, err := openStore(freshPath, logger)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("openStore(%q) returned error: %v", freshPath, err)
 	}
-	if len(got) != 3 {
-		t.Fatalf("expected 3 participants, got %d", len(got))
+	if got := st.Season(); got != store.DefaultSeason {
+		t.Errorf("expected bootstrapped season %q, got %q", store.DefaultSeason, got)
 	}
-	if got[0].slot != 1 || got[0].name != "Basti" || got[0].email != "basti@example.com" {
-		t.Errorf("unexpected first participant: %+v", got[0])
+	if got := st.Players(); len(got) != 0 {
+		t.Errorf("expected an empty players list, got %v", got)
 	}
-}
 
-func TestReadParticipantsShouldFailFastWhenAnyVarIsMissing(t *testing.T) {
-	getenv := fakeGetenv(map[string]string{
-		"PARTICIPANT_1_NAME": "Basti", "PARTICIPANT_1_EMAIL": "basti@example.com",
-		"PARTICIPANT_2_NAME": "Sadl", // PARTICIPANT_2_EMAIL missing
-		"PARTICIPANT_3_NAME": "Tobbi", "PARTICIPANT_3_EMAIL": "tobbi@example.com",
-	})
-
-	_, err := readParticipants(getenv)
-
-	if err == nil {
-		t.Fatal("expected an error when a PARTICIPANT_* variable is missing")
-	}
-	if !strings.Contains(err.Error(), "PARTICIPANT_2_EMAIL") {
-		t.Errorf("expected the error to name the missing variable, got %q", err.Error())
-	}
-}
-
-// TestLoadConfigShouldThreadSessionSecretIntoConfig guards against
-// SESSION_SECRET being read but silently discarded instead of ending up on
-// the returned config, as happened before it was wired into auth.NewService.
-// os.Args is temporarily narrowed to just the binary name: loadConfig calls
-// resolveDatabaseURL with os.Args[1:], and go test's own flags (e.g.
-// -test.v) would otherwise be rejected by the "database-url"-only flag set.
-func TestLoadConfigShouldThreadSessionSecretIntoConfig(t *testing.T) {
-	origArgs := os.Args
-	os.Args = []string{origArgs[0]}
-	t.Cleanup(func() { os.Args = origArgs })
-
-	const wantSessionSecret = "super-secret-session-value"
-	t.Setenv("DATABASE_URL", "postgres://example")
-	t.Setenv("SESSION_SECRET", wantSessionSecret)
-	t.Setenv("PARTICIPANT_1_NAME", "Basti")
-	t.Setenv("PARTICIPANT_1_EMAIL", "basti@example.com")
-	t.Setenv("PARTICIPANT_2_NAME", "Sadl")
-	t.Setenv("PARTICIPANT_2_EMAIL", "sadl@example.com")
-	t.Setenv("PARTICIPANT_3_NAME", "Tobbi")
-	t.Setenv("PARTICIPANT_3_EMAIL", "tobbi@example.com")
-	t.Setenv("SMTP_USERNAME", "smtp-user")
-	t.Setenv("SMTP_APP_PASSWORD", "smtp-pass")
-
-	cfg, err := loadConfig()
-
+	after, err := os.ReadFile(archivedPath)
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("read archived file after openStore: %v", err)
 	}
-	if cfg.sessionSecret != wantSessionSecret {
-		t.Errorf("expected config.sessionSecret %q, got %q", wantSessionSecret, cfg.sessionSecret)
-	}
-}
-
-func TestReadParticipantsShouldFailFastWhenTwoSlotsShareAnEmail(t *testing.T) {
-	getenv := fakeGetenv(map[string]string{
-		"PARTICIPANT_1_NAME": "Basti", "PARTICIPANT_1_EMAIL": "same@example.com",
-		"PARTICIPANT_2_NAME": "Sadl", "PARTICIPANT_2_EMAIL": "SAME@example.com",
-		"PARTICIPANT_3_NAME": "Tobbi", "PARTICIPANT_3_EMAIL": "tobbi@example.com",
-	})
-
-	_, err := readParticipants(getenv)
-
-	if err == nil {
-		t.Fatal("expected an error when two participant slots share an email")
+	if !bytes.Equal(before, after) {
+		t.Errorf("expected archived file to be byte-for-byte unchanged, before=%q after=%q", before, after)
 	}
 }

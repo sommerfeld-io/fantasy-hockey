@@ -1,80 +1,55 @@
-// Package mailer sends email via Gmail SMTP (smtp.gmail.com:587, STARTTLS)
-// using the standard library's net/smtp.
+// Package mailer sends outbound email over SMTP. It is the only package
+// that imports net/smtp; internal/auth calls it to deliver login codes.
 package mailer
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/smtp"
-	"strings"
 )
 
-const (
-	gmailHost = "smtp.gmail.com"
-	gmailPort = "587"
-)
+// defaultFrom is used when SMTP_USERNAME is empty, matching a local dev
+// capture tool that accepts any sender.
+const defaultFrom = "no-reply@fantasy-hockey.local"
 
-// Mailer sends email through a Gmail account authenticated with an App
-// Password (SMTP_USERNAME/SMTP_APP_PASSWORD), not the account's own password.
-type Mailer struct {
-	username string
-	password string
-	addr     string
+// Sender emails body under subject to to. It is a func type, not an
+// interface, so tests can substitute a one-line closure fake (AD-3).
+type Sender func(to, subject, body string) error
+
+// sendMailFunc matches net/smtp.SendMail's signature so tests can inject a
+// fake implementation without opening a real network connection.
+type sendMailFunc func(addr string, a smtp.Auth, from string, to []string, msg []byte) error
+
+// NewSMTPSender builds a Sender that delivers mail via net/smtp. host, port,
+// username, and password are all read by the caller from env vars and may
+// all be empty - the app must still start with none of them set (AD-12).
+// An empty username skips SMTP AUTH entirely, matching a no-auth local
+// capture server; a non-empty username always authenticates via
+// smtp.PlainAuth.
+func NewSMTPSender(host, port, username, password string) Sender {
+	return newSMTPSender(host, port, username, password, smtp.SendMail)
 }
 
-// New creates a Mailer that authenticates as username (a Gmail address) using
-// password (a Gmail App Password) and sends through smtp.gmail.com:587.
-func New(username, password string) *Mailer {
-	return newWithAddr(username, password, net.JoinHostPort(gmailHost, gmailPort))
-}
+func newSMTPSender(host, port, username, password string, send sendMailFunc) Sender {
+	return func(to, subject, body string) error {
+		if host == "" {
+			return fmt.Errorf("mailer: SMTP_HOST is not set")
+		}
+		if port == "" {
+			return fmt.Errorf("mailer: SMTP_PORT is not set")
+		}
 
-// newWithAddr is the same as New but lets tests point at a local SMTP
-// listener instead of the real Gmail host.
-func newWithAddr(username, password, addr string) *Mailer {
-	return &Mailer{username: username, password: password, addr: addr}
-}
+		var auth smtp.Auth
+		from := defaultFrom
+		if username != "" {
+			auth = smtp.PlainAuth("", username, password, host)
+			from = username
+		}
 
-// Send delivers a plain-text email to "to". smtp.SendMail negotiates STARTTLS
-// automatically when the server advertises it, which smtp.gmail.com always
-// does on port 587.
-func (m *Mailer) Send(ctx context.Context, to, subject, body string) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	msg := buildMessage(m.username, to, subject, body)
-	auth := smtp.PlainAuth("", m.username, m.password, gmailHost)
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- smtp.SendMail(m.addr, auth, m.username, []string{to}, msg)
-	}()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-errCh:
-		if err != nil {
-			return fmt.Errorf("mailer: send email: %w", err)
+		msg := fmt.Appendf(nil, "From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s\r\n", from, to, subject, body)
+		if err := send(net.JoinHostPort(host, port), auth, from, []string{to}, msg); err != nil {
+			return fmt.Errorf("mailer: send mail: %w", err)
 		}
 		return nil
 	}
-}
-
-// stripCRLF removes carriage-return and line-feed characters so a header
-// value can never inject an extra header or recipient into the raw message.
-// Current callers only ever pass trusted, internally-generated values, but
-// Send is a general-purpose primitive other packages may call with less
-// trusted input later.
-func stripCRLF(s string) string {
-	s = strings.ReplaceAll(s, "\r", "")
-	return strings.ReplaceAll(s, "\n", "")
-}
-
-// buildMessage assembles a minimal RFC 5322 message with From/To/Subject
-// headers and a plain-text body.
-func buildMessage(from, to, subject, body string) []byte {
-	from, to, subject = stripCRLF(from), stripCRLF(to), stripCRLF(subject)
-	return []byte(fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s\r\n", from, to, subject, body))
 }

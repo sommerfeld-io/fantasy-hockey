@@ -1,14 +1,14 @@
 # Package: `mailer`
 
-Sends email through Gmail SMTP (`smtp.gmail.com:587`, STARTTLS) using the standard library's `net/smtp` - no third-party mail library.
+The external gateway for outbound email, wrapping the standard library's `net/smtp` (AD-12).
 
 ## Responsibilities
 
-- `New(username, password)` creates a `Mailer` authenticated with a Gmail address and an App Password (`SMTP_USERNAME`/`SMTP_APP_PASSWORD`), not the account's own password.
-- `Send(ctx, to, subject, body)` delivers a plain-text email synchronously, request-triggered - there is no background worker or queue.
+- `Sender` is a func type - one method, dependency-injected per AD-3 - so callers and tests can substitute a one-line closure fake.
+- `NewSMTPSender(host, port, username, password)` builds a `Sender` that sends over SMTP. All four inputs may be empty; the app must start with none of them set. An empty username skips SMTP AUTH (matches a local no-auth capture tool); a non-empty username always authenticates via `smtp.PlainAuth`.
+- Calling the returned `Sender` with an empty host returns an error instead of silently no-op'ing or falling back to a hardcoded host.
 
 ## Design notes
 
-- `smtp.SendMail` negotiates STARTTLS automatically once the server advertises it, which `smtp.gmail.com` always does on port 587, so no separate TLS handshake code is needed here.
-- The real SMTP host/port is fixed; an unexported `newWithAddr` constructor lets tests point at a local, unreachable, or fake listener instead, since `net/smtp` has no interface to mock.
-- `net/smtp` has no context-aware API. `Send` checks `ctx.Err()` before dialing and races the blocking call against `ctx.Done()` so an already-cancelled or cancelled-mid-flight context is honored.
+- `internal/mailer` is called only by `internal/auth` (and, once built, `internal/predictions`).
+- No email content beyond login codes (and later, deadline reminders) is ever sent from this package.

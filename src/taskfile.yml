@@ -4,21 +4,30 @@ version: '3.42.1'
 vars:
   BINARY_NAME: fantasy-hockey
   GO_PATH: PATH=$(go env GOPATH)/bin:$PATH
+  # Install Go tools into GOPATH/bin, overriding a GOBIN preset by the environment
+  # (the devcontainer image sets GOBIN=/usr/local/bin, which is not writable)
+  GO_INSTALL: GOBIN=$(go env GOPATH)/bin go install
 
 tasks:
 
   cleanup:
-    desc: Clean Go build artifacts
+    desc: Clean Go build artifacts and fix file permissions + ownership
     dir: &dir '{{.TASKFILE_DIR}}'
+    vars:
+      GAME_DATA_FILE: fantasy-hockey.yml
     cmds:
       - rm -rf {{ .BINARY_NAME }}
+      - |
+        if [ -f {{ .GAME_DATA_FILE }} ]; then
+          sudo chown $(id -u):$(id -g) {{ .GAME_DATA_FILE }}
+          sudo chmod ugo+rw {{ .GAME_DATA_FILE }}
+        fi
 
   lint:
     desc: Run golangci-lint to check code quality
     dir: *dir
     cmds:
-      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-      # - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+      - "{{ .GO_INSTALL }} github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2"
       - "{{ .GO_PATH }} golangci-lint run --timeout 5m"
 
   complexity:
@@ -27,7 +36,7 @@ tasks:
     vars:
       COMPLEXITY_LIMIT: 10
     cmds:
-      - go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+      - "{{ .GO_INSTALL }} github.com/fzipp/gocyclo/cmd/gocyclo@latest"
       - "{{ .GO_PATH }} gocyclo -over {{ .COMPLEXITY_LIMIT }} ."
 
   licenses:
@@ -37,7 +46,7 @@ tasks:
       MODULE: github.com/sommerfeld-io/fantasy-hockey
       ALLOWED_LICENSES: "MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC,Unlicense"
     cmds:
-      - go install github.com/google/go-licenses@latest
+      - "{{ .GO_INSTALL }} github.com/google/go-licenses@latest"
       - "{{ .GO_PATH }} go-licenses check --include_tests --ignore {{ .MODULE }} --allowed_licenses {{ .ALLOWED_LICENSES }} {{ .MODULE }}"
       - "{{ .GO_PATH }} go-licenses report --include_tests --ignore {{ .MODULE }} {{ .MODULE }}"
 
@@ -45,7 +54,7 @@ tasks:
     desc: Scan for known vulnerabilities with govulncheck
     dir: *dir
     cmds:
-      - go install golang.org/x/vuln/cmd/govulncheck@latest
+      - "{{ .GO_INSTALL }} golang.org/x/vuln/cmd/govulncheck@latest"
       - "{{ .GO_PATH }} govulncheck -show verbose ./..."
 
   test:
@@ -83,4 +92,6 @@ tasks:
     dir: *dir
     cmds:
       - task: build
-      - ./{{ .BINARY_NAME }}
+      # Defaults to the Mailpit SMTP sink (task docker:run:mailpit) so login
+      # codes land in its web UI at http://localhost:8025 instead of a real inbox
+      - SMTP_HOST=${SMTP_HOST:-localhost} SMTP_PORT=${SMTP_PORT:-1025} ./{{ .BINARY_NAME }}

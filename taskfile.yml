@@ -7,6 +7,7 @@ vars:
   COMPOSE_SERVICE: 'fantasy-hockey'
 
 includes:
+  bmad: .task/bmad/taskfile.yml
   cleanup: .task/cleanup/taskfile.yml
   common: .task/common/taskfile.yml
   go: src/taskfile.yml
@@ -32,23 +33,13 @@ tasks:
       - gh auth login
       - gh repo edit --enable-discussions --enable-issues --enable-projects --enable-wiki=false
 
-  bmad:install:
-    desc: Install BMad Method (bmm module) for Claude Code if not already present. Use `--force` to update an existing installation.
-    status:
-      - test -d _bmad
-    vars:
-      ALLOW_DOWNLOAD: --yes
-      BMAD_HEADLESS_INSTALL: --yes
-    cmds:
-      - npx {{ .ALLOW_DOWNLOAD }} bmad-method install --directory . --modules bmm --tools claude-code {{ .BMAD_HEADLESS_INSTALL }}
-
   # ===============================================================================================
 
   lint:
     desc: Run all project linters outside of Dockerfile linters
     cmds:
-      - task: cleanup:filesystem
       - task: go:cleanup
+      - task: cleanup:filesystem
       - task: symlinks
       - for: ['yaml', 'workflows', 'filenames', 'folders', 'gherkin', 'markdown-links']
         cmd: docker compose up lint-{{ .ITEM }} --exit-code-from lint-{{ .ITEM }}
@@ -67,6 +58,15 @@ tasks:
   docker:run:
     desc: Run container {{ .COMPOSE_SERVICE }}
     cmds:
-      - cp .env.secrets.example .env.secrets
       - task: docker:build
       - docker compose up {{ .COMPOSE_SERVICE }}
+
+  docker:run:mailpit:
+    desc: Start the Mailpit SMTP sink in the background (web UI at http://localhost:8025)
+    cmds:
+      - docker compose up --detach mailpit
+
+  docker:down:
+    desc: Stop and remove container {{ .COMPOSE_SERVICE }}
+    cmds:
+      - docker compose down --remove-orphans --volumes

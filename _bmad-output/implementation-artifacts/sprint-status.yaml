@@ -28,38 +28,430 @@
 # - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
-generated: 09-05-2026 12:29
-last_updated: 09-07-2026 19:45
+generated: 09-14-2026 09:43
+last_updated: 09-25-2026 21:50
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-1: in-progress
-  1-1-request-login-code: done
-  1-2-validate-login-code-and-establish-session: review
-  1-3-logout: backlog
-  epic-1-retrospective: optional
+  epic-1: done
+  1-1-request-a-login-code: done
+  1-2-enter-login-code-and-establish-session: done
+  1-3-stay-logged-in-with-sliding-session-timeout: done
+  1-4-log-out: done
+  1-5-persistent-app-shell-with-player-identity-and-navigation: done
+  epic-1-retrospective: done
 
-  epic-2: backlog
-  2-1-season-team-bootstrap: backlog
-  2-2-set-deadlines: backlog
-  2-3-enter-award-finalists-winners: backlog
-  2-4-enter-regular-season-team-results: backlog
-  2-5-enter-stanley-cup-winner-result: backlog
-  2-6-enter-playoff-series-results: backlog
-  epic-2-retrospective: optional
+  epic-2: done
+  2-1-browse-prediction-sets-by-phase-and-status: done
+  2-2-load-season-s-canonical-team-list: done
+  2-3-cup-champion-and-presidents-trophy-picks: done
+  2-4-division-picks-playoff-teams-and-division-winners: done
+  2-5-load-season-s-canonical-nhl-player-list: done
+  2-6-player-awards-finalists: done
+  epic-2-retrospective: done
 
-  epic-3: backlog
-  3-1-enter-and-edit-predictions: backlog
-  3-2-lock-predictions-at-deadline: backlog
-  3-3-predictions-visibility: backlog
-  3-4-send-reminder-email: backlog
-  epic-3-retrospective: optional
+  epic-3: done
+  3-1-playoffs-cup-pick: done
+  3-2-round-unlocking-based-on-recorded-matchups: done
+  3-3-per-round-series-predictions: done
+  epic-3-retrospective: done
 
-  epic-4: backlog
-  4-1-award-scoring-tie-inclusive: backlog
-  4-2-regular-season-team-and-cup-presidents-trophy-scoring: backlog
-  4-3-playoff-series-scoring: backlog
-  4-4-live-standings-display: backlog
-  epic-4-retrospective: optional
+  epic-4: done
+  4-1-automatic-scoring-engine: done
+  4-2-leaderboard-display: done
+  epic-4-retrospective: done
+
+  epic-5: in-progress
+  5-1-compare-selector-and-side-by-side-table: done
+  5-2-division-comparison-granularity-and-consistent-value-formatt: done
+  epic-5-retrospective: done
+
+  epic-6: in-progress
+  6-1-season-rollover-with-retained-history: done
+  epic-6-retrospective: done
+
+  epic-7: backlog
+  7-1-log-data-changing-writes: backlog
+  7-2-clean-up-unusable-login-codes: backlog
+  7-3-keep-written-yaml-yamllint-compliant: backlog
+  7-4-hand-edited-results-are-safe-to-edit: backlog
+  epic-7-retrospective: optional
+
+# Action items committed during retrospectives (section created by the retrospective workflow)
+action_items:
+  - id: "epic-1-retro-item-1-add-a-regression-test-asserting-the-sess"
+    epic: 1
+    action: "Add a regression test asserting the session cookie issued by POST /login/code
+      decodes to the correct player id (chain into a protected-route request)"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-2-extend-stay-logged-in-feature-and-log-ou"
+    epic: 1
+    action: "Extend stay-logged-in.feature and log-out.feature scenarios to cover
+      /predict, /leaderboard, /compare, not just /"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-3-get-login-should-redirect-an-already-aut"
+    epic: 1
+    action: "GET /login should redirect an already-authenticated session to the shell
+      instead of re-showing the login form"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-4-resolve-the-dual-mux-route-registration"
+    epic: 1
+    action: "Resolve the dual-mux route registration pattern (single source of truth
+      for the route list) before Epic 2 adds more authenticated routes"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-5-consolidate-the-3-independently-reimplem"
+    epic: 1
+    action: "Consolidate the 3 independently-reimplemented HMAC test-signing/tampering
+      helpers into one shared test-support helper, or explicitly accept the status
+      quo"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-6-decide-whether-the-post-login-redirect-s"
+    epic: 1
+    action: "Decide whether the post-login redirect should preserve the originally-requested
+      destination -- RESOLVED 2026-09-16: always redirect to the default landing page;
+      matches current handleLoginCodeSubmit behavior, no code change needed"
+    owner: "John (PM) / Sally (UX)"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-1-retro-item-7-decide-whether-sessions-need-an-absolute"
+    epic: 1
+    action: "Decide whether sessions need an absolute maximum lifetime in addition
+      to the sliding idle timeout -- RESOLVED 2026-09-16: no absolute lifetime; sliding
+      idle timeout only, matches current implementation, no code change needed"
+    owner: "Winston (Architect)"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-1-retro-2026-09-15.md"
+  - id: "epic-2-retro-item-8-enforce-upcoming-server-side-in-handlesh"
+    epic: 2
+    action: "Enforce Upcoming server-side in handleSheet/handleSheetSubmit (or design
+      and document an explicit alternative unlock mechanism) before Story 3.2 ships
+      any pickable set that starts upcoming: true"
+    owner: "Epic 3 / Story 3.2 owner"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-9-factor-the-3-4-independent-roster-member"
+    epic: 2
+    action: "Factor the 3-4 independent roster-membership-check helpers (isKnownTeamID,
+      divisionRoster/allBelongToRoster, nhlPlayerBySlug/isValidAwardFinalist) into
+      one shared shape before adding a 4th/5th pickable sheet kind"
+    owner: "Epic 3 first-playoff-picks-story owner"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-10-split-internal-web-web-go-along-sheet-ki"
+    epic: 2
+    action: "Split internal/web/web.go along sheet-kind boundaries (same package,
+      multiple files) before Epic 3 adds more pickable kinds on top of it"
+    owner: "next contributor touching internal/web"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-11-correct-two-stale-doc-comments-newteamop"
+    epic: 2
+    action: "Correct two stale doc comments: newTeamOptions (web.go, claims reserved
+      for 2.3/2.4 but only ever consumed by 2.6) and load_canonical_team_list_steps_test.go
+      (claims no UI reads Store.Teams() yet, contradicted by Story 2.3 in the same
+      diff)"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-12-hoist-the-duplicated-setrowfragment-acce"
+    epic: 2
+    action: "Hoist the duplicated setRowFragment acceptance-test helper (browse_prediction_sets_steps_test.go
+      and cup_and_presidents_picks_steps_test.go) into one shared helper"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-13-standardize-thefixtureplayeris-theseeded"
+    epic: 2
+    action: "Standardize theFixturePlayerIs/theSeededPlayerHasAValidSession on exact-case
+      player-name comparison"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-14-add-and-the-shell-shows-the-predict-cont"
+    epic: 2
+    action: "Add \"And the shell shows the Predict content\" to app-shell.feature's
+      \"The Predict destination shows the shell with Predict active\" scenario"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-15-fix-testpredictshouldshowaclosedpillandc"
+    epic: 2
+    action: "Fix TestPredictShouldShowAClosedPillAndCountdownForASetPastItsDeadline's
+      vacuous closed-substring assertion to scope to the countdown span specifically"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-16-add-a-regression-test-locking-in-the-del"
+    epic: 2
+    action: "Add a regression test locking in the deliberate Closed+Submitted accent-vs-pill
+      rendering (behavior stays as-is, only test coverage is added)"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-17-factor-the-duplicated-acceptance-test-fi"
+    epic: 2
+    action: "Factor the duplicated acceptance-test fixture-builder pattern (newLoadCanonicalTeamListStore/newLoadCanonicalNHLPlayerListStore,
+      and the repeated lazy-fixture+ensureReady scenario-state pattern across 4 step
+      files) into a shared helper before Epic 3 adds more"
+    owner: "Epic 3 owner"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-2-retro-item-18-decide-whether-internal-store-should-own"
+    epic: 2
+    action: "Decide whether internal/store should own the division-name vocabulary
+      (teamDivisionOrder) rather than leaving it as an unlinked literal in internal/web,
+      ahead of Epic 6's season rollover"
+    owner: "John (PM) / Winston (Architect)"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
+  - id: "epic-3-retro-item-19-move-the-series-key-format-serieskeysepa"
+    epic: 3
+    action: "Move the series-key format (seriesKeySeparator, joinSeriesKey, splitSeriesKey)
+      and the playoff round-set ids from internal/web into internal/store before story
+      4-1, so internal/scoring can read series picks without importing internal/web;
+      settle epic-2 item 18 (division vocabulary) in the same change"
+    owner: "Winston (Architect) / dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-20-set-upcoming-true-for-r1-in-src-fantasy"
+    epic: 3
+    action: "Set upcoming: true for r1 in src/fantasy-hockey.yml (it is Open in preseason
+      with only a placeholder) and flip it by hand together with playoffcup once the
+      playoff field is set"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-21-write-a-playoffs-operator-runbook-in-doc"
+    epic: 3
+    action: "Write a playoffs operator runbook in docs/: which sets to flip and when,
+      the playoff_matchups shape with a unique key per series, and stop the app before
+      editing fantasy-hockey.yml"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-22-hoist-the-duplicated-acceptance-test-hel"
+    epic: 3
+    action: "Hoist the duplicated acceptance-test helpers (setRowFragment x4, theSignedInPlayerIs
+      variants, team-name fixture maps, series group fragment) into fixture_support_test.go
+      before Epic 4 adds step files; supersedes epic-2 item 12"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-23-carry-open-retrospective-action-items-in"
+    epic: 3
+    action: "Carry open retrospective action items into the next epic context file
+      as explicit tasks (epic-2 items 11-16 and 18 went through Epic 3 untouched)"
+    owner: "Sprint planning / epic context owner"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-24-reconcile-specs-to-as-built-epics-md-sto"
+    epic: 3
+    action: "Reconcile specs to as-built: epics.md Story 3.2 AC2 needs an app restart
+      after a hand edit (AD-27); spec-3-3 Code Map validation bullet should describe
+      the silent skip of half-filled series"
+    owner: "John (PM)"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-3-retro-item-25-name-the-story-id-in-each-story-commit-b"
+    epic: 3
+    action: "Name the story id in each story commit body or footer (e.g. Story: 3-3)
+      so retrospective tooling can attribute commits"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
+  - id: "epic-4-retro-item-26-keep-only-the-nested-results-series-roun"
+    epic: 4
+    action: "Keep only the nested results.series round1: -> s1: shape (user decision);
+      correct spec-4-1's approved-shape wording and the architecture's illustrative
+      data-file shape (flat round1.s1 key does not load)"
+    owner: "Winston (Architect) / dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-4-retro-item-27-reconcile-specs-to-as-built-standings-re"
+    epic: 4
+    action: "Reconcile specs to as-built: standings README 'reloaded result on next
+      call', epics.md Story 4.2 AC1 (every rank-1 gold, none at 0) and AC3 (results
+      need restart), epic-4-context, spec-4-1 frozen Never/malformed lists, architecture
+      AD-23; absorbs epic-3 item 24"
+    owner: "John (PM) / dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-4-retro-item-28-give-the-results-file-deferrals-a-real-h"
+    epic: 4
+    action: "Give the results-file deferrals a real home: extend Story 7.3 ACs or
+      add an Epic 7 story for misspelled/unknown keys, wrong-shape startup abort,
+      comment/style-preserving rewrite, games quoting, and a startup 'results loaded,
+      N problems' line"
+    owner: "John (PM)"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-4-retro-item-29-write-an-operator-runbook-in-docs-for-re"
+    epic: 4
+    action: "Write an operator runbook in docs/ for recording results and playoffs:
+      stop the app, exact nested YAML shape with a commented example, restart, read
+      startup warnings; extends epic-3 item 21"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-4-retro-item-30-extend-testsavingapredictionshouldpreser"
+    epic: 4
+    action: "Extend TestSavingAPredictionShouldPreserveTheHandRecordedResults to all
+      five result kinds and assert no injected position/display_name empty strings
+      in the raw bytes"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-4-retro-item-31-add-a-leaderboard-scenario-seeding-divis"
+    epic: 4
+    action: "Add a Leaderboard scenario seeding division, award and series results
+      with matching picks, asserting the rendered Regular and Playoff cells"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-4-retro-item-32-add-a-test-tying-scoring-seriespoints-ke"
+    epic: 4
+    action: "Add a test tying scoring.seriesPoints keys to the store's round mapping
+      so a renamed round cannot silently score 0"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-4-retro-item-33-adopt-depguard-for-ad-8-import-rules-ad"
+    epic: 4
+    action: "Adopt depguard for AD-8 import rules (AD-21) and delete the three hand-written
+      import-guard tests"
+    owner: "Winston (Architect) / dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-4-retro-item-34-hoist-the-duplicated-yaml-seed-store-hel"
+    epic: 4
+    action: "Hoist the duplicated YAML-seed store helpers, prediction-row renderers,
+      acceptance seed builders and the submitted_at literal into shared test support
+      before Epic 5 adds step files"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-4-retro-item-35-put-the-story-id-in-the-final-git-traile"
+    epic: 4
+    action: "Put the story id in the final git trailer block (Story: N-M directly
+      above Co-Authored-By) or teach git_evidence.py to read trailers, so commits
+      are attributed automatically"
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-4-retro-item-36-give-each-later-reviewer-the-earlier-rev"
+    epic: 4
+    action: "Give each later reviewer the earlier Review Triage Logs plus this retro's
+      accepted deviations (B3-B5) so rejected findings are not re-raised"
+    owner: "whoever runs reviews"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-09-25.md"
+  - id: "epic-5-retro-item-37-consolidate-isgatedround-s-duplicated-lo"
+    epic: 5
+    action: "Consolidate isGatedRound's duplicated lookup and validity check: reuse
+      findPredictionSetByID (sheet.go) and share selectableCompareSets's phase/deadline
+      validity predicate instead of re-deriving both independently in compare.go"
+    owner: "next dev touching internal/web/compare.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
+  - id: "epic-5-retro-item-38-fix-the-simultaneous-nothing-to-compare"
+    epic: 5
+    action: "Fix the simultaneous \"Nothing to compare yet.\" / \"Matchups not set.\"\
+      \ contradiction on Compare: suppress the per-group empty note for the phase
+      whose gated-round Note is being shown, or unify into one shared \"nothing to
+      show\" source of truth -- confirmed live against the real running app with real
+      data, not just a constructed fixture"
+    owner: "next dev touching Compare (product/UX call on which note to suppress)"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
+  - id: "epic-5-retro-item-39-hoist-the-duplicated-acceptance-test-pla"
+    epic: 5
+    action: "Hoist the duplicated acceptance-test player-pool fixture helpers (comparePlayerID/requirePoolPlayer/thePoolPlayersAre/seedBody's
+      player loop) out of compare_predictions_steps_test.go and leaderboard_steps_test.go
+      into fixture_support_test.go; this is the 4th epic in a row with this same item
+      (epic-2 item 12, epic-3 item 22, epic-4 item 34) -- consider adding a standing
+      'check fixture_support_test.go first' note to src/CLAUDE.md's acceptance-test
+      guidance"
+    owner: "next dev touching compare_predictions_steps_test.go or leaderboard_steps_test.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
+  - id: "epic-5-retro-item-40-close-three-compare-story-boundary-test"
+    epic: 5
+    action: "Close three Compare story-boundary test-coverage gaps: an own-column-holds-a-tag
+      scenario, drive isGatedRound through the conference-finals and Stanley-Cup-Final
+      ids (not only r2), and a consistency test asserting roundGatedSetIDs is a subset
+      of seriesSetIDs"
+    owner: "next dev touching Compare"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
+  - id: "epic-5-retro-item-41-consider-splitting-compare-go-along-cate"
+    epic: 5
+    action: "Consider splitting compare.go along category-kind boundaries (compare_divisions.go/compare_awards.go/compare_series.go,
+      mirroring sheet_*.go) before a future story adds another category kind -- it
+      is already the largest production file in internal/web (488 lines)"
+    owner: "whoever plans the next Compare-touching story"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-42-document-the-defaultseason-staleness-ris"
+    epic: 6
+    action: "Document the DefaultSeason staleness risk: add a note (epic-6-context.md
+      and/or an operator runbook) that store.DefaultSeason must be bumped in Go source
+      and the binary rebuilt/redeployed before repointing DATA_FILE at a genuinely
+      new season; consider a lightweight format-only regression test (e.g. a YYYY-YY
+      pattern check) as a partial backstop, since a value-equality test is inherently
+      tautological against its own source constant"
+    owner: "whoever picks up the next season-rollover-adjacent story"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-43-add-a-bootstrap-log-line-openstore-s-mis"
+    epic: 6
+    action: "Add a bootstrap log line: openStore's missing-path branch should log
+      at info level when it creates a fresh file (path + season), so a mistyped rollover
+      path doesn't silently produce an empty pool with no diagnostic trail"
+    owner: "next dev touching main.go/internal/store"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-44-correct-epic-6-context-md-s-read-only-hi"
+    epic: 6
+    action: "Correct epic-6-context.md's \"read-only history\" overstatement: reword
+      to reflect that this is procedural, not OS-enforced, and note what happens if
+      DATA_FILE is ever pointed back at an archived file (it becomes writable current
+      state, by design)"
+    owner: "whoever next edits epic-6-context.md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-45-tighten-main_test-go-s-two-rollover-test"
+    epic: 6
+    action: "Tighten main_test.go's two rollover tests: correct the doc comment overclaiming
+      resolveConfig/run() coverage; colocate the archived and fresh files in one shared
+      t.TempDir() for a realistic same-directory topology; assert log silence on a
+      clean bootstrap, matching the sibling test convention"
+    owner: "next dev touching main_test.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-46-add-a-nonexistent-parent-directory-test"
+    epic: 6
+    action: "Add a nonexistent-parent-directory test for openStore/store.New, and
+      check the resulting error is operator-legible"
+    owner: "next dev touching internal/store"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-6-retro-item-47-add-a-godoc-guardrail-on-defaultseason-w"
+    epic: 6
+    action: "Add a GoDoc guardrail on DefaultSeason warning against branching on it
+      outside store/test code, to close the door on future cross-season-aware logic
+      the epic explicitly forbids"
+    owner: "next dev touching internal/store/store.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"

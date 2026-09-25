@@ -26,6 +26,7 @@ ls:
   .css: kebab-case
   .html: kebab-case
   .js: kebab-case
+  .config.js: kebab-case
   .hbs: kebab-case
   .svg: kebab-case
 
@@ -56,7 +57,7 @@ ignore:
   # linter definitions etc.
   - .editorconfig
   - .gherkin-lintrc
-  - .golangci.yml
+  - src/.golangci.yml
   - .hadolint.yml
   - .lychee.toml
   - .ls-lint.yml

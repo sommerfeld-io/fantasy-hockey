@@ -1,0 +1,1130 @@
+/*
+  Shared dark-theme tokens for every screen (login_email.html, login_code.html,
+  shell.html), matching mockups/login-email.html, mockups/login-code.html and
+  DESIGN.md: Colors / Typography / Shapes / Components, dark-theme only,
+  mobile-first (~360-430px), centered on wider viewports.
+*/
+
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --raised: #21262d;
+  --border: #30363d;
+  --border-soft: #21262d; /* table row dividers (DESIGN.md's Table component) */
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --faint: #6e7681;
+  --green-btn: #238636; /* primary action buttons only */
+  --green-btn-border: #2ea043;
+  --goal: #f85149;
+  --ice: #58a6ff;
+  --ice-deep: #1f6feb;
+  --gold: #d29922;
+  --green: #3fb950; /* semantic accent (e.g. "Submitted" status) - never for buttons; see --green-btn */
+  --sel: #30363d;
+  --cap-dim-opacity: 0.4; /* DESIGN.md's components.division-progress.capDimOpacity */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+}
+
+.screen {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px;
+  gap: 24px;
+}
+
+.brand {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.brand .title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.brand .subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+input {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+}
+
+input::placeholder {
+  color: var(--faint);
+}
+
+input.error {
+  border-color: var(--goal);
+}
+
+.code-input,
+.lb-total {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.code-input {
+  font-size: 18px;
+  letter-spacing: 4px;
+  text-align: center;
+}
+
+button {
+  width: 100%;
+  background: var(--green-btn);
+  border: 1px solid var(--green-btn-border);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  font-family: inherit;
+}
+
+.hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--faint);
+  margin: 0;
+}
+
+.error-text {
+  text-align: center;
+  font-size: 12px;
+  color: var(--goal);
+  font-weight: 600;
+  margin: 0;
+}
+
+/*
+  App shell (shell.html): a fixed-height, three-region frame - pinned
+  header, one scrolling content region, pinned bottom nav - per
+  EXPERIENCE.md's Foundation and DESIGN.md's Header/Bottom navigation
+  components. Reuses .screen's centered-at-430px convention via .shell.
+*/
+
+.shell {
+  width: 100%;
+  max-width: 430px;
+  height: 100vh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.header-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-season {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.logout-form {
+  margin: 0;
+}
+
+.logout-btn {
+  width: auto;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  font-family: inherit;
+}
+
+.logout-btn:hover,
+.logout-btn:focus {
+  color: var(--text);
+}
+
+.shell-content {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.shell-nav {
+  flex: 0 0 auto;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 0;
+  min-height: 44px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.nav-item.active {
+  color: var(--ice);
+}
+
+/*
+  Predict screen (Story 2.1): two phase-grouped sections of Prediction Set
+  rows, per DESIGN.md's Section header icon, Status pill, and Set row
+  components.
+*/
+
+.predict-section {
+  margin-bottom: 8px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 16px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.predict-section:first-child .section-header {
+  margin-top: 0;
+}
+
+.section-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-pill--open {
+  background: rgba(88, 166, 255, 0.14);
+  color: var(--ice);
+}
+
+.status-pill--submitted {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--green);
+}
+
+.status-pill--closed {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--goal);
+}
+
+.status-pill--upcoming {
+  background: var(--raised);
+  color: var(--faint);
+}
+
+.set-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 12px;
+  text-align: left;
+  text-decoration: none;
+  color: var(--text);
+  font-family: inherit;
+}
+
+a.set-row {
+  cursor: pointer;
+}
+
+.set-row--open {
+  border-left-color: var(--ice);
+}
+
+.set-row--submitted {
+  border-left-color: var(--green);
+}
+
+.set-row--upcoming {
+  border-left-color: var(--faint);
+  opacity: 0.55;
+}
+
+.set-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.set-row-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.set-row-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-row-subtitle {
+  font-size: 12px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.set-row-deadline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.row-icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.set-row-countdown {
+  color: var(--ice);
+}
+
+.set-row-countdown-faint {
+  color: var(--faint);
+}
+
+.row-affordance {
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.set-row--upcoming .row-affordance {
+  color: var(--faint);
+}
+
+/*
+  Per-Prediction-Set stub page (sheet.html): a minimal header (back arrow +
+  title) and a static "not available yet" body - no action bar.
+*/
+
+.sheet {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.back-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  margin: -6px;
+  color: var(--muted);
+}
+
+.back-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.sheet-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sheet-content {
+  flex: 1 1 auto;
+  padding: 16px;
+}
+
+.sheet-deadline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sheet-placeholder {
+  margin-top: 40px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/*
+  Cup champion / Presidents' Trophy pick form (Story 2.3): DESIGN.md's
+  Input / dropdown field component (raised fill, border, lg/10px radius) for
+  the team select, plus a read-only banner shown once a set is closed.
+*/
+
+.pick-form {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+select {
+  width: 100%;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+}
+
+select:disabled {
+  color: var(--faint);
+  opacity: 0.7;
+}
+
+optgroup {
+  color: var(--muted);
+  font-weight: 600;
+  font-style: normal;
+}
+
+option {
+  color: var(--text);
+  font-weight: 400;
+}
+
+select:disabled optgroup,
+select:disabled option {
+  color: var(--faint);
+}
+
+.closed-banner {
+  margin: 0;
+  padding: 12px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/*
+  Division picks (Story 2.4): DESIGN.md's Chip component (sel fill + ice
+  border + primary text when selected, raised fill + muted text otherwise)
+  and its Division-picks progress indicator (n/5 per-division and n/8
+  per-conference counters, a check paired with the count when valid, a dot
+  when not, capped chips dimmed to capDimOpacity and non-tappable).
+*/
+
+.divisions-form {
+  gap: 20px;
+}
+
+.conference-group,
+.winners-group {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.conference-title {
+  padding: 0;
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.division-group {
+  margin-bottom: 14px;
+}
+
+.division-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.division-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.count-indicator {
+  font-size: 11px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.count-indicator--conference {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.count-indicator--valid {
+  color: var(--green);
+}
+
+.count-indicator--invalid {
+  color: var(--goal);
+}
+
+.count-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/*
+  Both the valid (check) and invalid (dot) icons render server-side, and
+  only one shows at a time via these class pairs - the same
+  count-indicator--valid/--invalid classes divisions.js already toggles on
+  interaction (applyCaps), so the icon stays in sync without any JS DOM
+  swap of its own.
+*/
+.count-indicator--valid .icon-invalid,
+.count-indicator--invalid .icon-valid {
+  display: none;
+}
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/*
+  The checkbox itself renders visually hidden (position/opacity), and the
+  label - not the literal `.chip:checked` selector - carries the visible
+  chip styling via :has(input:checked), since a checkbox can't contain its
+  own visible label text as a child.
+*/
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.chip input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+
+.chip:has(input:checked),
+.chip--selected,
+.series-btn:has(input:checked) {
+  background: var(--sel);
+  border-color: var(--ice);
+  color: var(--text);
+}
+
+.chip:has(input:disabled) {
+  cursor: default;
+}
+
+.chip--capped {
+  opacity: var(--cap-dim-opacity);
+}
+
+.winners-group {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.winner-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/*
+  Player awards finalists (Story 2.6): 5 trophy groups of 3 text-input
+  finalist slots each, each slot pairing a visible text input with a hidden
+  slug input (AD-19). Reuses input.error's existing goal-border convention
+  for an unresolved/rejected slot rather than introducing a second one, and
+  the Division-picks count-indicator's green/valid palette for the
+  once-filled check.
+*/
+
+.awards-form {
+  gap: 20px;
+}
+
+.award-group {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.award-group-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+.award-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.award-hint {
+  margin: 2px 0 8px;
+  text-align: left;
+}
+
+.award-check {
+  display: none;
+  color: var(--green);
+}
+
+.award-group--filled .award-check {
+  display: inline-flex;
+}
+
+.check-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.finalist-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.finalist-slot {
+  position: relative;
+}
+
+.finalist-text {
+  width: 100%;
+}
+
+.finalist-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  margin-top: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.finalist-suggestion {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  font-family: inherit;
+}
+
+.finalist-suggestion:hover,
+.finalist-suggestion:focus {
+  background: var(--sel);
+}
+
+/*
+  Series picks (Story 3.3): one full-width winner button per team plus four
+  4/5/6/7 game-count buttons per series card. Both button kinds share one
+  selected-state rule with the Division-picks chip's own
+  `.chip:has(input:checked)` background/border tokens - DESIGN.md: "no
+  separate color for this versus the team-winner buttons next to it."
+*/
+.series-form {
+  gap: 20px;
+}
+
+.series-hint {
+  margin: 0 0 4px;
+}
+
+.series-group {
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.series-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.series-card--invalid {
+  border-bottom-color: var(--goal);
+}
+
+.series-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.series-games {
+  display: flex;
+  gap: 6px;
+}
+
+/*
+  The radio itself renders visually hidden (position/opacity), and the
+  label - not a literal `.series-btn:checked` selector - carries the visible
+  button styling via :has(input:checked), the same reason .chip does
+  (a radio can't contain its own visible label text as a child).
+*/
+.series-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.series-btn input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+
+.series-btn:has(input:disabled) {
+  cursor: default;
+}
+
+.series-team-btn {
+  width: 100%;
+}
+
+.series-games-btn {
+  flex: 1;
+}
+
+/*
+  Leaderboard (Story 4.2), per DESIGN.md's Table and Rank badge components:
+  a raised heading row, border-soft row dividers, a Total column set apart
+  by a left border and a raised tint, and gold reserved for a leader's rank
+  badge and Total.
+*/
+
+.leaderboard .section-header {
+  margin-top: 0;
+}
+
+.lb-caption {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.lb-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.lb-table th {
+  padding: 8px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: right;
+}
+
+.lb-table th.lb-head-player {
+  padding-left: 12px;
+  text-align: left;
+}
+
+.lb-table th.lb-head-total {
+  padding-right: 12px;
+  color: var(--text);
+  border-left: 1px solid var(--border);
+}
+
+.lb-table td {
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.lb-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.lb-table td.lb-player {
+  padding-left: 12px;
+}
+
+.lb-player-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rank-badge {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rank-badge--gold {
+  background: var(--gold);
+  color: var(--bg);
+}
+
+.lb-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.lb-num {
+  text-align: right;
+  font-size: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lb-table td.lb-total {
+  padding-right: 12px;
+  text-align: right;
+  font-size: 19px;
+  font-weight: 800;
+  background: var(--raised);
+  border-left: 1px solid var(--border);
+}
+
+.lb-total--gold {
+  color: var(--gold);
+}
+
+.lb-footer {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--faint);
+}
+
+/*
+  Compare (Story 5.1): a wrapping chip selector grouped by phase, the chosen
+  set's deadline, and a side-by-side table - a raised heading row,
+  border-soft row dividers, and the signed-in player's column marked by an
+  ice border plus a "You" label (never colour alone, never a saturated
+  fill).
+*/
+
+.compare .section-header {
+  margin-top: 0;
+}
+
+.compare-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.compare-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compare-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+a.compare-chip {
+  text-decoration: none;
+}
+
+.compare-none {
+  font-size: 12px;
+  color: var(--faint);
+}
+
+.compare-deadline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.compare-countdown {
+  color: var(--ice);
+}
+
+.cmp-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cmp-player {
+  padding: 8px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.cmp-player-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cmp-you {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ice);
+}
+
+.cmp-label {
+  padding: 8px 8px 2px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.cmp-cell {
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: top;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.cmp-table tbody:last-child tr:last-child .cmp-cell {
+  border-bottom: none;
+}
+
+.cmp-player--own,
+.cmp-cell--own {
+  border-left: 2px solid var(--ice);
+  border-right: 2px solid var(--ice);
+}
+
+.cmp-values .cmp-value {
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.cmp-values--stacked .cmp-value {
+  display: block;
+  margin-right: 0;
+}
+
+.cmp-tag {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.cmp-value--empty {
+  color: var(--faint);
+}
+
+.cmp-note-dashed {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--faint);
+  font-size: 13px;
+  text-align: center;
+}
