@@ -39,6 +39,11 @@ login_codes:
       code_hash: d0f539a6daf9bbee74493d05fbb00bd3cf52b436d15a6d808ba0a4df78713e52
       issued_at: "2026-09-25T10:13:11Z"
       used_at: "2026-09-25T10:13:20Z"
+    - id: 8e40ada2-9de1-44c7-a196-feb18201b28d
+      player_id: sebastian
+      code_hash: 427216fc1022cc78c8bb26d578e2bd4cb900f5e557780a3a16eab05ff090af4d
+      issued_at: "2026-09-25T12:42:34Z"
+      used_at: "2026-09-25T12:42:41Z"
 prediction_sets:
     - id: cup
       title: Cup champion
