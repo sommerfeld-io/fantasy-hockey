@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1917,5 +1918,429 @@ func TestDivisionsShouldNotBeMutatedByACaller(t *testing.T) {
 	want := []string{"Atlantic", "Metropolitan", "Central", "Pacific"}
 	if got := Divisions(); !slices.Equal(got, want) {
 		t.Errorf("expected divisions %v to survive a caller's mutation, got %v", want, got)
+	}
+}
+
+// resultsFixtureBase is the canonical data every results test builds on:
+// three Atlantic teams, four NHL players and one matchup in round 1 and in
+// the conference finals.
+const resultsFixtureBase = `season: "2026-27"
+players:
+    - id: basti
+      name: Basti
+      email: basti@example.com
+    - id: kim
+      name: Kim
+      email: kim@example.com
+teams:
+    - {id: FLA, name: Florida Panthers, conference: Eastern, division: Atlantic}
+    - {id: TOR, name: Toronto Maple Leafs, conference: Eastern, division: Atlantic}
+    - {id: BOS, name: Boston Bruins, conference: Eastern, division: Atlantic}
+    - {id: EDM, name: Edmonton Oilers, conference: Western, division: Pacific}
+nhl_players:
+    - {slug: mcdavid-connor, display_name: Connor McDavid, position: skater}
+    - {slug: mackinnon-nathan, display_name: Nathan MacKinnon, position: skater}
+    - {slug: kucherov-nikita, display_name: Nikita Kucherov, position: skater}
+    - {slug: matthews-auston, display_name: Auston Matthews, position: skater}
+playoff_matchups:
+    r1:
+        - {key: s1, a: FLA, b: TOR}
+    cf:
+        - {key: s1, a: FLA, b: BOS}
+predictions:
+    - id: p1
+      player_id: basti
+      kind: division_playoff_teams
+      division: Atlantic
+      team_ids: [FLA, TOR]
+      submitted_at: "2026-09-20T10:00:00Z"
+    - id: p2
+      player_id: kim
+      kind: cup
+      team_id: TOR
+      submitted_at: "2026-09-20T10:00:00Z"
+`
+
+// resultsFixtureResults is a well-formed results and award_finalists
+// section: games are unquoted, the way a human hand-edits them.
+const resultsFixtureResults = `results:
+    team_marks:
+        atlantic:
+            playoffs: [FLA, TOR]
+            division_winner: FLA
+    presidents_trophy: TOR
+    stanley_cup_winner: FLA
+    series:
+        round1:
+            s1: {winner: FLA, games: 5}
+        round3:
+            s1: {winner: BOS, games: 7}
+award_finalists:
+    hart:
+        - {slug: mcdavid-connor, display_name: Connor McDavid}
+        - {slug: mackinnon-nathan, display_name: Nathan MacKinnon}
+        - {slug: kucherov-nikita, display_name: Nikita Kucherov}
+        - {slug: matthews-auston, display_name: Auston Matthews}
+`
+
+// newResultsStore writes seed to a temp data file and opens a store on it,
+// so New's own parsing of the results section is exercised.
+func newResultsStore(t *testing.T, seed string) (*Store, string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), DataFileName)
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New(%q) returned error: %v", path, err)
+	}
+	return st, path
+}
+
+func TestNewShouldLoadAFileWithNeitherResultsNorAwardFinalists(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase)
+
+	if playoffs, winner := st.DivisionResult("Atlantic"); len(playoffs) != 0 || winner != "" {
+		t.Errorf("DivisionResult = %v, %q, want nothing recorded", playoffs, winner)
+	}
+	if got := st.PresidentsTrophyWinner(); got != "" {
+		t.Errorf("PresidentsTrophyWinner = %q, want empty", got)
+	}
+	if got := st.StanleyCupWinner(); got != "" {
+		t.Errorf("StanleyCupWinner = %q, want empty", got)
+	}
+	if _, _, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1")); ok {
+		t.Error("SeriesResult ok = true, want false with no results recorded")
+	}
+	if got := st.RecordedAwardFinalists(AwardHart); len(got) != 0 {
+		t.Errorf("RecordedAwardFinalists = %v, want empty", got)
+	}
+	if got := st.ResultProblems(); len(got) != 0 {
+		t.Errorf("ResultProblems = %v, want none", got)
+	}
+}
+
+func TestDivisionResultShouldReadTheLowercaseDivisionKeyForTheCapitalisedName(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	playoffs, winner := st.DivisionResult("Atlantic")
+	if !slices.Equal(playoffs, []string{"FLA", "TOR"}) || winner != "FLA" {
+		t.Errorf("DivisionResult(Atlantic) = %v, %q, want [FLA TOR], FLA", playoffs, winner)
+	}
+}
+
+func TestDivisionResultShouldNotMatchTheLowercaseNameOrAnotherDivision(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	for _, division := range []string{"atlantic", "Metropolitan"} {
+		if playoffs, winner := st.DivisionResult(division); len(playoffs) != 0 || winner != "" {
+			t.Errorf("DivisionResult(%q) = %v, %q, want nothing", division, playoffs, winner)
+		}
+	}
+}
+
+func TestTrophyWinnersShouldReturnTheRecordedTeams(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	if got := st.PresidentsTrophyWinner(); got != "TOR" {
+		t.Errorf("PresidentsTrophyWinner = %q, want TOR", got)
+	}
+	if got := st.StanleyCupWinner(); got != "FLA" {
+		t.Errorf("StanleyCupWinner = %q, want FLA", got)
+	}
+}
+
+func TestSeriesResultShouldMapRoundNamesToSetIDsAndLoadUnquotedGames(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	tests := []struct {
+		seriesKey, wantWinner, wantGames string
+	}{
+		{JoinSeriesKey(Round1SetID, "s1"), "FLA", "5"},
+		{JoinSeriesKey(ConferenceFinalsSetID, "s1"), "BOS", "7"},
+	}
+	for _, tt := range tests {
+		winner, games, ok := st.SeriesResult(tt.seriesKey)
+		if !ok || winner != tt.wantWinner || games != tt.wantGames {
+			t.Errorf("SeriesResult(%q) = %q, %q, %v, want %q, %q, true", tt.seriesKey, winner, games, ok, tt.wantWinner, tt.wantGames)
+		}
+	}
+}
+
+func TestSeriesResultShouldNotReturnAnUnrecordedOrMalformedKey(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	for _, key := range []string{JoinSeriesKey(Round2SetID, "s1"), JoinSeriesKey(Round1SetID, "s2"), "round1.s1", "r1"} {
+		if _, _, ok := st.SeriesResult(key); ok {
+			t.Errorf("SeriesResult(%q) ok = true, want false", key)
+		}
+	}
+}
+
+func TestSeriesResultShouldNotReturnAHalfRecordedSeries(t *testing.T) {
+	seed := resultsFixtureBase + "results:\n    series:\n        round1:\n            s1: {winner: FLA}\n"
+	st, _ := newResultsStore(t, seed)
+
+	if _, _, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1")); ok {
+		t.Error("SeriesResult ok = true for a series with no games recorded, want false")
+	}
+	if got := st.ResultProblems(); len(got) != 0 {
+		t.Errorf("ResultProblems = %v, want none for a series still in progress", got)
+	}
+}
+
+func TestRecordedAwardFinalistsShouldReturnEverySlugIncludingATie(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	want := []string{"mcdavid-connor", "mackinnon-nathan", "kucherov-nikita", "matthews-auston"}
+	if got := st.RecordedAwardFinalists(AwardHart); !slices.Equal(got, want) {
+		t.Errorf("RecordedAwardFinalists(hart) = %v, want %v", got, want)
+	}
+	if got := st.RecordedAwardFinalists(AwardNorris); len(got) != 0 {
+		t.Errorf("RecordedAwardFinalists(norris) = %v, want empty", got)
+	}
+}
+
+func TestPlayersShouldReturnEveryPlayer(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase)
+
+	got := st.Players()
+	if len(got) != 2 || got[0].ID != "basti" || got[1].ID != "kim" {
+		t.Errorf("Players = %v, want basti and kim", got)
+	}
+}
+
+func TestPredictionsForPlayerShouldReturnOnlyThatPlayersRows(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase)
+
+	got := st.PredictionsForPlayer("basti")
+	if len(got) != 1 || got[0].ID != "p1" {
+		t.Errorf("PredictionsForPlayer(basti) = %v, want only p1", got)
+	}
+	if got := st.PredictionsForPlayer("ghost"); len(got) != 0 {
+		t.Errorf("PredictionsForPlayer(ghost) = %v, want none", got)
+	}
+}
+
+func TestResultReadMethodsShouldReturnCopiesThatDoNotAliasTheStore(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	playoffs, _ := st.DivisionResult("Atlantic")
+	playoffs[0] = "XXX"
+	finalists := st.RecordedAwardFinalists(AwardHart)
+	finalists[0] = "xxx"
+	players := st.Players()
+	players[0].ID = "xxx"
+	predictions := st.PredictionsForPlayer("basti")
+	predictions[0].TeamIDs[0] = "XXX"
+
+	if again, _ := st.DivisionResult("Atlantic"); again[0] != "FLA" {
+		t.Errorf("DivisionResult aliased internal state: got %v", again)
+	}
+	if again := st.RecordedAwardFinalists(AwardHart); again[0] != "mcdavid-connor" {
+		t.Errorf("RecordedAwardFinalists aliased internal state: got %v", again)
+	}
+	if again := st.Players(); again[0].ID != "basti" {
+		t.Errorf("Players aliased internal state: got %v", again)
+	}
+	if again := st.PredictionsForPlayer("basti"); again[0].TeamIDs[0] != "FLA" {
+		t.Errorf("PredictionsForPlayer aliased internal state: got %v", again)
+	}
+}
+
+func TestResultProblemsShouldReportEachMalformedEntryAndIgnoreIt(t *testing.T) {
+	tests := []struct {
+		name    string
+		results string
+		want    string
+		check   func(*Store) bool
+	}{
+		{
+			name:    "unknown playoff team",
+			results: "results:\n    team_marks:\n        atlantic: {playoffs: [FLA, XXX], division_winner: FLA}\n",
+			want:    "XXX",
+			check:   func(st *Store) bool { p, _ := st.DivisionResult("Atlantic"); return slices.Equal(p, []string{"FLA"}) },
+		},
+		{
+			name:    "unknown division winner",
+			results: "results:\n    team_marks:\n        atlantic: {playoffs: [FLA], division_winner: XXX}\n",
+			want:    "XXX",
+			check:   func(st *Store) bool { _, w := st.DivisionResult("Atlantic"); return w == "" },
+		},
+		{
+			name:    "unknown division",
+			results: "results:\n    team_marks:\n        northeast: {playoffs: [FLA]}\n",
+			want:    "northeast",
+			check:   func(*Store) bool { return true },
+		},
+		{
+			name:    "unknown presidents trophy team",
+			results: "results:\n    presidents_trophy: XXX\n",
+			want:    "XXX",
+			check:   func(st *Store) bool { return st.PresidentsTrophyWinner() == "" },
+		},
+		{
+			name:    "unknown stanley cup team",
+			results: "results:\n    stanley_cup_winner: XXX\n",
+			want:    "XXX",
+			check:   func(st *Store) bool { return st.StanleyCupWinner() == "" },
+		},
+		{
+			name:    "unknown round",
+			results: "results:\n    series:\n        round9:\n            s1: {winner: FLA, games: 5}\n",
+			want:    "round9",
+			check:   func(*Store) bool { return true },
+		},
+		{
+			name:    "series key without a matchup",
+			results: "results:\n    series:\n        round1:\n            s7: {winner: FLA, games: 5}\n",
+			want:    "s7",
+			check:   func(st *Store) bool { _, _, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s7")); return !ok },
+		},
+		{
+			name:    "unknown series winner",
+			results: "results:\n    series:\n        round1:\n            s1: {winner: XXX, games: 5}\n",
+			want:    "XXX",
+			check:   func(st *Store) bool { _, _, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1")); return !ok },
+		},
+		{
+			name:    "games outside 4-7",
+			results: "results:\n    series:\n        round1:\n            s1: {winner: FLA, games: 3}\n",
+			want:    "games",
+			check:   func(st *Store) bool { _, _, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1")); return !ok },
+		},
+		{
+			name:    "playoff team from another division",
+			results: "results:\n    team_marks:\n        atlantic: {playoffs: [FLA, EDM], division_winner: FLA}\n",
+			want:    "EDM",
+			check:   func(st *Store) bool { p, _ := st.DivisionResult("Atlantic"); return slices.Equal(p, []string{"FLA"}) },
+		},
+		{
+			name:    "division winner from another division",
+			results: "results:\n    team_marks:\n        atlantic: {playoffs: [FLA], division_winner: EDM}\n",
+			want:    "EDM",
+			check:   func(st *Store) bool { _, w := st.DivisionResult("Atlantic"); return w == "" },
+		},
+		{
+			name:    "series winner not in the matchup",
+			results: "results:\n    series:\n        round1:\n            s1: {winner: BOS, games: 5}\n",
+			want:    "BOS",
+			check:   func(st *Store) bool { _, _, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1")); return !ok },
+		},
+		{
+			name:    "unknown award",
+			results: "award_finalists:\n    selke:\n        - {slug: mcdavid-connor, display_name: Connor McDavid}\n",
+			want:    "selke",
+			check:   func(st *Store) bool { return len(st.RecordedAwardFinalists("selke")) == 0 },
+		},
+		{
+			name:    "unknown finalist slug",
+			results: "award_finalists:\n    hart:\n        - {slug: mcdavid-connor, display_name: Connor McDavid}\n        - {slug: nobody-here, display_name: Nobody}\n",
+			want:    "nobody-here",
+			check: func(st *Store) bool {
+				return slices.Equal(st.RecordedAwardFinalists(AwardHart), []string{"mcdavid-connor"})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st, _ := newResultsStore(t, resultsFixtureBase+tt.results)
+
+			problems := st.ResultProblems()
+			if len(problems) != 1 || !strings.Contains(problems[0], tt.want) {
+				t.Errorf("ResultProblems = %v, want exactly one mentioning %q", problems, tt.want)
+			}
+			if !tt.check(st) {
+				t.Error("expected the malformed entry to be ignored by the read methods")
+			}
+		})
+	}
+}
+
+func TestResultProblemsShouldReportNothingForAWellFormedFile(t *testing.T) {
+	st, _ := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	if got := st.ResultProblems(); len(got) != 0 {
+		t.Errorf("ResultProblems = %v, want none", got)
+	}
+}
+
+func TestSavingAPredictionShouldPreserveTheHandRecordedResults(t *testing.T) {
+	st, path := newResultsStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+	reopened, err := New(path)
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	if got := reopened.StanleyCupWinner(); got != "FLA" {
+		t.Errorf("StanleyCupWinner after a save = %q, want FLA", got)
+	}
+	if got := reopened.RecordedAwardFinalists(AwardHart); len(got) != 4 {
+		t.Errorf("RecordedAwardFinalists after a save = %v, want 4 slugs", got)
+	}
+}
+
+func TestSavingAPredictionShouldNotAddAResultsSectionToAFileWithoutOne(t *testing.T) {
+	st, path := newResultsStore(t, resultsFixtureBase)
+
+	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read data file: %v", err)
+	}
+
+	for _, section := range []string{"results:", "award_finalists:"} {
+		if strings.Contains(string(raw), section) {
+			t.Errorf("expected no %q section to be written, got:\n%s", section, raw)
+		}
+	}
+}
+
+func TestSeriesResultShouldNormalizeAHandEditedGameCount(t *testing.T) {
+	for _, games := range []string{"05", "+5"} {
+		seed := resultsFixtureBase + "results:\n    series:\n        round1:\n            s1: {winner: FLA, games: " + games + "}\n"
+		st, _ := newResultsStore(t, seed)
+
+		_, got, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1"))
+		if !ok || got != "5" {
+			t.Errorf("SeriesResult games for %q = %q, %v, want \"5\", true", games, got, ok)
+		}
+		if problems := st.ResultProblems(); len(problems) != 0 {
+			t.Errorf("ResultProblems for %q = %v, want none", games, problems)
+		}
+	}
+}
+
+func TestResultProblemsShouldAcceptEitherMatchupTeamAsSeriesWinner(t *testing.T) {
+	for _, winner := range []string{"FLA", "TOR"} {
+		seed := resultsFixtureBase + "results:\n    series:\n        round1:\n            s1: {winner: " + winner + ", games: 5}\n"
+		st, _ := newResultsStore(t, seed)
+
+		if problems := st.ResultProblems(); len(problems) != 0 {
+			t.Errorf("ResultProblems for winner %q = %v, want none", winner, problems)
+		}
+		if got, _, ok := st.SeriesResult(JoinSeriesKey(Round1SetID, "s1")); !ok || got != winner {
+			t.Errorf("SeriesResult winner = %q, %v, want %q, true", got, ok, winner)
+		}
+	}
+}
+
+func TestResultProblemsShouldAcceptTeamMarksFromTheirOwnDivision(t *testing.T) {
+	seed := resultsFixtureBase + "results:\n    team_marks:\n        atlantic: {playoffs: [FLA, TOR, BOS], division_winner: BOS}\n        pacific: {playoffs: [EDM], division_winner: EDM}\n"
+	st, _ := newResultsStore(t, seed)
+
+	if problems := st.ResultProblems(); len(problems) != 0 {
+		t.Errorf("ResultProblems = %v, want none", problems)
+	}
+	if playoffs, winner := st.DivisionResult("Pacific"); !slices.Equal(playoffs, []string{"EDM"}) || winner != "EDM" {
+		t.Errorf("DivisionResult(Pacific) = %v, %q, want [EDM], EDM", playoffs, winner)
 	}
 }

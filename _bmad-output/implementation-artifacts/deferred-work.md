@@ -79,3 +79,16 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-epic-3-retro-item-22-hoist-acceptance-test-helpers.md`
   summary: `theCanonicalTeamListIncludes` and its `{id, name, division}` team-fixture struct are still duplicated between `cup_and_presidents_picks_steps_test.go` and `playoffs_cup_pick_steps_test.go` - only their `sampleTeamNames` lookup map was hoisted.
   evidence: Verified real (blind-hunter), but pre-existing and not among the helpers the item-22 Intent names; hoisting needs a shared fixture type in `fixture_support_test.go`. Worth doing before an Epic 4 step file adds a third copy.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-automatic-scoring-engine.md`
+  summary: A misspelled key in the hand-maintained results or award_finalists section (e.g. `stanley_cup_winer`) is silently ignored with no startup warning.
+  evidence: yaml.v3 lenient decoding drops unknown fields. A probe showed the value loads as empty with a nil error. The user chose to defer this to story 7-3 on 2026-09-25.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-automatic-scoring-engine.md`
+  summary: A wrongly shaped results entry (e.g. `playoffs: FLA` instead of a list) makes store.New fail and the app refuse to start, rather than warning.
+  evidence: A probe confirmed "cannot unmarshal !!str `FLA` into []string". Any fix must not drop the hand-recorded results on the next save. The user chose to defer this to story 7-3 on 2026-09-25.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-automatic-scoring-engine.md`
+  summary: Hand edits to results made while the app runs are overwritten by the next prediction save.
+  evidence: writeLocked marshals the in-memory doc loaded at startup. This is pre-existing for every hand-maintained section (AD-27), and the playoffs runbook (Epic 3 retro item 21) should say to stop the app before editing.
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-automatic-scoring-engine.md`
+  summary: No test proves run() routes store opening through openStore, so the startup malformed-result warning could silently disappear.
+  evidence: The openStore tests call it directly, and nothing exercises run(). Reverting run() to store.New passes every test.

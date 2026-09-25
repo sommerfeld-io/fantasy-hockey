@@ -60,6 +60,20 @@ func resolveConfig(args []string) (config, error) {
 	return config{port: *port, dataFile: resolvedDataFile, secret: secret}, nil
 }
 
+// openStore opens the data file and logs one warning per malformed
+// hand-recorded result (store.ResultProblems). A bad result never stops
+// startup: the store ignores it, so it simply scores nothing.
+func openStore(path string, logger *slog.Logger) (*store.Store, error) {
+	st, err := store.New(path)
+	if err != nil {
+		return nil, fmt.Errorf("open data file %s: %w", path, err)
+	}
+	for _, problem := range st.ResultProblems() {
+		logger.Warn("malformed result in data file", "file", path, "problem", problem)
+	}
+	return st, nil
+}
+
 func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -69,9 +83,9 @@ func run() error {
 		return err
 	}
 
-	st, err := store.New(cfg.dataFile)
+	st, err := openStore(cfg.dataFile, slog.Default())
 	if err != nil {
-		return fmt.Errorf("open data file %s: %w", cfg.dataFile, err)
+		return err
 	}
 
 	send := mailer.NewSMTPSender(

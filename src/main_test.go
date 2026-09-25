@@ -1,6 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/server"
@@ -106,5 +111,48 @@ func TestResolveConfigShouldReturnAnErrorWhenSessionSecretIsWhitespaceOnly(t *te
 
 	if _, err := resolveConfig(nil); err == nil {
 		t.Fatal("expected an error when SESSION_SECRET is whitespace-only, got nil")
+	}
+}
+
+func TestOpenStoreShouldWarnAboutAMalformedResultAndStillSucceed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	seed := "season: \"2026-27\"\nresults:\n    stanley_cup_winner: XXX\n"
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	st, err := openStore(path, logger)
+
+	if err != nil || st == nil {
+		t.Fatalf("openStore = %v, %v, want a store and no error", st, err)
+	}
+	if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), "XXX") {
+		t.Errorf("expected a warning naming the bad entry, got %q", logs.String())
+	}
+}
+
+func TestOpenStoreShouldNotWarnForAWellFormedFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	if _, err := openStore(path, logger); err != nil {
+		t.Fatalf("openStore returned error: %v", err)
+	}
+	if logs.Len() != 0 {
+		t.Errorf("expected no log output, got %q", logs.String())
+	}
+}
+
+func TestOpenStoreShouldReturnAnErrorForAnUnreadableFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	if err := os.WriteFile(path, []byte("not: valid: yaml: at all"), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+
+	if _, err := openStore(path, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))); err == nil {
+		t.Fatal("expected an error for invalid YAML, got nil")
 	}
 }
