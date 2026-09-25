@@ -29,6 +29,16 @@ login_codes:
       code_hash: 75001245620fabeb54d5702eef83b7b5b24f485c98aa95e75563accbe77cd8e3
       issued_at: "2026-09-24T18:42:14Z"
       used_at: "2026-09-24T18:42:19Z"
+    - id: c70ddf43-3ced-4a74-9f4b-132a4a48178e
+      player_id: sebastian
+      code_hash: 6f05cdb4a4c6163677d235359c00c8f8f93fcfb27487a2806ce52fda25393bbe
+      issued_at: "2026-09-25T10:05:35Z"
+      used_at: "2026-09-25T10:05:40Z"
+    - id: d73fda6c-dc06-41c4-a562-88d18ccb04b0
+      player_id: sebastian
+      code_hash: d0f539a6daf9bbee74493d05fbb00bd3cf52b436d15a6d808ba0a4df78713e52
+      issued_at: "2026-09-25T10:13:11Z"
+      used_at: "2026-09-25T10:13:20Z"
 prediction_sets:
     - id: cup
       title: Cup champion
@@ -260,11 +270,11 @@ predictions:
       submitted_at: "2026-09-18T08:05:30Z"
       division: Atlantic
       team_ids:
-          - BUF
-          - DET
-          - FLA
-          - MTL
-          - TOR
+        - BUF
+        - DET
+        - FLA
+        - MTL
+        - TOR
     - id: ef2d1407-ef66-4e7a-9c43-197a40f417f7
       player_id: sebastian
       kind: division_playoff_teams
@@ -272,9 +282,9 @@ predictions:
       submitted_at: "2026-09-18T08:05:30Z"
       division: Metropolitan
       team_ids:
-          - CAR
-          - PHI
-          - WSH
+        - CAR
+        - PHI
+        - WSH
     - id: 11975f61-9cf6-40b0-bf2a-d5b36abac7f2
       player_id: sebastian
       kind: division_playoff_teams
@@ -282,9 +292,9 @@ predictions:
       submitted_at: "2026-09-18T08:05:30Z"
       division: Central
       team_ids:
-          - COL
-          - MIN
-          - NSH
+        - COL
+        - MIN
+        - NSH
     - id: 9b121845-7a02-4e2e-b74b-3a65568f6954
       player_id: sebastian
       kind: division_playoff_teams
@@ -292,11 +302,11 @@ predictions:
       submitted_at: "2026-09-18T08:05:30Z"
       division: Pacific
       team_ids:
-          - ANA
-          - CGY
-          - LAK
-          - SJS
-          - VGK
+        - ANA
+        - CGY
+        - LAK
+        - SJS
+        - VGK
     - id: 9c82314e-c0c9-4004-838d-2f6dab6fc34f
       player_id: sebastian
       kind: division_winner
@@ -328,6 +338,6 @@ predictions:
       submitted_at: "2026-09-24T18:43:17Z"
       award: hart
       finalist_slugs:
-          - mcdavid-connor
-          - mackinnon-nathan
-          - kucherov-nikita
+        - mcdavid-connor
+        - mackinnon-nathan
+        - kucherov-nikita
