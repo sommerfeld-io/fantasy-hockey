@@ -4,8 +4,9 @@
   a pinned header, a single scrolling content region, and pinned bottom
   nav. Mounted on GET /{$} (aliased to Predict), /predict, /leaderboard,
   and /compare. Predict renders its real, phase-grouped Prediction Set
-  lists (.Predict, Story 2.1); Leaderboard/Compare still render a short
-  static "Coming soon" .Message - Epics 4/5 build their real content.
+  lists (.Predict, Story 2.1); Leaderboard renders the ranked standings
+  (.Leaderboard, Story 4.2); Compare still renders a short static "Coming
+  soon" .Message - Epic 5 builds its real content.
 */}}
 {{/*
   predict-row renders one predictSetView (internal/web.go): an actionable
@@ -14,6 +15,19 @@
   link (AC: "Upcoming... is not a link"). Status/countdown text and CSS
   classes are all precomputed - this template never computes them.
 */}}
+{{/*
+  leaderboard-row renders one leaderboardRowView (leaderboard.go). Rank,
+  points and the gold leader classes are all precomputed; no row is ever
+  marked as the signed-in player's own.
+*/}}
+{{define "leaderboard-row"}}
+<tr id="leaderboard-row-{{.PlayerID}}" class="lb-row">
+<td class="lb-player"><span class="lb-player-cell"><span class="{{.BadgeCSS}}">{{.Rank}}</span><span class="lb-name">{{.Name}}</span></span></td>
+<td class="lb-num">{{.Regular}}</td>
+<td class="lb-num">{{.Playoff}}</td>
+<td class="{{.TotalCSS}}">{{.Total}}</td>
+</tr>
+{{end}}
 {{define "predict-row"}}
 {{if .Actionable}}<a id="predict-row-{{.ID}}" href="/predict/{{.ID}}" class="set-row {{.AccentCSS}}">{{else}}<div id="predict-row-{{.ID}}" class="set-row {{.AccentCSS}}">{{end}}<span class="set-row-body">
 <span class="set-row-title-line"><span class="set-row-title">{{.Title}}</span><span class="status-pill {{.StatusPillCSS}}">{{.Status}}</span></span>
@@ -49,6 +63,20 @@
     <section class="predict-section">
       <div class="section-header"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 4h8v4a4 4 0 0 1-8 0V4z"/><path d="M8 5H5a2 2 0 0 0 2 4"/><path d="M16 5h3a2 2 0 0 1-2 4"/><path d="M12 12v3"/><path d="M9 19h6"/><path d="M10 15h4l.5 2a1 1 0 0 1-1 2h-3a1 1 0 0 1-1-2z"/></svg><span>Playoffs</span></div>
       {{range .Predict.Playoffs}}{{template "predict-row" .}}{{end}}
+    </section>
+    {{else if .Leaderboard}}
+    <section class="leaderboard">
+      <div class="section-header"><svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 3L7 9M15 3l2 6"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.9 1.8 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z"/></svg><span>Leaderboard</span></div>
+      <p class="lb-caption">Ranked by total points.</p>
+      <table class="lb-table">
+        <thead>
+          <tr><th scope="col" class="lb-head-player">Player</th><th scope="col" class="lb-head-num">Regular</th><th scope="col" class="lb-head-num">Playoff</th><th scope="col" class="lb-head-total">Total</th></tr>
+        </thead>
+        <tbody>
+          {{range .Leaderboard.Rows}}{{template "leaderboard-row" .}}{{end}}
+        </tbody>
+      </table>
+      <p class="lb-footer">Regular-season picks feed the Regular column, playoff-round picks feed Playoff, and Total is what decides the standings.</p>
     </section>
     {{else}}
     <p class="coming-soon">{{.Message}}</p>

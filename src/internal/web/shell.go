@@ -26,13 +26,12 @@ var tabTitles = map[string]string{
 }
 
 // tabMessages is each remaining placeholder tab's short, unique "Coming
-// soon" message - Epics 4/5 replace these with real functionality. Predict
-// no longer has an entry: Story 2.1 replaced its placeholder with the real
-// phase-grouped Prediction Set lists (shellData.Predict), so handleShell
-// never looks this map up for tabPredict.
+// soon" message - Epic 5 replaces Compare's with real functionality.
+// Predict and Leaderboard no longer have an entry: Stories 2.1 and 4.2
+// replaced their placeholders with real content (shellData.Predict and
+// shellData.Leaderboard).
 var tabMessages = map[string]string{
-	tabLeaderboard: "The leaderboard is coming soon.",
-	tabCompare:     "Player comparison is coming soon.",
+	tabCompare: "Player comparison is coming soon.",
 }
 
 // shellData feeds templates/shell.html. PlayerName is empty when the
@@ -40,16 +39,17 @@ var tabMessages = map[string]string{
 // stale/deleted id) - the header then degrades to a neutral state instead
 // of a 500 or panic. Season is already presentation-formatted (e.g. "NHL
 // 2026–27"); ActiveTab selects which bottom-nav tab renders active; Title is
-// every tab's page title. Message is Leaderboard/Compare's static
-// placeholder content and stays empty for Predict; Predict is nil for every
-// other tab and holds Predict's real, phase-grouped content instead.
+// every tab's page title. Message is Compare's static placeholder content
+// and stays empty for the other tabs. Predict and Leaderboard are nil except
+// on their own tab, where they hold that tab's real content.
 type shellData struct {
-	PlayerName string
-	Season     string
-	ActiveTab  string
-	Title      string
-	Message    string
-	Predict    *predictPhases
+	PlayerName  string
+	Season      string
+	ActiveTab   string
+	Title       string
+	Message     string
+	Predict     *predictPhases
+	Leaderboard *leaderboardView
 }
 
 // formatSeason turns the store's raw season value (e.g. "2026-27") into the
@@ -62,7 +62,8 @@ func formatSeason(season string) string {
 // handleShell renders the persistent app shell for tab: a pinned header
 // (player name + season + logout control), a pinned bottom nav with tab
 // active, and that tab's content - Predict's real, phase-grouped Prediction
-// Set lists, or Leaderboard/Compare's short static "Coming soon" message.
+// Set lists, the Leaderboard's ranked standings (recomputed on every
+// request), or Compare's short static "Coming soon" message.
 // The player id comes from the request context requireSession populates; a
 // stale/deleted id with no matching player left in st degrades to an empty
 // PlayerName (a neutral, non-crashing header) rather than a 500 or panic,
@@ -90,6 +91,10 @@ func handleShell(st *store.Store, tab string) http.HandlerFunc {
 		if tab == tabPredict {
 			phases := buildPredictPhases(st, playerID, clock.NowTime())
 			data.Predict = &phases
+		}
+		if tab == tabLeaderboard {
+			board := buildLeaderboard(st)
+			data.Leaderboard = &board
 		}
 
 		renderTemplate(w, "shell.html", data)

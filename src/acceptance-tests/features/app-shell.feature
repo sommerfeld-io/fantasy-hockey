@@ -11,11 +11,12 @@ Feature: Persistent App Shell With Player Identity and Navigation
     Then the shell shows the player's name "Basti"
     And the shell shows the season "NHL 2026–27"
     And the shell shows "Predict" as the active tab
+    And the shell shows the Predict content
 
   Scenario: The Leaderboard destination shows the shell with Leaderboard active
     When the player visits the Leaderboard destination
     Then the shell shows "Leaderboard" as the active tab
-    And the shell shows the Leaderboard placeholder content
+    And the shell shows the Leaderboard content
 
   Scenario: The Compare destination shows the shell with Compare active
     When the player visits the Compare destination

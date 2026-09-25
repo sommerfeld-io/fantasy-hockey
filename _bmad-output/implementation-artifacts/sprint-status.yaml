@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-25-2026 11:19
+last_updated: 09-25-2026 11:50
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -60,7 +60,7 @@ development_status:
 
   epic-4: in-progress
   4-1-automatic-scoring-engine: done
-  4-2-leaderboard-display: backlog
+  4-2-leaderboard-display: review
   epic-4-retrospective: optional
 
   epic-5: backlog
@@ -183,7 +183,7 @@ action_items:
     action: "Add \"And the shell shows the Predict content\" to app-shell.feature's
       \"The Predict destination shows the shell with Predict active\" scenario"
     owner: "dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-2-retro-2026-09-18.md"
   - id: "epic-2-retro-item-15-fix-testpredictshouldshowaclosedpillandc"
     epic: 2
@@ -253,7 +253,7 @@ action_items:
     action: "Carry open retrospective action items into the next epic context file
       as explicit tasks (epic-2 items 11-16 and 18 went through Epic 3 untouched)"
     owner: "Sprint planning / epic context owner"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-3-retro-2026-09-24.md"
   - id: "epic-3-retro-item-24-reconcile-specs-to-as-built-epics-md-sto"
     epic: 3

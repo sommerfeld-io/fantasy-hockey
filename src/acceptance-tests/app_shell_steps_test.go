@@ -159,14 +159,13 @@ func (s *appShellScenarioState) theShellShowsAsTheActiveTab(tab string) error {
 	return nil
 }
 
-// theShellShowsThePlaceholderContent asserts Leaderboard/Compare's static
-// "Coming soon" content - Predict has no placeholder left to assert here
-// since Story 2.1 replaced it with real content, covered by
-// browse-prediction-sets.feature instead.
+// theShellShowsThePlaceholderContent asserts Compare's static "Coming
+// soon" content - Predict and Leaderboard have no placeholder left to
+// assert here since Stories 2.1 and 4.2 replaced them with real content,
+// covered by browse-prediction-sets.feature and leaderboard.feature.
 func (s *appShellScenarioState) theShellShowsThePlaceholderContent(tab string) error {
 	fragments := map[string]string{
-		"Leaderboard": "The leaderboard is coming soon.",
-		"Compare":     "Player comparison is coming soon.",
+		"Compare": "Player comparison is coming soon.",
 	}
 	fragment, ok := fragments[tab]
 	if !ok {
@@ -185,6 +184,19 @@ func (s *appShellScenarioState) theShellShowsThePlaceholderContent(tab string) e
 func (s *appShellScenarioState) theShellShowsThePredictContent() error {
 	if !strings.Contains(s.lastBody, "Before the season") {
 		return fmt.Errorf("expected the shell to show the Predict content, got %q", s.lastBody)
+	}
+	return nil
+}
+
+// theShellShowsTheLeaderboardContent is a smoke check that /leaderboard
+// serves the real Leaderboard (Story 4.2) - its caption and the seeded
+// player's row - rather than the old placeholder. leaderboard.feature
+// covers the ranking itself.
+func (s *appShellScenarioState) theShellShowsTheLeaderboardContent() error {
+	for _, want := range []string{"Ranked by total points.", `id="leaderboard-row-` + appShellPlayerID + `"`} {
+		if !strings.Contains(s.lastBody, want) {
+			return fmt.Errorf("expected the shell to show the Leaderboard content %q, got %q", want, s.lastBody)
+		}
 	}
 	return nil
 }
@@ -250,7 +262,8 @@ func InitializeAppShellScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the shell shows the player's name "([^"]*)"$`, s.theShellShowsThePlayersName)
 	ctx.Step(`^the shell shows the season "([^"]*)"$`, s.theShellShowsTheSeason)
 	ctx.Step(`^the shell shows "([^"]*)" as the active tab$`, s.theShellShowsAsTheActiveTab)
-	ctx.Step(`^the shell shows the (Leaderboard|Compare) placeholder content$`, s.theShellShowsThePlaceholderContent)
+	ctx.Step(`^the shell shows the (Compare) placeholder content$`, s.theShellShowsThePlaceholderContent)
+	ctx.Step(`^the shell shows the Leaderboard content$`, s.theShellShowsTheLeaderboardContent)
 	ctx.Step(`^the shell shows the Predict content$`, s.theShellShowsThePredictContent)
 	ctx.Step(`^every visited destination showed the player's name "([^"]*)"$`, s.everyVisitedDestinationShowedThePlayersName)
 	ctx.Step(`^the player uses the shell's logout control$`, s.thePlayerUsesTheShellsLogoutControl)

@@ -50,6 +50,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeAwardFinalistsScenario(ctx)
 			InitializeSeriesPredictionsScenario(ctx)
 			InitializeAutomaticScoringScenario(ctx)
+			InitializeLeaderboardScenario(ctx)
 		},
 		Options: &opts,
 	}
