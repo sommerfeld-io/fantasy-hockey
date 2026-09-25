@@ -130,6 +130,8 @@ func TestPlayerPointsShouldScoreEachRule(t *testing.T) {
 		{"a series recorded for another round earns nothing", []string{seriesPick(store.Round2SetID, "FLA", "5")}, seriesResult("round1", "FLA", "5"), Points{}},
 		{"a series row with a malformed key earns nothing", []string{pick("kind: series, series_key: s1, team_id: FLA, games: \"5\"")}, seriesResult("round1", "FLA", "5"), Points{}},
 		{"a series row for an unknown round earns nothing", []string{pick("kind: series, series_key: r9.s1, team_id: FLA, games: \"5\"")}, seriesResult("round1", "FLA", "5"), Points{}},
+		{"a hand-edited pick games: 05 still scores exact", []string{seriesPick(store.Round1SetID, "FLA", "05")}, seriesResult("round1", "FLA", "5"), Points{Playoff: 25}},
+		{"a non-numeric pick game count earns only the winner value", []string{seriesPick(store.Round1SetID, "FLA", "five")}, seriesResult("round1", "FLA", "5"), Points{Playoff: 15}},
 		{"a hand-edited games: 05 still scores exact", []string{seriesPick(store.Round1SetID, "FLA", "5")}, seriesResult("round1", "FLA", "05"), Points{Playoff: 25}},
 		{"empty cup, presidents and playoffs Cup picks score nothing", []string{pick(`kind: cup, team_id: ""`), pick(`kind: presidents, team_id: ""`), pick(`kind: playoffcup, team_id: ""`)}, "", Points{}},
 		{"an award row with no finalist slugs scores nothing", []string{pick("kind: award, award: hart, finalist_slugs: []")}, hartWithATie, Points{}},

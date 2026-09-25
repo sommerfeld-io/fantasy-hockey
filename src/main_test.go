@@ -116,7 +116,7 @@ func TestResolveConfigShouldReturnAnErrorWhenSessionSecretIsWhitespaceOnly(t *te
 
 func TestOpenStoreShouldWarnAboutAMalformedResultAndStillSucceed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), store.DataFileName)
-	seed := "season: \"2026-27\"\nresults:\n    stanley_cup_winner: XXX\n"
+	seed := "season: \"2026-27\"\nresults:\n    presidents_trophy: YYY\n    stanley_cup_winner: XXX\n"
 	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
@@ -131,10 +131,17 @@ func TestOpenStoreShouldWarnAboutAMalformedResultAndStillSucceed(t *testing.T) {
 	if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), "XXX") {
 		t.Errorf("expected a warning naming the bad entry, got %q", logs.String())
 	}
+	if got := strings.Count(logs.String(), "level=WARN"); got != 2 {
+		t.Errorf("expected one warning per bad entry (2), got %d in %q", got, logs.String())
+	}
 }
 
 func TestOpenStoreShouldNotWarnForAWellFormedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), store.DataFileName)
+	seed := "season: \"2026-27\"\nteams:\n    - {id: FLA, name: Florida Panthers, conference: Eastern, division: Atlantic}\nresults:\n    presidents_trophy: FLA\n    stanley_cup_winner: FLA\n"
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 

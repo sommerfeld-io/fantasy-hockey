@@ -228,42 +228,88 @@ func (s *automaticScoringScenarioState) recordedPresidentsTrophyWinner(team stri
 // playoffs Cup pick and every series of every round, each pick matching its
 // recorded result exactly.
 func (s *automaticScoringScenarioState) pickedEverythingCorrectly() error {
-	var winners []string
+	champion := fmt.Sprintf("%c01", store.Divisions()[0][0])
+	return runAll(
+		s.pickedAllDivisionsCorrectly,
+		s.pickedAllAwardsCorrectly,
+		func() error { return s.pickedAllTrophiesCorrectly(champion) },
+		func() error { return s.pickedAllSeriesCorrectly(champion) },
+	)
+}
+
+// runAll runs each step in order and stops at the first error.
+func runAll(steps ...func() error) error {
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// pickedAllDivisionsCorrectly picks and records four playoff teams per
+// division, the first of them as the division winner.
+func (s *automaticScoringScenarioState) pickedAllDivisionsCorrectly() error {
 	for _, division := range store.Divisions() {
 		teams := make([]string, 4)
 		for i := range teams {
 			teams[i] = fmt.Sprintf("%c%02d", division[0], i+1)
 		}
-		winners = append(winners, teams[0])
-		if err := s.pickedPlayoffTeams(strings.Join(teams, ","), division); err != nil {
+		list := strings.Join(teams, ",")
+		if err := runAll(
+			func() error { return s.pickedPlayoffTeams(list, division) },
+			func() error { return s.pickedDivisionWinner(teams[0], division) },
+			func() error { return s.recordedPlayoffTeams(division, list) },
+			func() error { return s.recordedDivisionWinner(division, teams[0]) },
+		); err != nil {
 			return err
 		}
-		_ = s.pickedDivisionWinner(teams[0], division)
-		_ = s.recordedPlayoffTeams(division, strings.Join(teams, ","))
-		_ = s.recordedDivisionWinner(division, teams[0])
 	}
+	return nil
+}
 
+// pickedAllAwardsCorrectly picks and records the same finalist trio for
+// every award.
+func (s *automaticScoringScenarioState) pickedAllAwardsCorrectly() error {
 	for _, award := range []string{store.AwardHart, store.AwardNorris, store.AwardVezina, store.AwardArtRoss, store.AwardRocketRichard} {
 		trio := fmt.Sprintf("%s-a,%s-b,%s-c", award, award, award)
-		_ = s.pickedFinalists(trio, award)
-		_ = s.recordedFinalists(award, trio)
+		if err := runAll(
+			func() error { return s.pickedFinalists(trio, award) },
+			func() error { return s.recordedFinalists(award, trio) },
+		); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
-	champion := winners[0]
+// pickedAllTrophiesCorrectly picks champion for the Cup, Presidents' Trophy
+// and playoffs Cup picks and records it as both trophy winners.
+func (s *automaticScoringScenarioState) pickedAllTrophiesCorrectly(champion string) error {
 	for _, kind := range []string{store.KindCupChampion, store.KindPresidentsTrophy, store.KindPlayoffsCup} {
-		_ = s.pickedTeamFor(champion, kind)
+		if err := s.pickedTeamFor(champion, kind); err != nil {
+			return err
+		}
 	}
-	_ = s.recordedStanleyCupWinner(champion)
-	_ = s.recordedPresidentsTrophyWinner(champion)
+	return runAll(
+		func() error { return s.recordedStanleyCupWinner(champion) },
+		func() error { return s.recordedPresidentsTrophyWinner(champion) },
+	)
+}
 
+// pickedAllSeriesCorrectly picks and records champion in 5 games for every
+// series of every round.
+func (s *automaticScoringScenarioState) pickedAllSeriesCorrectly(champion string) error {
 	seriesPerRound := map[string]int{"round 1": 8, "round 2": 4, "round 3": 2, "round 4": 1}
 	for roundName, count := range seriesPerRound {
 		for i := 1; i <= count; i++ {
 			key := fmt.Sprintf("s%d", i)
-			if err := s.pickedSeries(champion, "5", key, roundName); err != nil {
+			if err := runAll(
+				func() error { return s.pickedSeries(champion, "5", key, roundName) },
+				func() error { return s.recordedSeries(key, roundName, champion, "5") },
+			); err != nil {
 				return err
 			}
-			_ = s.recordedSeries(key, roundName, champion, "5")
 		}
 	}
 	return nil
@@ -425,13 +471,15 @@ func (s *automaticScoringScenarioState) scoringRunsFor(name string) error {
 }
 
 // scoringRunsBeforeAndAfterACupEdit scores, then hand-edits the recorded
-// Stanley Cup winner and restarts the store (results are loaded at
-// startup), then scores again.
+// Stanley Cup winner and restarts the store, then scores again. Results are
+// loaded only at startup, so a hand edit takes effect after a restart.
 func (s *automaticScoringScenarioState) scoringRunsBeforeAndAfterACupEdit(name, team string) error {
 	if err := s.scoringRunsFor(name); err != nil {
 		return err
 	}
-	_ = s.recordedStanleyCupWinner(team)
+	if err := s.recordedStanleyCupWinner(team); err != nil {
+		return err
+	}
 	st, err := writeSeededStore(s.dataFile, s.seed())
 	if err != nil {
 		return err
@@ -513,7 +561,7 @@ func InitializeAutomaticScoringScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the recorded Presidents' Trophy winner is "([^"]*)"$`, s.recordedPresidentsTrophyWinner)
 	ctx.Step(`^the recorded series "([^"]*)" in "([^"]*)" was won by "([^"]*)" in (\d+) games$`, s.recordedSeries)
 	ctx.Step(`^scoring runs for "([^"]*)"$`, s.scoringRunsFor)
-	ctx.Step(`^scoring runs for "([^"]*)" before and after the recorded Stanley Cup winner is changed by hand to "([^"]*)"$`, s.scoringRunsBeforeAndAfterACupEdit)
+	ctx.Step(`^scoring runs for "([^"]*)" before and after the recorded Stanley Cup winner is changed by hand to "([^"]*)" and the app restarts$`, s.scoringRunsBeforeAndAfterACupEdit)
 	ctx.Step(`^the scoring result is (\d+) Regular points and (\d+) Playoff points$`, s.theScoringResultIs)
 	ctx.Step(`^the scoring results before and after the edit are (\d+) and (\d+) Regular points$`, s.theResultsBeforeAndAfterTheEditAre)
 	ctx.Step(`^the scoring data file is unchanged by scoring$`, s.theDataFileIsUnchangedByScoring)

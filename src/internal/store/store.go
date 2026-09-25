@@ -1086,7 +1086,7 @@ func (s *Store) teamMarkProblemsLocked() []string {
 	for _, division := range sortedKeys(s.doc.Results.TeamMarks) {
 		path := "results.team_marks." + division
 		if !slices.Contains(known, division) {
-			problems = append(problems, fmt.Sprintf("%s: unknown division %q", path, division))
+			problems = append(problems, fmt.Sprintf("%s: unknown division %q (keys are lowercase: %s)", path, division, strings.Join(known, ", ")))
 			continue
 		}
 		name := divisions[slices.Index(known, division)]
@@ -1104,7 +1104,7 @@ func (s *Store) seriesProblemsLocked() []string {
 	for _, round := range sortedKeys(s.doc.Results.Series) {
 		setID, ok := resultRounds[round]
 		if !ok {
-			problems = append(problems, fmt.Sprintf("results.series.%s: unknown round %q", round, round))
+			problems = append(problems, fmt.Sprintf("results.series.%s: unknown round (valid rounds: %s)", round, strings.Join(sortedKeys(resultRounds), ", ")))
 			continue
 		}
 		outcomes := s.doc.Results.Series[round]

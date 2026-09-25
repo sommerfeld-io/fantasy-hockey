@@ -92,3 +92,10 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-1-automatic-scoring-engine.md`
   summary: No test proves run() routes store opening through openStore, so the startup malformed-result warning could silently disappear.
   evidence: The openStore tests call it directly, and nothing exercises run(). Reverting run() to store.New passes every test.
+
+## Deferred from: code review of spec-4-1-automatic-scoring-engine.md (2026-09-25)
+
+- Nothing tests that `run()` in src/main.go goes through `openStore`, so the startup malformed-result warning could silently disappear. `run()` has no test seam.
+- A wrongly shaped results entry (e.g. `playoffs: FLA`) makes store.New fail and the app refuse to start instead of warning. Deferred to story 7-3 by user decision.
+- A misspelled key under `results:` (e.g. `stanley_cup_winer`) is silently ignored with no warning, and it is dropped from the file on the next save. Deferred to story 7-3 by user decision.
+- Every prediction save re-serializes the hand-maintained results and award_finalists sections, which drops comments and unmodelled keys and re-quotes `games`. Reason (user): the Never rule means the app never creates or changes results. Byte and comment preservation belongs to story 7-3.

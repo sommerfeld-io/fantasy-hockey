@@ -10,7 +10,7 @@ The data-access layer: owns all reads and writes to the single `fantasy-hockey.y
 
 ## Results (read-only)
 
-The hand-maintained `results` and `award_finalists` sections record real-world outcomes for `internal/scoring`. No code path changes them, but every save re-marshals the whole document: their values are preserved, while comments, flow style and quoting are not. A file without them loads fine and never gains them.
+The hand-maintained `results` and `award_finalists` sections record real-world outcomes for `internal/scoring`. No code path changes them, but every save re-marshals the whole document: their values are preserved, while comments, flow style and quoting are not. A file without them loads fine and never gains them. The store reads them only at startup: stop the app before editing them by hand and start it again afterwards. An edit made while the app runs is not seen, and the next prediction save overwrites it with the values loaded at startup.
 
 ```yaml
 results:

@@ -61,8 +61,10 @@ func resolveConfig(args []string) (config, error) {
 }
 
 // openStore opens the data file and logs one warning per malformed
-// hand-recorded result (store.ResultProblems). A bad result never stops
-// startup: the store ignores it, so it simply scores nothing.
+// hand-recorded result value (store.ResultProblems). A bad value never stops
+// startup: the store ignores it, so it simply scores nothing. A results
+// entry of the wrong YAML shape (e.g. a scalar where a list belongs) still
+// fails to load and is returned as an error.
 func openStore(path string, logger *slog.Logger) (*store.Store, error) {
 	st, err := store.New(path)
 	if err != nil {

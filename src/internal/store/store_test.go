@@ -1922,7 +1922,7 @@ func TestDivisionsShouldNotBeMutatedByACaller(t *testing.T) {
 }
 
 // resultsFixtureBase is the canonical data every results test builds on:
-// three Atlantic teams, four NHL players and one matchup in round 1 and in
+// three Atlantic teams and one Pacific team, four NHL players and one matchup in round 1 and in
 // the conference finals.
 const resultsFixtureBase = `season: "2026-27"
 players:
@@ -2172,6 +2172,18 @@ func TestResultProblemsShouldReportEachMalformedEntryAndIgnoreIt(t *testing.T) {
 			name:    "unknown division",
 			results: "results:\n    team_marks:\n        northeast: {playoffs: [FLA]}\n",
 			want:    "northeast",
+			check:   func(*Store) bool { return true },
+		},
+		{
+			name:    "capitalised division key names the lowercase keys",
+			results: "results:\n    team_marks:\n        Atlantic: {playoffs: [FLA]}\n",
+			want:    "atlantic",
+			check:   func(*Store) bool { return true },
+		},
+		{
+			name:    "unknown round names the valid rounds",
+			results: "results:\n    series:\n        round9:\n            s1: {winner: FLA, games: 5}\n",
+			want:    "round1",
 			check:   func(*Store) bool { return true },
 		},
 		{

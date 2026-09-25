@@ -89,10 +89,10 @@ Feature: Automatic Scoring
     When scoring runs for "Basti"
     Then the scoring result is 235 Regular points and 500 Playoff points
 
-  Scenario: Scoring is recomputed from the latest results and never writes the data file
+  Scenario: Scoring reflects a hand-edited result after a restart and never writes the data file
     Given the scoring player picked "FLA" for the "cup" pick
     And the recorded Stanley Cup winner is "TOR"
-    When scoring runs for "Basti" before and after the recorded Stanley Cup winner is changed by hand to "FLA"
+    When scoring runs for "Basti" before and after the recorded Stanley Cup winner is changed by hand to "FLA" and the app restarts
     Then the scoring results before and after the edit are 0 and 20 Regular points
     And the scoring data file is unchanged by scoring
 

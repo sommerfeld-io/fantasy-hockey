@@ -95,6 +95,41 @@ context:
 - Given a player with every pick correct and every result recorded, when scoring runs, then Regular and Playoff equal the maximum totals the point table allows.
 - Given `internal/scoring`, when its imports are listed, then it imports `internal/store` and no other `internal/` package.
 
+### Review Findings
+
+Code review of `bb9a7e4` (2026-09-25). Layers: Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor.
+
+- [x] [Review][Defer] Results and award_finalists are re-serialized on every prediction save. Comments and any unmodelled key (such as a misspelled `stanley_cup_winer`) are erased from the file, and unquoted `games: 5` comes back quoted. The frozen Never rule says nothing from the results section is written. Every other hand-maintained section (players, teams, playoff_matchups) already behaves this way. Deferred (user decision): the Never rule means the app never creates or changes results. Preserving comments and unknown keys belongs to story 7-3.
+- [x] [Review][Decision] A division-winner pick earns 5 only if that team is also in the player's own playoff list. The matrix row "Picked TOR as winner; TOR made playoffs but FLA won → 5 for TOR" can be read either way, and the web form doesn't require the winner to be listed. Resolved (user decision): keep the current rule. It scores 0, and no change is needed.
+- [x] [Review][Patch] Say that a hand edit to results only takes effect after a restart and is overwritten if saved while the app runs. Retitle the "Scoring is recomputed from the latest results" scenario to reflect the restart [src/internal/store/README.md, src/acceptance-tests/features/automatic-scoring.feature:92]
+- [x] [Review][Patch] Only the result's game count is normalized, so a hand-edited pick like `games: "05"` loses the exact value. Compare both sides normalized [src/internal/scoring/scoring.go]
+- [x] [Review][Patch] A capitalised `team_marks` key (`Atlantic:`) is reported as "unknown division" with no hint that keys are lowercase. Name the valid keys in the message [src/internal/store/store.go]
+- [x] [Review][Patch] `pickedEverythingCorrectly` and `scoringRunsBeforeAndAfterACupEdit` discard step errors with `_ =` [src/acceptance-tests/automatic_scoring_steps_test.go:241]
+- [x] [Review][Patch] `TestOpenStoreShouldNotWarnForAWellFormedFile` passes a path that doesn't exist, so it never loads a well-formed results section. Also, the malformed test doesn't check that there is one warning per problem [src/main_test.go:136]
+- [x] [Review][Patch] Outdated `resultsFixtureBase` comment ("three Atlantic teams" when EDM/Pacific is also present). The unknown-round message repeats the round name instead of listing round1–round4 [src/internal/store/store_test.go:1925, src/internal/store/store.go:1107]
+- [x] [Review][Patch] The `openStore` doc claims "a bad result never stops startup", but a wrongly shaped entry does stop it [src/main.go:63]
+- [x] [Review][Defer] Nothing tests that `run()` goes through `openStore`, so the startup warning could silently disappear [src/main.go:86]. Deferred: `run()` has no test seam, and it's already in deferred-work from the Build review.
+- [x] [Review][Defer] A wrongly shaped results entry makes the app refuse to start instead of warning [src/internal/store/store.go]. Deferred: the user chose on 2026-09-25 to handle this in story 7-3.
+- [x] [Review][Defer] A misspelled results key is silently ignored with no warning [src/internal/store/store.go]. Deferred: the user chose on 2026-09-25 to handle this in story 7-3. Its removal from the file on the next save is part of the first decision above.
+
+#### Rejected
+
+- Duplicate prediction rows of one kind score twice (blind and edge): low. Only a hand edit of the app-written section can create one, since saves upsert. The fix would add dedupe logic.
+- A team listed twice in the recorded playoffs list: false. Lookups use `slices.Contains`, so it can't score twice.
+- A recorded playoffs list longer than a division's slots: low. Rare, and it would need a new check.
+- division_winner missing from its own playoffs list: false. Treating the recorded winner as a playoff team is deliberate.
+- games recorded without winner (or the reverse) not reported: false. A half-recorded series scoring 0 is the specified behavior.
+- Acceptance fixture builds `a == b` matchups, or drops a third team (blind and edge): low. Test-only, and all current scenarios have at most two teams per series.
+- Seed YAML written in map order: low. Test-only, and the fix is more than a direct correction.
+- Missing acceptance scenarios for R2, SCF, Presidents' Trophy and startup warning values: low. The maximum-season scenario and unit tests cover them.
+- `AwardFinalist.Position` omitempty changes nhl_players output: false. Every nhl_players entry has a position.
+- No consistent store snapshot in `PlayerPoints`: low. The pool is small. Revisit in 4-2 if it matters.
+- Duplicate `playoff_matchups` keys in one set: low. That shows up loudly as a "winner not in matchup" warning.
+- `PlayerPoints(nil)` panics: false. That's a programmer error, and failing loudly is correct.
+- Result-problem steps with no earlier scoring step: false. Every scenario runs "scoring runs" first.
+- Feature lists written with spaces after commas: false. No current scenario does that.
+- Implementation adds rules the spec doesn't list: rejected, because the fix would be to edit the spec under review. These rules were approved in the Build review triage (#4, #5).
+
 ## Implementation Notes
 
 ## Spec Change Log

@@ -7,6 +7,7 @@ package scoring
 
 import (
 	"slices"
+	"strconv"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
@@ -121,10 +122,21 @@ func seriesPickPoints(st *store.Store, p store.Prediction) int {
 	if !ok || p.TeamID != winner {
 		return 0
 	}
-	if p.Games == games {
+	if sameGameCount(p.Games, games) {
 		return value.exact
 	}
 	return value.winner
+}
+
+// sameGameCount compares two game counts by number, so a hand-edited pick
+// like "05" still matches a recorded 5.
+func sameGameCount(pick, result string) bool {
+	p, err := strconv.Atoi(pick)
+	if err != nil {
+		return false
+	}
+	r, err := strconv.Atoi(result)
+	return err == nil && p == r
 }
 
 // divisionsPoints scores every division's winner pick and playoff-team list.
