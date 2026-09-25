@@ -53,6 +53,6 @@ A player opens the Compare tab, picks any one Prediction set, and sees every pla
 
 These are still open from the Epic 4 retro. Fold each into this epic's work or close it deliberately:
 
-- **A8:** adopt `depguard` for the AD-8 import rules and delete the three hand-written import-guard tests.
+- **A8:** adopt `depguard` for the AD-8 import rules and delete the four hand-written import-guard tests.
 - **A10:** put the story id in the final git trailer block (for example `Story: 5-1` directly above `Co-Authored-By`).
 - **A11:** give each later reviewer the earlier Review Triage Logs and the accepted deviations, so rejected findings aren't raised again.
