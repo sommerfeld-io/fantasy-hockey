@@ -61,6 +61,11 @@ tasks:
       - task: docker:build
       - docker compose up {{ .COMPOSE_SERVICE }}
 
+  docker:run:mailpit:
+    desc: Start the Mailpit SMTP sink in the background (web UI at http://localhost:8025)
+    cmds:
+      - docker compose up --detach mailpit
+
   docker:down:
     desc: Stop and remove container {{ .COMPOSE_SERVICE }}
     cmds:

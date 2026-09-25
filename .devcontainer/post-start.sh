@@ -13,3 +13,4 @@ sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-nft
 task cleanup:update
 task symlinks
 task compose:pull
+task docker:run:mailpit || echo "WARN: Mailpit failed to start - run 'task docker:run:mailpit' manually" >&2

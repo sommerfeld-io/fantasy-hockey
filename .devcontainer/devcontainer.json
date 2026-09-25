@@ -41,6 +41,8 @@
     "SONARQUBE_ORGANIZATION": "sommerfeld-io"
   },
 
+  "forwardPorts": [8025, 8080],
+
   "postCreateCommand": "${containerWorkspaceFolder}/.devcontainer/post-create.sh",
   "postStartCommand": "${containerWorkspaceFolder}/.devcontainer/post-start.sh"
 }
