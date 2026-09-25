@@ -163,3 +163,66 @@ func TestOpenStoreShouldReturnAnErrorForAnUnreadableFile(t *testing.T) {
 		t.Fatal("expected an error for invalid YAML, got nil")
 	}
 }
+
+// TestOpenStoreShouldBootstrapAFreshSeasonWhenTheResolvedPathDoesNotExist
+// proves the season-rollover entry point end-to-end through main's actual
+// startup path: repointing DATA_FILE/--data-file at a path that doesn't
+// exist yet must bootstrap a clean season skeleton, not fail or inherit
+// anything from elsewhere (I/O matrix row 1).
+func TestOpenStoreShouldBootstrapAFreshSeasonWhenTheResolvedPathDoesNotExist(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+
+	st, err := openStore(path, logger)
+
+	if err != nil || st == nil {
+		t.Fatalf("openStore(%q) = %v, %v, want a store and no error", path, st, err)
+	}
+	if _, statErr := os.Stat(path); statErr != nil {
+		t.Fatalf("expected %q to be created, got error: %v", path, statErr)
+	}
+	if got := st.Season(); got != store.DefaultSeason {
+		t.Errorf("expected bootstrapped season %q, got %q", store.DefaultSeason, got)
+	}
+	if got := st.Players(); len(got) != 0 {
+		t.Errorf("expected an empty players list, got %v", got)
+	}
+}
+
+// TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath proves the
+// second half of a season rollover: once a human archives the prior
+// season's file and repoints the app at a fresh path, the archived file is
+// never read from or written to (I/O matrix row 2).
+func TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath(t *testing.T) {
+	archivedPath := filepath.Join(t.TempDir(), "fantasy-hockey-2025-26.yml")
+	archivedSeed := "season: \"2025-26\"\nplayers:\n    - id: basti\n      name: Basti\n      email: basti@example.com\nresults:\n    presidents_trophy: FLA\n    stanley_cup_winner: FLA\n"
+	if err := os.WriteFile(archivedPath, []byte(archivedSeed), 0o600); err != nil {
+		t.Fatalf("seed archived file: %v", err)
+	}
+	before, err := os.ReadFile(archivedPath)
+	if err != nil {
+		t.Fatalf("read archived file before openStore: %v", err)
+	}
+
+	freshPath := filepath.Join(t.TempDir(), store.DataFileName)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+
+	st, err := openStore(freshPath, logger)
+	if err != nil {
+		t.Fatalf("openStore(%q) returned error: %v", freshPath, err)
+	}
+	if got := st.Season(); got != store.DefaultSeason {
+		t.Errorf("expected bootstrapped season %q, got %q", store.DefaultSeason, got)
+	}
+	if got := st.Players(); len(got) != 0 {
+		t.Errorf("expected an empty players list, got %v", got)
+	}
+
+	after, err := os.ReadFile(archivedPath)
+	if err != nil {
+		t.Fatalf("read archived file after openStore: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("expected archived file to be byte-for-byte unchanged, before=%q after=%q", before, after)
+	}
+}

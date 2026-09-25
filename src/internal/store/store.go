@@ -31,10 +31,10 @@ const DataFileName = "fantasy-hockey.yml"
 // ConsumeLoginCode after it was issued (PRD FR-2).
 const loginCodeValidity = 10 * time.Minute
 
-// defaultSeason seeds a brand-new data file. It names the current season
+// DefaultSeason seeds a brand-new data file. It names the current season
 // only; no player data is ever invented here (AD-23) - a human hand-edits
 // the file afterward to add real players.
-const defaultSeason = "2026-27"
+const DefaultSeason = "2026-27"
 
 // Player is a person taking part in the pool. The player list is
 // hand-maintained directly in fantasy-hockey.yml; internal/store never
@@ -334,7 +334,7 @@ func New(path string) (*Store, error) {
 	raw, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		st.doc = document{Season: defaultSeason, Players: []Player{}}
+		st.doc = document{Season: DefaultSeason, Players: []Player{}}
 		if err := st.writeLocked(); err != nil {
 			return nil, fmt.Errorf("store: bootstrap %s: %w", path, err)
 		}
