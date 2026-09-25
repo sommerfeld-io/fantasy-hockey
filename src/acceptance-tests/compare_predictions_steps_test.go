@@ -68,8 +68,15 @@ type compareSeedSet struct {
 }
 
 // compareCell is one rendered table cell: its values and own-column flag.
+// compareCellValue is one rendered value within a cell: its text and
+// whether its class marks it tag-styled (cmp-tag).
+type compareCellValue struct {
+	text string
+	tag  bool
+}
+
 type compareCell struct {
-	values []string
+	values []compareCellValue
 	own    bool
 }
 
@@ -330,9 +337,9 @@ func (s *compareScenarioState) renderedRows() (labels []string, rows [][]compare
 	for _, m := range compareValueRowPattern.FindAllStringSubmatch(s.lastBody, -1) {
 		var cells []compareCell
 		for _, c := range compareCellPattern.FindAllStringSubmatch(m[1], -1) {
-			var values []string
+			var values []compareCellValue
 			for _, v := range compareCellValuePattern.FindAllStringSubmatch(c[2], -1) {
-				values = append(values, html.UnescapeString(v[2]))
+				values = append(values, compareCellValue{text: html.UnescapeString(v[2]), tag: strings.Contains(v[1], "cmp-tag")})
 			}
 			cells = append(cells, compareCell{values: values, own: c[1] != ""})
 		}
@@ -342,16 +349,20 @@ func (s *compareScenarioState) renderedRows() (labels []string, rows [][]compare
 }
 
 // flattenCellValues joins a cell's rendered values into one string for the
-// feature table: a leading space (a series row's " in N" suffix, glued to
-// the winner tag right before it) is concatenated directly, while every
-// other value is a distinct item and gets a ", " separator.
-func flattenCellValues(values []string) string {
+// feature table: a plain value immediately following a tag value (a series
+// row's "in N" suffix glued to its winner tag) joins with a single space,
+// while every other value is a distinct item and gets a ", " separator.
+func flattenCellValues(values []compareCellValue) string {
 	var b strings.Builder
 	for i, v := range values {
-		if i > 0 && !strings.HasPrefix(v, " ") {
-			b.WriteString(", ")
+		if i > 0 {
+			if values[i-1].tag && !v.tag {
+				b.WriteString(" ")
+			} else {
+				b.WriteString(", ")
+			}
 		}
-		b.WriteString(v)
+		b.WriteString(v.text)
 	}
 	return b.String()
 }

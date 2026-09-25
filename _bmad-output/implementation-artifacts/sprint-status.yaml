@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-25-2026 16:39
+last_updated: 09-25-2026 18:07
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -65,7 +65,7 @@ development_status:
 
   epic-5: in-progress
   5-1-compare-selector-and-side-by-side-table: done
-  5-2-division-comparison-granularity-and-consistent-value-formatt: review
+  5-2-division-comparison-granularity-and-consistent-value-formatt: done
   epic-5-retrospective: optional
 
   epic-6: backlog

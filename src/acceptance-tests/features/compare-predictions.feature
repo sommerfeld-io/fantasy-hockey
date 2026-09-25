@@ -138,7 +138,7 @@ Feature: Compare Predictions Side by Side
     And "Sadl" picked "FLA" in 5 games for compare round 1 series "s1"
     When "Basti" opens Compare with the set "r1"
     Then the Compare value "FLA" is tag-styled
-    And the Compare value " in 5" is plain text
+    And the Compare value "in 5" is plain text
 
   Scenario: A value nobody entered renders as a faint em dash
     When "Basti" opens Compare with the set "cup"

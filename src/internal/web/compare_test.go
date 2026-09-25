@@ -345,6 +345,23 @@ func TestIsGatedRoundShouldReportFalseForAnUnknownBadDeadlineOrUnknownPhaseID(t 
 	}
 }
 
+func TestIsGatedRoundShouldReportFalseForARoundGatedIDWithABadDeadlineUnknownPhaseOrNoEntry(t *testing.T) {
+	badDeadline := newCompareStore(t, compareSetSeed("r2", "Playoff round 2", phasePlayoffs, "not-a-date", false), "")
+	if isGatedRound(badDeadline, "r2") {
+		t.Error("expected r2 with a bad deadline not to report gated")
+	}
+
+	unknownPhase := newCompareStore(t, compareSetSeed("r2", "Playoff round 2", "midseason", "2027-04-30T16:00:00Z", false), "")
+	if isGatedRound(unknownPhase, "r2") {
+		t.Error("expected r2 with an unknown phase not to report gated")
+	}
+
+	missingEntry := newCompareStore(t, compareSetSeed("cup", "Cup champion", phaseBeforeSeason, "2026-10-06T17:00:00Z", false), "")
+	if isGatedRound(missingEntry, "r2") {
+		t.Error("expected r2 absent from PredictionSets not to report gated")
+	}
+}
+
 func TestBuildCompareShouldShowTheSelectedSetsDeadline(t *testing.T) {
 	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups)
 
@@ -553,8 +570,8 @@ func TestBuildCompareShouldTagTheSeriesWinnerAndKeepTheGamesCountPlain(t *testin
 	if !slices.Equal(valueCSS(got), want) {
 		t.Errorf("expected the winner tagged and games plain (%v), got %v", want, valueCSS(got))
 	}
-	if len(got) != 2 || got[0].Text != "FLA" || got[1].Text != " in 5" {
-		t.Errorf("expected [FLA, \" in 5\"], got %+v", got)
+	if len(got) != 2 || got[0].Text != "FLA" || got[1].Text != "in 5" {
+		t.Errorf("expected [FLA, \"in 5\"], got %+v", got)
 	}
 }
 
@@ -623,10 +640,10 @@ func TestBuildCompareShouldShowSeriesPicksAsWinnerAndGames(t *testing.T) {
 
 	v := buildCompare(st, "basti", "r1", compareNow)
 
-	if got, want := cellValues(t, v.Table, "Eastern · FLA vs TOR"), [][]string{{"FLA", " in 5"}, {emptyCellValue}, {emptyCellValue}}; !slices.EqualFunc(got, want, slices.Equal[[]string]) {
+	if got, want := cellValues(t, v.Table, "Eastern · FLA vs TOR"), [][]string{{"FLA", "in 5"}, {emptyCellValue}, {emptyCellValue}}; !slices.EqualFunc(got, want, slices.Equal[[]string]) {
 		t.Errorf("expected %v, got %v", want, got)
 	}
-	if got, want := cellValues(t, v.Table, "Western · COL vs VGK"), [][]string{{emptyCellValue}, {emptyCellValue}, {"VGK", " in 7"}}; !slices.EqualFunc(got, want, slices.Equal[[]string]) {
+	if got, want := cellValues(t, v.Table, "Western · COL vs VGK"), [][]string{{emptyCellValue}, {emptyCellValue}, {"VGK", "in 7"}}; !slices.EqualFunc(got, want, slices.Equal[[]string]) {
 		t.Errorf("expected %v, got %v", want, got)
 	}
 }

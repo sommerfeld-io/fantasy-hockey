@@ -29,7 +29,7 @@ const (
 	compareDivisionWinnerLabel  = "%s — winner"
 	compareSeriesLabel          = "%s · %s vs %s"
 	compareSeriesNoConfLabel    = "%s vs %s"
-	compareSeriesGamesSuffix    = " in %s"
+	compareSeriesGamesSuffix    = "in %s"
 )
 
 // compareGatedRoundNote replaces the table when a hand-typed ?set= names a
@@ -205,17 +205,35 @@ func buildCompare(st *store.Store, playerID, selectedID string, now time.Time) c
 	return v
 }
 
-// isGatedRound reports whether id is a roundGatedSetIDs id whose matchups
-// aren't recorded yet - the one roundGatedSetIDs case effectiveUpcoming
-// computes from playoff_matchups (predict.go) that selectableCompareSets
-// excludes from its chips. Deliberately narrower than "any effectively
-// Upcoming set": a before-season set or r1 (hand-gated by its own upcoming
-// flag, not roundGatedSetIDs) marked Upcoming still falls back to the
-// default set instead (5.1 behavior, unchanged) - only r2/conference
-// finals/the Final show the note. No new store methods, just the existing
-// PlayoffMatchups check.
+// isGatedRound reports whether id is a roundGatedSetIDs id, with a known
+// phase and a parseable deadline like selectableCompareSets requires, whose
+// matchups aren't recorded yet - the one roundGatedSetIDs case
+// effectiveUpcoming computes from playoff_matchups (predict.go) that
+// selectableCompareSets excludes from its chips. Deliberately narrower than
+// "any effectively Upcoming set": a before-season set or r1 (hand-gated by
+// its own upcoming flag, not roundGatedSetIDs) marked Upcoming still falls
+// back to the default set instead (5.1 behavior, unchanged) - only
+// r2/conference finals/the Final show the note. An id absent from
+// PredictionSets(), or whose own entry has a bad deadline or unknown phase,
+// also falls back unchanged rather than showing the note for a malformed or
+// nonexistent set.
 func isGatedRound(st *store.Store, id string) bool {
-	return roundGatedSetIDs[id] && len(st.PlayoffMatchups(id)) == 0
+	if !roundGatedSetIDs[id] {
+		return false
+	}
+	for _, set := range st.PredictionSets() {
+		if set.ID != id {
+			continue
+		}
+		if set.Phase != phaseBeforeSeason && set.Phase != phasePlayoffs {
+			return false
+		}
+		if _, err := time.Parse(time.RFC3339, set.DeadlineUTC); err != nil {
+			return false
+		}
+		return len(st.PlayoffMatchups(id)) == 0
+	}
+	return false
 }
 
 // selectableCompareSets is every Prediction Set that gets a chip, in file
@@ -418,7 +436,10 @@ func awardCategories(st *store.Store) []compareCategory {
 			label:   awardTitle[award],
 			stacked: true,
 			values: func(playerID string) []compareValueView {
-				p, _ := st.FindAwardFinalists(playerID, award)
+				p, ok := st.FindAwardFinalists(playerID, award)
+				if !ok {
+					return nil
+				}
 				values := make([]compareValueView, 0, len(p.FinalistSlugs))
 				for _, slug := range p.FinalistSlugs {
 					values = append(values, plainValue(displayNameForSlug(st, slug)))
