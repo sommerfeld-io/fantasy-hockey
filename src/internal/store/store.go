@@ -4,6 +4,7 @@
 package store
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -905,10 +906,26 @@ func (s *Store) writeLocked(reason string, now time.Time) error {
 	docToWrite := s.doc
 	docToWrite.LoginCodes = cleaned
 
-	out, err := yaml.Marshal(docToWrite)
-	if err != nil {
+	// A plain yaml.Marshal indents a sequence nested inside a mapping
+	// that's itself inside a list (e.g. Prediction.TeamIDs) by a smaller
+	// increment than a top-level sequence gets, which yamllint's
+	// indentation rule (extends: default) rejects as inconsistent.
+	// CompactSeqIndent applies the same relative increment to every
+	// sequence regardless of nesting depth, producing yamllint-compliant
+	// output (spec-7-3's Design Notes).
+	// Encode/Close only fail for a type yaml can't represent at all - never
+	// the case for document's own field types - so these branches are
+	// defensive and intentionally untested (spec-7-3's I/O matrix).
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.CompactSeqIndent()
+	if err := enc.Encode(docToWrite); err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
+	if err := enc.Close(); err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	out := buf.Bytes()
 
 	dir := filepath.Dir(s.path)
 	tmp, err := os.CreateTemp(dir, ".fantasy-hockey-*.tmp")
