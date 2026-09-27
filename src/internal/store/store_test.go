@@ -732,11 +732,11 @@ func TestConsumeLoginCodeShouldMatchAnUnusedUnexpiredCode(t *testing.T) {
 
 	// The consumed row is now used, so writeLocked's own cleanup prunes it
 	// in this same write (spec-7-2) - its used_at getting set is proven
-	// indirectly, by the row no longer being present at all.
+	// indirectly, by that specific row no longer being present.
 	st.mu.RLock()
 	defer st.mu.RUnlock()
-	if len(st.doc.LoginCodes) != 0 {
-		t.Fatalf("expected the just-consumed row to be pruned by the same write, got %+v", st.doc.LoginCodes)
+	if i := slices.IndexFunc(st.doc.LoginCodes, func(row LoginCode) bool { return row.CodeHash == "hash-1" }); i >= 0 {
+		t.Fatalf("expected the just-consumed row to be pruned by the same write, still found %+v", st.doc.LoginCodes[i])
 	}
 }
 
@@ -898,6 +898,24 @@ func TestCleanupLoginCodesShouldRemoveAnExpiredRow(t *testing.T) {
 	}
 }
 
+// TestCleanupLoginCodesShouldRemoveAFutureDatedRow is a regression test for a
+// review finding (edge-case-hunter + blind-hunter, spec-7-2): ConsumeLoginCode
+// always rejects a future-dated row (clock skew), so cleanupLoginCodes must
+// prune it too, or it would accumulate in the file forever despite never
+// being consumable.
+func TestCleanupLoginCodesShouldRemoveAFutureDatedRow(t *testing.T) {
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	rows := []LoginCode{
+		{ID: "lc1", CodeHash: "hash-1", IssuedAt: now.Add(5 * time.Minute).Format(time.RFC3339)},
+	}
+
+	got := cleanupLoginCodes(rows, now)
+
+	if len(got) != 0 {
+		t.Errorf("expected the future-dated row to be removed, got %+v", got)
+	}
+}
+
 func TestCleanupLoginCodesShouldRemoveAUsedRow(t *testing.T) {
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 	usedAt := now.Add(-1 * time.Minute).Format(time.RFC3339)
@@ -955,6 +973,23 @@ func TestCleanupLoginCodesShouldKeepARowWithUnparseableIssuedAt(t *testing.T) {
 
 	if len(got) != 1 || got[0].ID != "lc1" {
 		t.Errorf("expected a row with an unparseable issued_at to be kept rather than destroyed, got %+v", got)
+	}
+}
+
+// TestCleanupLoginCodesShouldRemoveAUsedRowEvenWithAnUnparseableIssuedAt
+// locks in the precedence between cleanupLoginCodes' two checks: a used row
+// is dropped unconditionally, without ever needing to parse IssuedAt at all.
+func TestCleanupLoginCodesShouldRemoveAUsedRowEvenWithAnUnparseableIssuedAt(t *testing.T) {
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	usedAt := now.Add(-1 * time.Minute).Format(time.RFC3339)
+	rows := []LoginCode{
+		{ID: "lc1", CodeHash: "hash-1", IssuedAt: "not-a-timestamp", UsedAt: &usedAt},
+	}
+
+	got := cleanupLoginCodes(rows, now)
+
+	if len(got) != 0 {
+		t.Errorf("expected the used row to be removed regardless of its unparseable issued_at, got %+v", got)
 	}
 }
 
@@ -1272,7 +1307,12 @@ func TestSavePredictionShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 // only assigns s.doc.LoginCodes = cleaned after a successful rename, so a
 // failed write must leave an already-stale row exactly as it was, not
 // silently pruned - this is what makes CreateLoginCode's/ConsumeLoginCode's
-// own narrower rollbacks stay correct (spec-7-2's Design Notes).
+// own narrower rollbacks stay correct (spec-7-2's Design Notes). This test
+// forces the failure at the earliest possible step (os.CreateTemp, via a
+// removed directory) rather than specifically at the rename call; no test
+// anywhere in this file isolates a rename-specific failure from an earlier
+// one, since the commit-only-after-rename guarantee is the same regardless
+// of which step actually fails.
 func TestSavePredictionShouldNotCommitLoginCodeCleanupWhenTheWriteFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, DataFileName)

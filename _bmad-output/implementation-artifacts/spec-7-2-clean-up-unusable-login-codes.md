@@ -68,6 +68,21 @@ baseline_commit: 'ef8af9071af89dc9d14e4fb75c212f80454b14f4'
 - Given a `LoginCode` row that is unexpired and unused, when the store next writes, then that row remains untouched.
 - Given a resubmission of a code whose row was just removed by cleanup, when it is validated, then it is rejected with the exact same generic outcome as any other wrong/expired/used code.
 
+### Review Findings
+
+*(bmad-code-review, 2026-09-27, diff `ef8af90..f4b6437`)*
+
+- [x] [Review][Patch] `cleanupLoginCodes` never prunes a future-dated/clock-skewed row (`issuedAt.After(now)`) even though `ConsumeLoginCode` always rejects one — it accumulates in the file forever, contradicting the story's own "only ever shows codes still genuinely redeemable" goal (edge-case-hunter + blind-hunter, same root cause) [internal/store/store.go: `cleanupLoginCodes`] — fixed: added the same future-dated check, plus a regression test.
+- [x] [Review][Patch] `LoginCode` struct's own doc comment still says "an existing row is never mutated or removed" — now false, and a broader claim than the sibling `CreateLoginCode` comment this same review pass already corrected (acceptance-auditor) [internal/store/store.go:51-53] — fixed.
+- [x] [Review][Patch] `TestSavePredictionShouldNotCommitLoginCodeCleanupWhenTheWriteFails`'s comment claims it proves the *post-rename* failure path, but it actually forces failure at `os.CreateTemp` (pre-rename) via a removed directory (blind-hunter) [internal/store/store_test.go] — fixed: comment reworded to name the exact step exercised.
+- [x] [Review][Patch] `ConsumeLoginCode`'s `row.PlayerID` read after a successful write relies on an undocumented invariant — it's only safe because `cleanupLoginCodes` copies into a fresh slice rather than mutating in place; a future in-place-compacting rewrite would silently corrupt it (blind-hunter) [internal/store/store.go: `ConsumeLoginCode`] — fixed: added a comment documenting the invariant.
+- [x] [Review][Patch] `TestConsumeLoginCodeShouldMatchAnUnusedUnexpiredCode`'s replacement assertion checks `len(LoginCodes) != 0` rather than the specific row's absence, unlike its sibling `TestConsumeLoginCodeShouldNotTouchAnyOtherRow` (blind-hunter) [internal/store/store_test.go] — fixed: now checks the specific `CodeHash`'s absence via `slices.IndexFunc`.
+- [x] [Review][Patch] No test locks in the precedence when a row is both used and has an unparseable `issued_at` (blind-hunter) [internal/store/store_test.go] — fixed: added `TestCleanupLoginCodesShouldRemoveAUsedRowEvenWithAnUnparseableIssuedAt`.
+
+**Rejected:**
+- `false` — "Bootstrap's `time.Now().UTC()` bypasses this codebase's `internal/clock.NowTime()` convention" (blind-hunter). Disproven: this is a deliberate, already-reasoned design choice from this story's own Code Map — `internal/store` imports nothing from `internal/clock` by architecture (AD-8: store depends on nothing above it), and the value is provably inert at bootstrap (`LoginCodes` is always empty). No current harm demonstrated, only a speculative future-misuse concern.
+- `low` — "I/O & Edge-Case Matrix table columns aren't padded to equal width" (blind-hunter). Same as every other spec in this epic: inherited from the shared `spec-template.md`, not introduced by this diff, and not fixable by a code patch.
+
 ## Implementation Notes
 
 Implemented as designed: `cleanupLoginCodes` is a pure helper; `writeLocked` marshals a copy of `s.doc` with `LoginCodes` swapped to the cleaned slice, only committing `s.doc.LoginCodes = cleaned` after a successful rename. `CreateLoginCode` now takes `now time.Time` (issuedAt computed internally); all 9 literal `writeLocked` call sites (bootstrap + 8 mutating-method sites) forward their own `now`. The 4 external `CreateLoginCode` callers (`internal/auth/auth.go` and 3 test helpers) each already held a `time.Time` before formatting it for the old signature, so each edit was a one-line simplification, not a behavior change.

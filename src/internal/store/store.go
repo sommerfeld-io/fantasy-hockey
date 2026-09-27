@@ -48,10 +48,11 @@ type Player struct {
 	Email string `yaml:"email"`
 }
 
-// LoginCode is one issued one-time login code. It is a tracked, persisted
-// entity: a new request always appends a new row, and an existing row is
-// never mutated or removed. CodeHash is the sha256 hex digest of the code;
-// the plaintext code is never persisted.
+// LoginCode is one issued one-time login code. A new request always appends
+// a new row; an existing row is only ever mutated to record its use
+// (ConsumeLoginCode), and is removed once it's no longer usable - expired,
+// used, or future-dated (cleanupLoginCodes, spec-7-2). CodeHash is the
+// sha256 hex digest of the code; the plaintext code is never persisted.
 type LoginCode struct {
 	ID       string  `yaml:"id"`
 	PlayerID string  `yaml:"player_id"`
@@ -712,6 +713,12 @@ func (s *Store) ConsumeLoginCode(codeHash string, now time.Time) (playerID strin
 			row.UsedAt = nil
 			return "", false, fmt.Errorf("store: persist consumed login code: %w", err)
 		}
+		// row still points into the pre-write backing array, which
+		// writeLocked's successful cleanup replaces (s.doc.LoginCodes =
+		// cleaned) but never mutates in place - cleanupLoginCodes always
+		// builds cleaned as a fresh copy, so this read stays valid. A future
+		// cleanupLoginCodes rewritten to compact rows.doc.LoginCodes in
+		// place instead of copying would silently break this.
 		return row.PlayerID, true, nil
 	}
 
@@ -1042,21 +1049,23 @@ func (s *Store) upsertAwardPredictionLocked(playerID, award string, slugs []stri
 
 // cleanupLoginCodes returns the subset of rows that are still eligible to be
 // consumed as of now: a row is dropped when it has already been used
-// (UsedAt != nil) or when its IssuedAt parses and is more than
-// loginCodeValidity in now's past. A row whose IssuedAt fails to parse is
-// always kept - the code can't confirm it's expired, so it never destroys
-// that data (spec-7-2's Boundaries & Constraints). Order of kept rows is
-// preserved. This is the single home for the opposite-direction check
-// ConsumeLoginCode's own scan already performs inline; the two are
-// intentionally not shared, since ConsumeLoginCode also matches on
-// CodeHash/future-dating, a different job from pruning.
+// (UsedAt != nil), or when its IssuedAt parses and is either more than
+// loginCodeValidity in now's past or after now (a future-dated row from
+// clock skew - ConsumeLoginCode always rejects one of these too, so keeping
+// it forever would contradict this story's own goal). A row whose IssuedAt
+// fails to parse is always kept - the code can't confirm it's expired, so it
+// never destroys that data (spec-7-2's Boundaries & Constraints). Order of
+// kept rows is preserved. ConsumeLoginCode's own inline scan checks the same
+// three conditions (used, expired, future-dated) plus a CodeHash match; the
+// two are intentionally not shared implementations, since matching-and-
+// consuming one specific row is a different job from pruning every row.
 func cleanupLoginCodes(rows []LoginCode, now time.Time) []LoginCode {
 	cleaned := make([]LoginCode, 0, len(rows))
 	for _, row := range rows {
 		if row.UsedAt != nil {
 			continue
 		}
-		if issuedAt, err := time.Parse(time.RFC3339, row.IssuedAt); err == nil && now.Sub(issuedAt) > loginCodeValidity {
+		if issuedAt, err := time.Parse(time.RFC3339, row.IssuedAt); err == nil && (issuedAt.After(now) || now.Sub(issuedAt) > loginCodeValidity) {
 			continue
 		}
 		cleaned = append(cleaned, row)
