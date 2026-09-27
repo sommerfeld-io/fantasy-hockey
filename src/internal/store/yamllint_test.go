@@ -2,9 +2,11 @@ package store
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -99,6 +101,50 @@ func TestWriteLockedShouldProduceYamllintCompliantOutputForANestedListRow(t *tes
 	}
 
 	runYamllint(t, dockerPath, dir)
+}
+
+// TestWriteLockedShouldIndentANestedListConsistentlyWithTopLevelSequences is
+// a Docker-free regression test for this story's actual behavior change: a
+// contributor without Docker previously had zero direct coverage of the
+// indentation fix itself, since only the Docker-gated yamllint tests above
+// asserted on it (review finding, blind-hunter). This asserts the generated
+// bytes directly: a nested sequence (team_ids, under a Prediction row's own
+// fields) uses the same +2 relative increment CompactSeqIndent gives every
+// top-level sequence, rather than the old default's smaller nested
+// increment - the exact inconsistency spec-7-3 exists to fix. It's a
+// narrower, faster sanity check alongside the authoritative real-yamllint
+// tests, not a replacement for them.
+func TestWriteLockedShouldIndentANestedListConsistentlyWithTopLevelSequences(t *testing.T) {
+	dir := t.TempDir()
+	st, err := New(filepath.Join(dir, DataFileName))
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	if err := st.SaveDivisionPicks("basti", map[string][]string{
+		"Atlantic": {"TOR", "BOS", "TBL"},
+	}, nil, time.Now().UTC()); err != nil {
+		t.Fatalf("SaveDivisionPicks() returned error: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, DataFileName))
+	if err != nil {
+		t.Fatalf("read data file: %v", err)
+	}
+	got := string(raw)
+
+	// predictions: is a top-level sequence; CompactSeqIndent gives its "-"
+	// a 2-space indent relative to "predictions:" itself (column 0).
+	if !strings.Contains(got, "\npredictions:\n  - id:") {
+		t.Fatalf("expected predictions:'s own list item at a 2-space indent, got:\n%s", got)
+	}
+	// team_ids: is a field of that same list item, so it sits at column 4;
+	// its own nested list item must be exactly 2 more (column 6) - the same
+	// relative increment as the top-level case above, not the old default's
+	// smaller one for a sequence nested this deep.
+	if !strings.Contains(got, "\n    team_ids:\n      - TOR") {
+		t.Fatalf("expected team_ids:'s nested list item at the same +2 relative indent as a top-level sequence, got:\n%s", got)
+	}
 }
 
 // TestWriteLockedShouldProduceYamllintCompliantOutputForARowWithNoNestedLists

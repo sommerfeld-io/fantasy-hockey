@@ -66,6 +66,7 @@ Keep these points in mind:
 - The series section is nested: the round (`round1`), then the matchup key (`s1`). A flat `round1.s1:` key doesn't score anything — the app starts, warns about it, and the next save leaves it exactly as written (see [Reading the startup warnings](#reading-the-startup-warnings)).
 - The round names under `results.series` (`round1` to `round4`) are not the Prediction Set ids used under `playoff_matchups` (`r1`, `r2`, `cf`, `scf`). `round1` is `r1`, `round2` is `r2`, `round3` is `cf` and `round4` is `scf`.
 - A finalist's `slug` must already be listed under the top-level `nhl_players:` section. To add a player there, append an entry with a `slug` (lowercase `lastname-firstname`), the `display_name` and the `position` (`skater`, `defenseman` or `goalie`). Once a slug is added, never change it: saved award picks refer to it.
+- **Known limitation:** once `results:`/`award_finalists:` is populated by hand, the app's *own* next write (a pick or a login code) leaves those sections' indentation at the width you typed them at (4 spaces, matching this runbook's examples), while every app-generated section uses a narrower, consistent indentation of its own. The file still loads and scores correctly either way — this is purely a cosmetic mismatch you might notice on re-opening the file, not something that affects the app. Not yet fixed; revisit if it causes real friction.
 
     ```yaml
     nhl_players:
