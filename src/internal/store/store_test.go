@@ -1,6 +1,8 @@
 package store
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,6 +13,47 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 )
+
+// captureLogs swaps slog's default logger for one writing to a buffer this
+// test can inspect, restoring the original default when the test ends.
+// Mirrors internal/auth/auth_test.go's own captureLogs - the two can't share
+// one implementation across package boundaries, so this ~8-line helper is
+// duplicated rather than imported.
+func captureLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return &buf
+}
+
+// assertExactlyOneInfoLine fails the test unless logs holds exactly one
+// "store write" log line - the shape every successful mutating write must
+// produce (spec-7-1's acceptance criteria), never zero and never more than
+// one.
+func assertExactlyOneInfoLine(t *testing.T, logs *bytes.Buffer) {
+	t.Helper()
+	if logs.Len() == 0 {
+		t.Fatal("expected exactly one log line, got none")
+	}
+	lines := strings.Split(strings.TrimRight(logs.String(), "\n"), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected exactly one log line, got %d: %q", len(lines), logs.String())
+	}
+	if !strings.Contains(lines[0], `msg="store write"`) {
+		t.Errorf("expected the log line's message to be %q, got %q", "store write", lines[0])
+	}
+}
+
+// assertNoLogOutput fails the test unless logs is empty - the shape every
+// no-op call or failed write must produce (spec-7-1's acceptance criteria).
+func assertNoLogOutput(t *testing.T, logs *bytes.Buffer) {
+	t.Helper()
+	if logs.Len() != 0 {
+		t.Errorf("expected no log output, got %q", logs.String())
+	}
+}
 
 func TestNewShouldBootstrapCreateAMissingFile(t *testing.T) {
 	dir := t.TempDir()
@@ -74,6 +117,42 @@ func TestNewShouldFailWhenTheFileIsNotValidYAML(t *testing.T) {
 	if _, err := New(path); err == nil {
 		t.Fatal("expected an error for invalid YAML, got nil")
 	}
+}
+
+func TestNewShouldLogTheBootstrapWrite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	logs := captureLogs(t)
+
+	if _, err := New(path); err != nil {
+		t.Fatalf("New(%q) returned error: %v", path, err)
+	}
+
+	assertExactlyOneInfoLine(t, logs)
+	if !strings.Contains(logs.String(), `reason="bootstrap data file"`) {
+		t.Errorf("expected the bootstrap write's log line to read distinctly from every other mutating call's line, got %q", logs.String())
+	}
+}
+
+func TestNewShouldNotLogWhenLoadingAnExistingFile(t *testing.T) {
+	seed := `season: "2025-26"
+players:
+    - id: basti
+      name: Basti
+      email: basti@example.com
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	logs := captureLogs(t)
+
+	if _, err := New(path); err != nil {
+		t.Fatalf("New(%q) returned error: %v", path, err)
+	}
+
+	assertNoLogOutput(t, logs)
 }
 
 func newTestStore(t *testing.T) *Store {
@@ -579,6 +658,23 @@ func TestCreateLoginCodeShouldPersistToDisk(t *testing.T) {
 	}
 }
 
+func TestCreateLoginCodeShouldLogOnASuccessfulWrite(t *testing.T) {
+	st := newTestStore(t)
+	logs := captureLogs(t)
+
+	if err := st.CreateLoginCode("basti", "hash-1", "2026-09-14T10:00:00Z"); err != nil {
+		t.Fatalf("CreateLoginCode returned error: %v", err)
+	}
+
+	assertExactlyOneInfoLine(t, logs)
+	if !strings.Contains(logs.String(), `reason="create login code"`) {
+		t.Errorf("expected reason=%q, got %q", "create login code", logs.String())
+	}
+	if strings.Contains(logs.String(), "hash-1") {
+		t.Errorf("expected no raw code hash in the log line, got %q", logs.String())
+	}
+}
+
 func TestCreateLoginCodeShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, DataFileName)
@@ -594,6 +690,7 @@ func TestCreateLoginCodeShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
 	}
+	logs := captureLogs(t)
 
 	if err := st.CreateLoginCode("basti", "hash-1", "2026-09-14T10:00:00Z"); err == nil {
 		t.Fatal("expected CreateLoginCode to return an error when the write fails")
@@ -604,6 +701,7 @@ func TestCreateLoginCodeShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	if len(st.doc.LoginCodes) != 0 {
 		t.Errorf("expected the failed append to be rolled back, got %d login code(s) still in memory", len(st.doc.LoginCodes))
 	}
+	assertNoLogOutput(t, logs)
 }
 
 // seedLoginCode appends a login code row directly into st's in-memory
@@ -637,6 +735,38 @@ func TestConsumeLoginCodeShouldMatchAnUnusedUnexpiredCode(t *testing.T) {
 	if st.doc.LoginCodes[0].UsedAt == nil {
 		t.Fatal("expected used_at to be set")
 	}
+}
+
+func TestConsumeLoginCodeShouldLogOnASuccessfulWrite(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)})
+	logs := captureLogs(t)
+
+	if _, ok, err := st.ConsumeLoginCode("hash-1", now); err != nil || !ok {
+		t.Fatalf("ConsumeLoginCode returned ok=%v, err=%v, want ok=true, err=nil", ok, err)
+	}
+
+	assertExactlyOneInfoLine(t, logs)
+	if !strings.Contains(logs.String(), `reason="consume login code"`) {
+		t.Errorf("expected reason=%q, got %q", "consume login code", logs.String())
+	}
+	if strings.Contains(logs.String(), "hash-1") {
+		t.Errorf("expected no raw code hash in the log line, got %q", logs.String())
+	}
+}
+
+func TestConsumeLoginCodeShouldNotLogOnNoMatch(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)})
+	logs := captureLogs(t)
+
+	if _, ok, err := st.ConsumeLoginCode("wrong-hash", now); err != nil || ok {
+		t.Fatalf("ConsumeLoginCode returned ok=%v, err=%v, want ok=false, err=nil", ok, err)
+	}
+
+	assertNoLogOutput(t, logs)
 }
 
 func TestConsumeLoginCodeShouldNotMatchAWrongHash(t *testing.T) {
@@ -731,6 +861,7 @@ func TestConsumeLoginCodeShouldRollBackTheMarkWhenTheWriteFails(t *testing.T) {
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
 	}
+	logs := captureLogs(t)
 
 	if _, ok, err := st.ConsumeLoginCode("hash-1", now); err == nil || ok {
 		t.Fatalf("expected ConsumeLoginCode to fail when the write fails, got ok=%v, err=%v", ok, err)
@@ -741,6 +872,7 @@ func TestConsumeLoginCodeShouldRollBackTheMarkWhenTheWriteFails(t *testing.T) {
 	if st.doc.LoginCodes[0].UsedAt != nil {
 		t.Errorf("expected the failed mark to be rolled back, got used_at=%v", *st.doc.LoginCodes[0].UsedAt)
 	}
+	assertNoLogOutput(t, logs)
 }
 
 func TestFindPredictionShouldNotReturnARowOnNoMatch(t *testing.T) {
@@ -829,8 +961,14 @@ func TestSavePredictionShouldUpdateAnExistingRowInPlaceOnResubmission(t *testing
 	if err := st.SavePrediction("basti", KindCupChampion, "TOR", first); err != nil {
 		t.Fatalf("first SavePrediction returned error: %v", err)
 	}
+	logs := captureLogs(t)
 	if err := st.SavePrediction("basti", KindCupChampion, "VGK", second); err != nil {
 		t.Fatalf("second SavePrediction returned error: %v", err)
+	}
+
+	assertExactlyOneInfoLine(t, logs)
+	if !strings.Contains(logs.String(), `reason="save prediction"`) {
+		t.Errorf("expected the update-in-place write to log reason=%q too, got %q", "save prediction", logs.String())
 	}
 
 	st.mu.RLock()
@@ -905,6 +1043,20 @@ func TestSavePredictionShouldPersistToDisk(t *testing.T) {
 	}
 }
 
+func TestSavePredictionShouldLogOnASuccessfulWrite(t *testing.T) {
+	st := newTestStore(t)
+	logs := captureLogs(t)
+
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	assertExactlyOneInfoLine(t, logs)
+	if !strings.Contains(logs.String(), `reason="save prediction"`) {
+		t.Errorf("expected reason=%q, got %q", "save prediction", logs.String())
+	}
+}
+
 func TestSavePredictionShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, DataFileName)
@@ -916,6 +1068,7 @@ func TestSavePredictionShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
 	}
+	logs := captureLogs(t)
 
 	if err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Now().UTC()); err == nil {
 		t.Fatal("expected SavePrediction to return an error when the write fails")
@@ -924,6 +1077,7 @@ func TestSavePredictionShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	if _, ok := st.FindPrediction("basti", KindCupChampion); ok {
 		t.Error("expected the failed append to be rolled back, but a Prediction row was found")
 	}
+	assertNoLogOutput(t, logs)
 }
 
 func TestSavePredictionShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
@@ -940,6 +1094,7 @@ func TestSavePredictionShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
 	}
+	logs := captureLogs(t)
 
 	if err := st.SavePrediction("basti", KindCupChampion, "VGK", time.Now().UTC()); err == nil {
 		t.Fatal("expected SavePrediction to return an error when the write fails")
@@ -952,6 +1107,7 @@ func TestSavePredictionShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	if got.TeamID != "TOR" {
 		t.Errorf("expected the failed update to be rolled back to %q, got %q", "TOR", got.TeamID)
 	}
+	assertNoLogOutput(t, logs)
 }
 
 func TestFindDivisionPlayoffTeamsShouldNotReturnARowOnNoMatch(t *testing.T) {
@@ -1192,6 +1348,20 @@ func TestSaveDivisionPicksShouldPersistToDisk(t *testing.T) {
 	}
 }
 
+func TestSaveDivisionPicksShouldLogOnASuccessfulWrite(t *testing.T) {
+	st := newTestStore(t)
+	logs := captureLogs(t)
+
+	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("SaveDivisionPicks returned error: %v", err)
+	}
+
+	assertExactlyOneInfoLine(t, logs)
+	if !strings.Contains(logs.String(), `reason="save division picks"`) {
+		t.Errorf("expected reason=%q, got %q", "save division picks", logs.String())
+	}
+}
+
 func TestSaveDivisionPicksShouldRollBackTheAppendsWhenTheWriteFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, DataFileName)
@@ -1203,6 +1373,7 @@ func TestSaveDivisionPicksShouldRollBackTheAppendsWhenTheWriteFails(t *testing.T
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
 	}
+	logs := captureLogs(t)
 
 	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveDivisionPicks to return an error when the write fails")
@@ -1214,6 +1385,7 @@ func TestSaveDivisionPicksShouldRollBackTheAppendsWhenTheWriteFails(t *testing.T
 	if _, ok := st.FindDivisionWinner("basti", "Atlantic"); ok {
 		t.Error("expected the failed append to be rolled back, but a winner row was found")
 	}
+	assertNoLogOutput(t, logs)
 }
 
 func TestSaveDivisionPicksShouldRollBackTheUpdatesWhenTheWriteFails(t *testing.T) {
@@ -1230,6 +1402,7 @@ func TestSaveDivisionPicksShouldRollBackTheUpdatesWhenTheWriteFails(t *testing.T
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
 	}
+	logs := captureLogs(t)
 
 	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"BOS"}}, map[string]string{"Atlantic": "BOS"}, time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveDivisionPicks to return an error when the write fails")
@@ -1243,6 +1416,7 @@ func TestSaveDivisionPicksShouldRollBackTheUpdatesWhenTheWriteFails(t *testing.T
 	if !ok || winner.TeamID != "TOR" {
 		t.Errorf("expected the failed update to be rolled back to %q, got %+v (ok=%v)", "TOR", winner, ok)
 	}
+	assertNoLogOutput(t, logs)
 }
 
 func TestFindAwardFinalistsShouldNotReturnARowOnNoMatch(t *testing.T) {
@@ -1446,6 +1620,20 @@ func TestSaveAwardPicksShouldPersistToDisk(t *testing.T) {
 	}
 }
 
+func TestSaveAwardPicksShouldLogOnASuccessfulWrite(t *testing.T) {
+	st := newTestStore(t)
+	logs := captureLogs(t)
+
+	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("SaveAwardPicks returned error: %v", err)
+	}
+
+	assertExactlyOneInfoLine(t, logs)
+	if !strings.Contains(logs.String(), `reason="save award picks"`) {
+		t.Errorf("expected reason=%q, got %q", "save award picks", logs.String())
+	}
+}
+
 func TestSaveAwardPicksShouldRollBackTheAppendsWhenTheWriteFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, DataFileName)
@@ -1457,6 +1645,7 @@ func TestSaveAwardPicksShouldRollBackTheAppendsWhenTheWriteFails(t *testing.T) {
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
 	}
+	logs := captureLogs(t)
 
 	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveAwardPicks to return an error when the write fails")
@@ -1465,6 +1654,7 @@ func TestSaveAwardPicksShouldRollBackTheAppendsWhenTheWriteFails(t *testing.T) {
 	if _, ok := st.FindAwardFinalists("basti", AwardHart); ok {
 		t.Error("expected the failed append to be rolled back, but an award row was found")
 	}
+	assertNoLogOutput(t, logs)
 }
 
 func TestSaveAwardPicksShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
@@ -1481,6 +1671,7 @@ func TestSaveAwardPicksShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
 	}
+	logs := captureLogs(t)
 
 	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"x", "y", "z"}}, time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveAwardPicks to return an error when the write fails")
@@ -1490,6 +1681,7 @@ func TestSaveAwardPicksShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	if !ok || !slices.Equal(got.FinalistSlugs, []string{"a", "b", "c"}) {
 		t.Errorf("expected the failed update to be rolled back to %v, got %+v (ok=%v)", []string{"a", "b", "c"}, got, ok)
 	}
+	assertNoLogOutput(t, logs)
 }
 
 // TestPlayoffMatchupShouldRoundTripItsKeyThroughYAML proves PlayoffMatchup's
@@ -1606,8 +1798,14 @@ func TestSaveSeriesPickShouldUpdateAnExistingRowInPlaceOnResubmission(t *testing
 	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", first); err != nil {
 		t.Fatalf("first SaveSeriesPick returned error: %v", err)
 	}
+	logs := captureLogs(t)
 	if err := st.SaveSeriesPick("basti", "r1.s1", "FLA", "7", second); err != nil {
 		t.Fatalf("second SaveSeriesPick returned error: %v", err)
+	}
+
+	assertExactlyOneInfoLine(t, logs)
+	if !strings.Contains(logs.String(), `reason="save series pick"`) {
+		t.Errorf("expected the update-in-place write to log reason=%q too, got %q", "save series pick", logs.String())
 	}
 
 	st.mu.RLock()
@@ -1693,6 +1891,20 @@ func TestSaveSeriesPickShouldPersistToDisk(t *testing.T) {
 	}
 }
 
+func TestSaveSeriesPickShouldLogOnASuccessfulWrite(t *testing.T) {
+	st := newTestStore(t)
+	logs := captureLogs(t)
+
+	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("SaveSeriesPick returned error: %v", err)
+	}
+
+	assertExactlyOneInfoLine(t, logs)
+	if !strings.Contains(logs.String(), `reason="save series pick"`) {
+		t.Errorf("expected reason=%q, got %q", "save series pick", logs.String())
+	}
+}
+
 func TestSaveSeriesPickShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, DataFileName)
@@ -1704,6 +1916,7 @@ func TestSaveSeriesPickShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
 	}
+	logs := captureLogs(t)
 
 	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveSeriesPick to return an error when the write fails")
@@ -1712,6 +1925,7 @@ func TestSaveSeriesPickShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	if _, ok := st.FindSeriesPick("basti", "r1.s1"); ok {
 		t.Error("expected the failed append to be rolled back, but a Prediction row was found")
 	}
+	assertNoLogOutput(t, logs)
 }
 
 func TestSaveSeriesPickShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
@@ -1728,6 +1942,7 @@ func TestSaveSeriesPickShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
 	}
+	logs := captureLogs(t)
 
 	if err := st.SaveSeriesPick("basti", "r1.s1", "FLA", "7", time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveSeriesPick to return an error when the write fails")
@@ -1740,6 +1955,7 @@ func TestSaveSeriesPickShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	if got.TeamID != "TOR" || got.Games != "6" {
 		t.Errorf("expected the failed update to be rolled back to %q/%q, got %q/%q", "TOR", "6", got.TeamID, got.Games)
 	}
+	assertNoLogOutput(t, logs)
 }
 
 func TestStoreShouldBeSafeForConcurrentCreateLoginCode(t *testing.T) {

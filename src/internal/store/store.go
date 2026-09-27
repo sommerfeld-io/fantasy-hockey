@@ -6,6 +6,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -335,7 +336,7 @@ func New(path string) (*Store, error) {
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		st.doc = document{Season: DefaultSeason, Players: []Player{}}
-		if err := st.writeLocked(); err != nil {
+		if err := st.writeLocked("bootstrap data file"); err != nil {
 			return nil, fmt.Errorf("store: bootstrap %s: %w", path, err)
 		}
 		return st, nil
@@ -486,7 +487,7 @@ func (s *Store) CreateLoginCode(playerID, codeHash, issuedAt string) error {
 		IssuedAt: issuedAt,
 	})
 
-	if err := s.writeLocked(); err != nil {
+	if err := s.writeLocked("create login code"); err != nil {
 		s.doc.LoginCodes = s.doc.LoginCodes[:len(s.doc.LoginCodes)-1]
 		return fmt.Errorf("store: persist login code: %w", err)
 	}
@@ -522,7 +523,7 @@ func (s *Store) ConsumeLoginCode(codeHash string, now time.Time) (playerID strin
 		usedAt := now.UTC().Format(time.RFC3339)
 		row.UsedAt = &usedAt
 
-		if err := s.writeLocked(); err != nil {
+		if err := s.writeLocked("consume login code"); err != nil {
 			row.UsedAt = nil
 			return "", false, fmt.Errorf("store: persist consumed login code: %w", err)
 		}
@@ -569,7 +570,7 @@ func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) err
 		row.TeamID = teamID
 		row.SubmittedAt = submittedAt
 
-		if err := s.writeLocked(); err != nil {
+		if err := s.writeLocked("save prediction"); err != nil {
 			row.TeamID, row.SubmittedAt = oldTeamID, oldSubmittedAt
 			return fmt.Errorf("store: persist prediction: %w", err)
 		}
@@ -584,7 +585,7 @@ func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) err
 		SubmittedAt: submittedAt,
 	})
 
-	if err := s.writeLocked(); err != nil {
+	if err := s.writeLocked("save prediction"); err != nil {
 		s.doc.Predictions = s.doc.Predictions[:len(s.doc.Predictions)-1]
 		return fmt.Errorf("store: persist prediction: %w", err)
 	}
@@ -634,7 +635,7 @@ func (s *Store) SaveSeriesPick(playerID, seriesKey, teamID, games string, now ti
 		row.Games = games
 		row.SubmittedAt = submittedAt
 
-		if err := s.writeLocked(); err != nil {
+		if err := s.writeLocked("save series pick"); err != nil {
 			row.TeamID, row.Games, row.SubmittedAt = oldTeamID, oldGames, oldSubmittedAt
 			return fmt.Errorf("store: persist series pick: %w", err)
 		}
@@ -651,7 +652,7 @@ func (s *Store) SaveSeriesPick(playerID, seriesKey, teamID, games string, now ti
 		SubmittedAt: submittedAt,
 	})
 
-	if err := s.writeLocked(); err != nil {
+	if err := s.writeLocked("save series pick"); err != nil {
 		s.doc.Predictions = s.doc.Predictions[:len(s.doc.Predictions)-1]
 		return fmt.Errorf("store: persist series pick: %w", err)
 	}
@@ -722,7 +723,7 @@ func (s *Store) SaveDivisionPicks(playerID string, playoffTeams map[string][]str
 		s.upsertDivisionPredictionLocked(playerID, KindDivisionWinner, division, nil, teamID, submittedAt)
 	}
 
-	if err := s.writeLocked(); err != nil {
+	if err := s.writeLocked("save division picks"); err != nil {
 		s.doc.Predictions = snapshot
 		return fmt.Errorf("store: persist division picks: %w", err)
 	}
@@ -821,7 +822,7 @@ func (s *Store) SaveAwardPicks(playerID string, finalists map[string][]string, n
 		s.upsertAwardPredictionLocked(playerID, award, slugs, submittedAt)
 	}
 
-	if err := s.writeLocked(); err != nil {
+	if err := s.writeLocked("save award picks"); err != nil {
 		s.doc.Predictions = snapshot
 		return fmt.Errorf("store: persist award picks: %w", err)
 	}
@@ -856,9 +857,14 @@ func (s *Store) upsertAwardPredictionLocked(playerID, award string, slugs []stri
 
 // writeLocked serializes the in-memory document and atomically replaces the
 // file on disk by writing to a temporary file in the same directory and
-// renaming it over the original (AD-27). Callers must hold s.mu for
-// writing.
-func (s *Store) writeLocked() error {
+// renaming it over the original (AD-27). On success it logs exactly one
+// slog.Info line naming reason, the caller's own literal label for why this
+// write happened (e.g. "create login code") - the sole place any Store
+// write is logged, so every mutating method's call site stays a one-line
+// addition instead of duplicating a log call at every site (spec-7-1's
+// Design Notes). reason is always a fixed, non-identifying literal, never a
+// login code or player email. Callers must hold s.mu for writing.
+func (s *Store) writeLocked(reason string) error {
 	out, err := yaml.Marshal(s.doc)
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
@@ -882,6 +888,8 @@ func (s *Store) writeLocked() error {
 	if err := os.Rename(tmpPath, s.path); err != nil {
 		return fmt.Errorf("rename temp file: %w", err)
 	}
+
+	slog.Info("store write", "reason", reason)
 	return nil
 }
 
