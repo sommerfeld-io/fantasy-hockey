@@ -64,6 +64,22 @@ baseline_commit: 'e6bcf11b6007ed4cbbe0507b22415fc43a0b70cc'
 - Given `store.New` bootstraps a brand-new file, when that write completes, then its log line's wording is distinct from every other mutating method's line.
 - Given a call results in no write at all, when it completes, then no log line is emitted.
 
+### Review Findings
+
+*(bmad-code-review, 2026-09-27, diff `e6bcf11..ef8af90`)*
+
+- [x] [Review][Patch] `TestStoreShouldBeSafeForConcurrentCreateLoginCode` emits unasserted "store write" log noise to stderr on every test run, now that every successful `CreateLoginCode` call logs [internal/store/store_test.go:2179] — fixed: wrapped with `captureLogs(t)`.
+
+**Rejected:**
+- `low` — `assertExactlyOneInfoLine` couples to `slog`'s `TextHandler` string format rather than parsing structured records; a future formatting change could silently miscount lines. Not fixed: the correct fix (a custom `slog.Handler` capturing `[]slog.Record`) is a real refactor of a helper used across 3 stories now, not a direct correction, and unlikely to be hit in practice.
+- `low` — `slog.Info` is called while `writeLocked` still holds `s.mu`, extending every write's critical section by the log sink's latency. Not fixed: default `slog` handlers write to stderr, a fast local operation; no concrete contention problem demonstrated, and moving the log outside the lock requires restructuring return flow, not a direct correction.
+- `false` — "spec status `done` vs. sprint-status `review` is a same-diff contradiction." Disproven: this is the workflow's own intended distinction — `done` means the spec artifact and its built-in review are finished; `review` means the story awaits an independent code-review pass, which is exactly the pass running right now.
+- `false` — "`review_loop_iteration` stayed at 0 despite a review cycle running." Disproven: that counter tracks `intent_gap`/`bad_spec` *loopbacks* specifically; this story's original review only produced `patch`-routed findings, so no loopback ever occurred and 0 is correct.
+- `false` — "No test asserts a player email is absent from the log." Disproven: no code path from any of the 7 `writeLocked` call sites ever has a player's raw email in scope (all pass `playerID`, an opaque slug, never `Player.Email`) — the constraint holds structurally, so a test asserting its absence would be vacuous.
+- `false` — "Missing negative test for the bootstrap write-failure path." Disproven (matches the verification-gap layer's own independent conclusion): the "no log on failure" behavior is enforced once, in `writeLocked`'s shared placement after the rename-success check, for every caller — already verified by 10 other rollback tests exercising that same shared code path.
+- `false` — "Guarding note missing for a future `t.Parallel()` addition to `captureLogs` tests." Disproven: no test in this package uses `t.Parallel()` today, so the described race cannot occur now; this is a pre-existing pattern shared with `internal/auth/auth_test.go`, not introduced by this diff — the same reasoning the original review already applied to this exact concern.
+- `false` — "All 7 call sites share the identical log message, hurting grep-ability." Disproven: this is the spec's own deliberate design (Design Notes: "log once from that one place with `reason` as a field") — a stable message with a structured `reason` field is standard, arguably preferable, structured-logging practice, not a defect.
+
 ## Implementation Notes
 
 `writeLocked` now takes a `reason string` parameter and logs `slog.Info("store write", "reason", reason)` once, immediately after a successful rename, before returning nil. Every one of the 7 call sites passes its own literal reason: `"bootstrap data file"` (`New`), `"create login code"`, `"consume login code"`, `"save prediction"` (both the update-in-place and append branches), `"save series pick"` (both branches), `"save division picks"`, `"save award picks"`. No other field is logged, so the "never a raw login code or player email" constraint holds trivially - `reason` is always a fixed literal, never derived from caller input.

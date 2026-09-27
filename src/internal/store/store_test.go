@@ -2178,6 +2178,7 @@ func TestSaveSeriesPickShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 
 func TestStoreShouldBeSafeForConcurrentCreateLoginCode(t *testing.T) {
 	st := newTestStore(t)
+	captureLogs(t) // silence the "store write" line each concurrent write now emits (spec-7-1)
 
 	const n = 20
 	var wg sync.WaitGroup
