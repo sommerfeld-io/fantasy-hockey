@@ -24,7 +24,7 @@ To correct a result you recorded wrongly, follow the same steps: fix the value a
 
 ## The app rewrites the whole file
 
-Every save (a pick or a login code) rewrites the entire data file. Only the app's own two sections, `login_codes:` and `predictions:`, are regenerated from what's in memory — never hand-edit those, since anything you write there (a comment, unusual formatting) is still silently lost on the very next save. Every hand-maintained section — `players:`, `prediction_sets:`, `teams:`, `nhl_players:`, `playoff_matchups:`, `results:` and `award_finalists:` — is written back exactly as you last saved it: comments, `{ ... }` flow style, quoting (`games: 5` stays unquoted), key order and any key the app doesn't recognize are all preserved. The one thing that isn't guaranteed to match your own formatting is the indentation width of a `-` list item — the app's own consistent indentation may not match yours, though the list's content, order and any comments on it are untouched.
+Every save (a pick or a login code) rewrites the entire data file. Only the app's own two sections, `login_codes:` and `predictions:`, are regenerated from what's in memory — never hand-edit those, since anything you write there (a comment, unusual formatting) is still silently lost on the very next save. Every hand-maintained section — `players:`, `prediction_sets:`, `teams:`, `nhl_players:`, `playoff_matchups:`, `results:` and `award_finalists:` — is written back exactly as you last saved it: comments, `{ ... }` flow style, quoting (`games: 5` stays unquoted), key order and any key the app doesn't recognize are all preserved. Two things aren't guaranteed to match your own formatting: the indentation width of a `-` list item (the list's content, order and any comments on it are untouched, just not necessarily at the width you typed) — and an inline comment's own padding, where multiple spaces before `#` may be normalized down to a single space.
 
 ## Results and award finalists
 
@@ -127,8 +127,8 @@ The `problem` names the entry by its path in the file, then says what is wrong. 
 - a series key with no matching `playoff_matchups` entry for that round;
 - a series winner that isn't one of the matchup's two teams;
 - `games` outside 4 to 7;
-- a misspelled or unknown field name inside `results:`/`award_finalists:`, for example `stanley_cup_winer:` (missing an `n`) - that entry scores nothing, and the next save leaves it in the file exactly as written;
-- a wrongly shaped entry inside `results:`/`award_finalists:`, for example a single team where a list belongs (`playoffs: FLA`) - that entry scores as 0, and the next save leaves the whole section exactly as written.
+- a misspelled or unknown field name inside `results:`/`award_finalists:`, for example `stanley_cup_winer:` (missing an `n`) - that entry scores nothing, and the next save leaves it in the file exactly as written. `position` on an `award_finalists.<award>` entry is a known false positive here: it's a real field on other players in `nhl_players:`, but it isn't part of a finalist entry's own shape, so it's flagged as unknown even when intentional;
+- a wrongly shaped entry inside `results:`/`award_finalists:`, for example a single team where a list belongs (`playoffs: FLA`) - only that one field scores as 0 and is warned about, every sibling field in the same entry (for example that division's `division_winner`) keeps its recorded value, and the next save leaves the whole section exactly as written.
 
 These mistakes are not warned about:
 

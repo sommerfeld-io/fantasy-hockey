@@ -2871,8 +2871,8 @@ func TestNewShouldTolerateAWronglyShapedResultsEntryAndStartAnyway(t *testing.T)
 	}
 
 	problems := st.ResultProblems()
-	if len(problems) != 1 || !strings.Contains(problems[0], "results") || !strings.Contains(problems[0], "line") {
-		t.Errorf("ResultProblems = %v, want exactly one problem naming the tolerated shape error", problems)
+	if len(problems) != 1 || !strings.HasPrefix(problems[0], "results: ") || !strings.Contains(problems[0], "line") {
+		t.Errorf("ResultProblems = %v, want exactly one problem naming the tolerated shape error, prefixed with the specific section (review finding: it used to say \"results/award_finalists\" regardless of which section actually had the problem)", problems)
 	}
 }
 
@@ -2884,8 +2884,8 @@ func TestNewShouldTolerateAWronglyShapedAwardFinalistsEntryAndStartAnyway(t *tes
 		t.Errorf("RecordedAwardFinalists(hart) = %v, want none (tolerated as zero-valued)", got)
 	}
 	problems := st.ResultProblems()
-	if len(problems) != 1 || !strings.Contains(problems[0], "award_finalists") || !strings.Contains(problems[0], "line") {
-		t.Errorf("ResultProblems = %v, want exactly one problem naming the tolerated shape error", problems)
+	if len(problems) != 1 || !strings.HasPrefix(problems[0], "award_finalists: ") || !strings.Contains(problems[0], "line") {
+		t.Errorf("ResultProblems = %v, want exactly one problem naming the tolerated shape error, prefixed with the specific section", problems)
 	}
 }
 
@@ -2935,6 +2935,18 @@ func TestNewShouldTolerateShapeErrorsInBothResultsAndAwardFinalistsAtOnce(t *tes
 	problems := st.ResultProblems()
 	if len(problems) != 2 {
 		t.Fatalf("ResultProblems = %v, want exactly 2 problems (one per tolerated section)", problems)
+	}
+	// Each message must be tagged with its own specific section, not a
+	// generic "results/award_finalists" label for both regardless of which
+	// one actually had the problem (review finding) - the real test of the
+	// section-disambiguation fix, since both ranges are populated here.
+	var sawResults, sawAwardFinalists bool
+	for _, p := range problems {
+		sawResults = sawResults || strings.HasPrefix(p, "results: ")
+		sawAwardFinalists = sawAwardFinalists || strings.HasPrefix(p, "award_finalists: ")
+	}
+	if !sawResults || !sawAwardFinalists {
+		t.Errorf("ResultProblems = %v, want one problem prefixed \"results: \" and one prefixed \"award_finalists: \"", problems)
 	}
 }
 
@@ -3132,5 +3144,37 @@ func TestNewShouldAllowWritesAfterLoadingAnEmptyExistingFile(t *testing.T) {
 
 	if err := st.CreateLoginCode("basti", "hash-1", time.Now().UTC()); err != nil {
 		t.Fatalf("expected a write after loading an empty file to succeed, got error: %v", err)
+	}
+}
+
+// TestNewShouldNotSilentlyDiscardWritesAfterLoadingABareNullFile is a
+// regression test for a review finding (edge-case-hunter, spec-7-4,
+// reproduced directly): a file whose only content is a bare YAML null
+// scalar parses to a real, non-mapping top-level node (unlike an empty
+// file's Kind-0 node, so the earlier empty-file fix alone didn't cover it).
+// Before this fix, New and the next write both succeeded with no error, but
+// the write was silently discarded - the file was left containing only
+// "null", losing the very data the write was supposed to persist.
+func TestNewShouldNotSilentlyDiscardWritesAfterLoadingABareNullFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	if err := os.WriteFile(path, []byte("null\n"), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+	if err := st.CreateLoginCode("basti", "hash-1", time.Now().UTC()); err != nil {
+		t.Fatalf("CreateLoginCode() returned error: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read data file: %v", err)
+	}
+	if !strings.Contains(string(raw), "hash-1") {
+		t.Errorf("expected the write to actually persist rather than being silently discarded, got:\n%s", raw)
 	}
 }

@@ -401,15 +401,31 @@ func (st *Store) loadExisting(path string, raw []byte) error {
 		}
 		// st.doc is still partially populated (Design Notes) - every field
 		// the type mismatch didn't touch, including sibling fields in the
-		// same struct, is exactly as if this error never happened.
-		st.toleratedShapeErrors = typeErr.Errors
+		// same struct, is exactly as if this error never happened. Tag each
+		// message with the specific section it came from (review finding),
+		// rather than a generic "results/award_finalists" label for every
+		// message regardless of which one actually had the problem.
+		ranges := lenientRanges(st.raw)
+		for _, msg := range typeErr.Errors {
+			line, _ := parseErrorLine(msg) // already validated above
+			st.toleratedShapeErrors = append(st.toleratedShapeErrors, sectionForLine(line, ranges)+": "+msg)
+		}
 	}
 
-	// An empty, whitespace-only, or comment-only file parses to a Node with
-	// no content at all (Kind 0). Rebuild raw from the (here, zero-valued)
-	// typed doc, matching New's bootstrap branch, so the next write doesn't
-	// fail on a file that loaded successfully.
-	if st.raw.Kind == 0 {
+	// An empty/whitespace/comment-only file parses to a Node with no
+	// content at all (Kind 0); a file whose only content is a bare scalar
+	// (e.g. a lone "null") parses to a real but non-mapping top-level node.
+	// Both are "successfully loaded" as far as yaml.Unmarshal is concerned
+	// (a null document leaves st.doc at its zero value, no error), but
+	// neither gives writeLocked's splice a mapping to splice into -
+	// reproduced empirically: without this check, New succeeds, the next
+	// write ALSO succeeds silently, and the file is left containing just
+	// "null" - login_codes/predictions written that same call are silently
+	// discarded, not merely rejected. Rebuild raw from the (here,
+	// zero-valued) typed doc whenever the top level isn't a real mapping,
+	// matching New's bootstrap branch, so the next write always has a
+	// mapping to splice into instead of silently losing data.
+	if mapping := topLevelMapping(st.raw); mapping == nil || mapping.Kind != yaml.MappingNode {
 		if err := st.raw.Encode(st.doc); err != nil {
 			return fmt.Errorf("store: parse %s: %w", path, err)
 		}
@@ -438,6 +454,30 @@ func parseErrorLine(msg string) (int, bool) {
 	return n, err == nil
 }
 
+// namedLenientRange is one of results:'s or award_finalists:'s own line
+// ranges in the raw document, tagged with which top-level key it's for - so
+// a tolerated shape error's warning can name which section it came from,
+// not just that it was tolerated (review finding, spec-7-4).
+type namedLenientRange struct {
+	key        string
+	start, end int
+}
+
+// lenientRanges returns raw's line range for each of lenientTopLevelKeys
+// that's actually present - shared by typeErrorConfinedToLenientSections
+// (which only needs the ranges) and sectionForLine (which also needs to
+// know which key each range belongs to).
+func lenientRanges(raw *yaml.Node) []namedLenientRange {
+	mapping := topLevelMapping(raw)
+	var ranges []namedLenientRange
+	for _, key := range lenientTopLevelKeys {
+		if node, ok := mappingValue(mapping, key); ok {
+			ranges = append(ranges, namedLenientRange{key: key, start: node.Line, end: maxLine(node)})
+		}
+	}
+	return ranges
+}
+
 // typeErrorConfinedToLenientSections reports whether every line typeErr
 // names falls within results:'s or award_finalists:'s own line range in
 // raw's top-level mapping (AC2) - a message whose line can't be parsed, or
@@ -445,36 +485,27 @@ func parseErrorLine(msg string) (int, bool) {
 // present in raw at all), fails the check, so New returns the original
 // error unchanged.
 func typeErrorConfinedToLenientSections(typeErr *yaml.TypeError, raw *yaml.Node) bool {
-	mapping := topLevelMapping(raw)
-
-	var ranges [][2]int
-	for _, key := range lenientTopLevelKeys {
-		if node, ok := mappingValue(mapping, key); ok {
-			ranges = append(ranges, [2]int{node.Line, maxLine(node)})
-		}
-	}
-
+	ranges := lenientRanges(raw)
 	for _, msg := range typeErr.Errors {
 		line, ok := parseErrorLine(msg)
-		if !ok {
-			return false
-		}
-		if !lineWithinAnyRange(line, ranges) {
+		if !ok || sectionForLine(line, ranges) == "" {
 			return false
 		}
 	}
 	return true
 }
 
-// lineWithinAnyRange reports whether line falls within any of ranges
-// (inclusive [start, end] pairs).
-func lineWithinAnyRange(line int, ranges [][2]int) bool {
+// sectionForLine returns the key of the range line falls within, or "" if
+// it falls within none - used once typeErrorConfinedToLenientSections has
+// already confirmed every line is confined, to label each tolerated
+// message with the specific section it came from.
+func sectionForLine(line int, ranges []namedLenientRange) string {
 	for _, r := range ranges {
-		if line >= r[0] && line <= r[1] {
-			return true
+		if line >= r.start && line <= r.end {
+			return r.key
 		}
 	}
-	return false
+	return ""
 }
 
 // maxLine returns the greatest Line value anywhere in n's own subtree
@@ -1387,19 +1418,12 @@ func (s *Store) ResultProblems() []string {
 	return problems
 }
 
-// toleratedShapeErrorProblemsLocked formats every *yaml.TypeError message
-// New tolerated at load (AC2) into the same "problem" shape ResultProblems'
-// other helpers return, so main.go's per-problem warning loop covers it
-// too. Callers must hold s.mu for reading.
+// toleratedShapeErrorProblemsLocked returns the section-tagged *yaml.TypeError
+// messages New tolerated at load (AC2), already formatted (loadExisting) in
+// the same "problem" shape ResultProblems' other helpers return, so main.go's
+// per-problem warning loop covers it too. Callers must hold s.mu for reading.
 func (s *Store) toleratedShapeErrorProblemsLocked() []string {
-	if len(s.toleratedShapeErrors) == 0 {
-		return nil
-	}
-	problems := make([]string, len(s.toleratedShapeErrors))
-	for i, msg := range s.toleratedShapeErrors {
-		problems[i] = "results/award_finalists: " + msg
-	}
-	return problems
+	return s.toleratedShapeErrors
 }
 
 // resultsTopLevelKeys/divisionMarksKeys/seriesOutcomeKeys/
@@ -1441,9 +1465,6 @@ func unknownMappingKeys(prefix string, node *yaml.Node, known []string) []string
 // other helpers can't catch on their own (AC1). Callers must hold s.mu for
 // reading.
 func (s *Store) unknownKeyProblemsLocked() []string {
-	if s.raw == nil {
-		return nil
-	}
 	mapping := topLevelMapping(s.raw)
 
 	var problems []string

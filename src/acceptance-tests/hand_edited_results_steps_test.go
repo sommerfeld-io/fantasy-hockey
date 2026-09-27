@@ -168,7 +168,9 @@ award_finalists:
 // straight off disk after the save and asserts the whole results:/
 // award_finalists: block matches handEditedResultsExpectedBlock exactly -
 // the comment, the flow style, and the finalist entry's unusual key order
-// all survive (AC3).
+// all survive (AC3) - and that the save itself actually happened, not just
+// that the untouched section looks untouched because nothing was written at
+// all: the submitted pick must appear under predictions:.
 func (s *handEditedResultsScenarioState) thePersistedResultsSectionsAreByteForByteUnchanged() error {
 	if s.status != http.StatusFound {
 		return fmt.Errorf("expected the pick submission to redirect (status %d), got %d", http.StatusFound, s.status)
@@ -180,6 +182,9 @@ func (s *handEditedResultsScenarioState) thePersistedResultsSectionsAreByteForBy
 	}
 	if !strings.Contains(string(raw), handEditedResultsExpectedBlock) {
 		return fmt.Errorf("expected the results:/award_finalists: block to match exactly (aside from the documented indentation exception), got:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "team_id: TOR") {
+		return fmt.Errorf("expected the submitted pick (team_id: TOR) to be persisted under predictions:, got:\n%s", raw)
 	}
 	return nil
 }
