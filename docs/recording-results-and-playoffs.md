@@ -13,7 +13,7 @@ There is no admin screen. Every one of these edits is made by hand in the data f
 The app reads the data file once, at startup. Always follow these steps:
 
 1. Stop the app (for example `docker stop fantasy-hockey`).
-2. Copy the data file out and keep an untouched backup copy next to it (for example `fantasy-hockey.yml.bak`). A wrongly shaped entry stops the app from starting, and the backup gets it running again. With the named-volume setup from the [README](../README.md), copy the file out with `docker cp fantasy-hockey:/data/fantasy-hockey.yml .`. `docker cp` works on a stopped container.
+2. Copy the data file out and keep an untouched backup copy next to it (for example `fantasy-hockey.yml.bak`). A wrongly shaped entry outside `results:`/`award_finalists:` stops the app from starting, and the backup gets it running again. With the named-volume setup from the [README](../README.md), copy the file out with `docker cp fantasy-hockey:/data/fantasy-hockey.yml .`. `docker cp` works on a stopped container.
 3. Edit the file, then copy it back with `docker cp ./fantasy-hockey.yml fantasy-hockey:/data/fantasy-hockey.yml`.
 4. Start the app again (for example `docker start fantasy-hockey`).
 5. Check the startup log for warnings (see [Reading the startup warnings](#reading-the-startup-warnings)).
@@ -24,14 +24,7 @@ To correct a result you recorded wrongly, follow the same steps: fix the value a
 
 ## The app rewrites the whole file
 
-Every save (a pick or a login code) rewrites the entire data file from memory. The values you recorded are kept, but the file's formatting isn't:
-
-- comments are dropped, including any you add while following this runbook;
-- `{ ... }` flow style becomes block style;
-- quoting changes, for example `games: 5` becomes `games: "5"`;
-- keys the app doesn't know (for example a misspelled one) are dropped.
-
-So don't rely on comments in the data file to keep notes. Keep them somewhere else.
+Every save (a pick or a login code) rewrites the entire data file. Only the app's own two sections, `login_codes:` and `predictions:`, are regenerated from what's in memory — never hand-edit those, since anything you write there (a comment, unusual formatting) is still silently lost on the very next save. Every hand-maintained section — `players:`, `prediction_sets:`, `teams:`, `nhl_players:`, `playoff_matchups:`, `results:` and `award_finalists:` — is written back exactly as you last saved it: comments, `{ ... }` flow style, quoting (`games: 5` stays unquoted), key order and any key the app doesn't recognize are all preserved. The one thing that isn't guaranteed to match your own formatting is the indentation width of a `-` list item — the app's own consistent indentation may not match yours, though the list's content, order and any comments on it are untouched.
 
 ## Results and award finalists
 
@@ -70,7 +63,7 @@ The rules for each part:
 
 Keep these points in mind:
 
-- The series section is nested: the round (`round1`), then the matchup key (`s1`). A flat `round1.s1:` key doesn't load and stops the app from starting.
+- The series section is nested: the round (`round1`), then the matchup key (`s1`). A flat `round1.s1:` key doesn't score anything — the app starts, warns about it, and the next save leaves it exactly as written (see [Reading the startup warnings](#reading-the-startup-warnings)).
 - The round names under `results.series` (`round1` to `round4`) are not the Prediction Set ids used under `playoff_matchups` (`r1`, `r2`, `cf`, `scf`). `round1` is `r1`, `round2` is `r2`, `round3` is `cf` and `round4` is `scf`.
 - A finalist's `slug` must already be listed under the top-level `nhl_players:` section. To add a player there, append an entry with a `slug` (lowercase `lastname-firstname`), the `display_name` and the `position` (`skater`, `defenseman` or `goalie`). Once a slug is added, never change it: saved award picks refer to it.
 
@@ -118,10 +111,11 @@ Each set's `deadline_utc` still applies: an open set closes at its deadline. Che
 
 ## Reading the startup warnings
 
-At startup the app checks the `results:` and `award_finalists:` sections and logs one warning for each value it can't use:
+At startup the app checks the `results:` and `award_finalists:` sections and logs one warning for each value it can't use, then one summary line reporting how many problems it found in total (including zero):
 
 ```text
 2026/09/25 12:17:24 WARN malformed result in data file file=/data/fantasy-hockey.yml problem="results.team_marks.atlantic.division_winner: unknown team \"XXX\""
+2026/09/25 12:17:24 INFO result problems found count=1
 ```
 
 The `problem` names the entry by its path in the file, then says what is wrong. The app still starts, and it ignores that one value, so it scores nothing. Fix it by hand (stop, edit, start) and check that the warning is gone. It warns about:
@@ -131,13 +125,14 @@ The `problem` names the entry by its path in the file, then says what is wrong. 
 - a `team_marks` team that plays in another division;
 - a series key with no matching `playoff_matchups` entry for that round;
 - a series winner that isn't one of the matchup's two teams;
-- `games` outside 4 to 7.
+- `games` outside 4 to 7;
+- a misspelled or unknown field name inside `results:`/`award_finalists:`, for example `stanley_cup_winer:` (missing an `n`) - that entry scores nothing, and the next save leaves it in the file exactly as written;
+- a wrongly shaped entry inside `results:`/`award_finalists:`, for example a single team where a list belongs (`playoffs: FLA`) - that entry scores as 0, and the next save leaves the whole section exactly as written.
 
 These mistakes are not warned about:
 
-- A misspelled field name, for example `stanley_cup_winer:` or `divison_winner:`, is silently ignored, so that result scores nothing. The next save then drops it from the file.
-- A wrongly shaped entry stops the app from starting. For example, a single team where a list belongs (`playoffs: FLA`), a flat `round1.s1:` series key or a duplicate top-level key. The app exits with a `yaml: unmarshal errors` message that names the line.
+- A wrongly shaped entry *outside* `results:`/`award_finalists:` still stops the app from starting - for example a malformed `teams:` entry. The app exits with a `yaml: unmarshal errors` message that names the line.
 - A half-recorded series (a `winner` without `games`, or the reverse) scores nothing until both are recorded.
 - Fewer than three finalists, or the same finalist listed twice, is accepted as written.
 
-A clean startup logs no warnings at all. No warnings means none of the warned-about problems above was found. It doesn't rule out the mistakes that aren't warned about, so check those by eye after each edit.
+A clean startup logs no warnings and a summary line reporting count=0. No warnings means none of the warned-about problems above was found. It doesn't rule out the mistakes that aren't warned about, so check those by eye after each edit.

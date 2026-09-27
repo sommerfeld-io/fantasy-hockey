@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -278,11 +279,12 @@ type PlayoffMatchup struct {
 
 // results mirrors fantasy-hockey.yml's hand-maintained results: section -
 // the real-world outcomes internal/scoring compares picks against. Like
-// Team and PlayoffMatchup, no code path ever changes it, but every save
-// re-marshals the whole document: its values are preserved, while comments,
-// flow style and quoting are not. TeamMarks is keyed by lowercase division name
-// (e.g. "atlantic") and Series by round name ("round1".."round4", see
-// resultRounds) and then by PlayoffMatchup.Key.
+// Team and PlayoffMatchup, no code path ever changes it; every save splices
+// only login_codes/predictions into Store.raw and leaves this section's own
+// parsed nodes untouched, so its comments, flow style, quoting and key order
+// all survive a save unchanged (spec-7-4). TeamMarks is keyed by lowercase
+// division name (e.g. "atlantic") and Series by round name ("round1"..
+// "round4", see resultRounds) and then by PlayoffMatchup.Key.
 type results struct {
 	TeamMarks        map[string]divisionMarks            `yaml:"team_marks,omitempty"`
 	PresidentsTrophy string                              `yaml:"presidents_trophy,omitempty"`
@@ -318,18 +320,42 @@ type document struct {
 }
 
 // Store is the in-memory representation of fantasy-hockey.yml, guarded by a
-// mutex so every read and write is synchronized (AD-29). Both the mutex and
-// the document stay unexported; callers only ever go through Store's
-// exported methods.
+// mutex so every read and write is synchronized (AD-29). The mutex and both
+// representations of the document stay unexported; callers only ever go
+// through Store's exported methods.
 type Store struct {
 	mu   sync.RWMutex
 	path string
 	doc  document
+
+	// raw is the same document as doc, parsed as a *yaml.Node tree instead
+	// of typed Go values. writeLocked splices freshly-encoded login_codes/
+	// predictions nodes into this same tree and encodes that (spec-7-4) -
+	// every other hand-maintained section (players, prediction_sets, teams,
+	// nhl_players, playoff_matchups, results, award_finalists) round-trips
+	// through the exact node objects it was parsed into, so a save never
+	// reconstructs their content from doc's typed fields. New populates it
+	// for both an existing file and a freshly bootstrapped one, so every
+	// write from then on has a tree to splice into.
+	raw *yaml.Node
+
+	// toleratedShapeErrors holds the *yaml.TypeError messages New tolerated
+	// because every line they name fell inside results:'s or
+	// award_finalists:'s own line range (AC2) instead of aborting startup.
+	// ResultProblems formats and appends them alongside every other
+	// per-problem warning main.go already logs.
+	toleratedShapeErrors []string
 }
 
 // New loads path into memory. If path doesn't exist, it bootstraps a new
 // file there with an empty players list and the current default season,
 // per AD-25/AD-26.
+//
+// A shape error confined to results:/award_finalists: (e.g. a scalar where
+// a list belongs) no longer aborts startup: New keeps going with those
+// fields left zero-valued, and ResultProblems reports the mistake instead
+// (AC2). A shape error anywhere else (players:, teams:, etc.) still fails
+// New exactly as before.
 func New(path string) (*Store, error) {
 	st := &Store{path: path}
 
@@ -337,6 +363,10 @@ func New(path string) (*Store, error) {
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		st.doc = document{Season: DefaultSeason, Players: []Player{}}
+		st.raw = &yaml.Node{}
+		if err := st.raw.Encode(st.doc); err != nil {
+			return nil, fmt.Errorf("store: bootstrap %s: %w", path, err)
+		}
 		if err := st.writeLocked("bootstrap data file", time.Now().UTC()); err != nil {
 			return nil, fmt.Errorf("store: bootstrap %s: %w", path, err)
 		}
@@ -345,10 +375,160 @@ func New(path string) (*Store, error) {
 		return nil, fmt.Errorf("store: read %s: %w", path, err)
 	}
 
-	if err := yaml.Unmarshal(raw, &st.doc); err != nil {
-		return nil, fmt.Errorf("store: parse %s: %w", path, err)
+	if err := st.loadExisting(path, raw); err != nil {
+		return nil, err
 	}
 	return st, nil
+}
+
+// loadExisting parses raw (path's current on-disk bytes) into st.doc and
+// st.raw, tolerating a *yaml.TypeError confined to results:/award_finalists:
+// (AC2) and an empty/whitespace/comment-only file (Kind 0, which
+// writeLocked's encoder can't encode later) - split out of New to keep its
+// own cyclomatic complexity within gocyclo's gate.
+func (st *Store) loadExisting(path string, raw []byte) error {
+	var rawNode yaml.Node
+	if err := yaml.Unmarshal(raw, &rawNode); err != nil {
+		return fmt.Errorf("store: parse %s: %w", path, err)
+	}
+	st.raw = &rawNode
+
+	if err := yaml.Unmarshal(raw, &st.doc); err != nil {
+		var typeErr *yaml.TypeError
+		if !errors.As(err, &typeErr) || !typeErrorConfinedToLenientSections(typeErr, st.raw) {
+			return fmt.Errorf("store: parse %s: %w", path, err)
+		}
+		// st.doc is still partially populated (Design Notes) - every field
+		// the type mismatch didn't touch, including sibling fields in the
+		// same struct, is exactly as if this error never happened.
+		st.toleratedShapeErrors = typeErr.Errors
+	}
+
+	// An empty, whitespace-only, or comment-only file parses to a Node with
+	// no content at all (Kind 0). Rebuild raw from the (here, zero-valued)
+	// typed doc, matching New's bootstrap branch, so the next write doesn't
+	// fail on a file that loaded successfully.
+	if st.raw.Kind == 0 {
+		if err := st.raw.Encode(st.doc); err != nil {
+			return fmt.Errorf("store: parse %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+// lenientTopLevelKeys are the two top-level sections whose shape errors AC2
+// tolerates instead of aborting startup, confined by line range - never a
+// general "the app never fails to parse" policy (Boundaries & Constraints).
+var lenientTopLevelKeys = []string{"results", "award_finalists"}
+
+// typeErrorLinePattern matches a *yaml.TypeError message's leading line
+// number (e.g. "line 7: cannot unmarshal ..." - Design Notes' "stable,
+// long-documented line %d: message format").
+var typeErrorLinePattern = regexp.MustCompile(`^line (\d+):`)
+
+// parseErrorLine extracts the line number msg (one entry of a
+// *yaml.TypeError's Errors) leads with, if it's in the expected format.
+func parseErrorLine(msg string) (int, bool) {
+	m := typeErrorLinePattern.FindStringSubmatch(msg)
+	if m == nil {
+		return 0, false
+	}
+	n, err := strconv.Atoi(m[1])
+	return n, err == nil
+}
+
+// typeErrorConfinedToLenientSections reports whether every line typeErr
+// names falls within results:'s or award_finalists:'s own line range in
+// raw's top-level mapping (AC2) - a message whose line can't be parsed, or
+// that falls outside both ranges (including when neither section is
+// present in raw at all), fails the check, so New returns the original
+// error unchanged.
+func typeErrorConfinedToLenientSections(typeErr *yaml.TypeError, raw *yaml.Node) bool {
+	mapping := topLevelMapping(raw)
+
+	var ranges [][2]int
+	for _, key := range lenientTopLevelKeys {
+		if node, ok := mappingValue(mapping, key); ok {
+			ranges = append(ranges, [2]int{node.Line, maxLine(node)})
+		}
+	}
+
+	for _, msg := range typeErr.Errors {
+		line, ok := parseErrorLine(msg)
+		if !ok {
+			return false
+		}
+		if !lineWithinAnyRange(line, ranges) {
+			return false
+		}
+	}
+	return true
+}
+
+// lineWithinAnyRange reports whether line falls within any of ranges
+// (inclusive [start, end] pairs).
+func lineWithinAnyRange(line int, ranges [][2]int) bool {
+	for _, r := range ranges {
+		if line >= r[0] && line <= r[1] {
+			return true
+		}
+	}
+	return false
+}
+
+// maxLine returns the greatest Line value anywhere in n's own subtree
+// (itself and every descendant) - a mapping or sequence node's own Line
+// only marks where its content starts, so this is needed to find where it
+// ends, bounding a section's full line range.
+func maxLine(n *yaml.Node) int {
+	max := n.Line
+	for _, c := range n.Content {
+		if l := maxLine(c); l > max {
+			max = l
+		}
+	}
+	return max
+}
+
+// topLevelMapping returns n's top-level mapping node: the DocumentNode's
+// first child when n was produced by unmarshaling a full file's bytes, or n
+// itself when n was produced by Node.Encode (which never wraps its result
+// in a DocumentNode, unlike Unmarshal).
+func topLevelMapping(n *yaml.Node) *yaml.Node {
+	if n.Kind == yaml.DocumentNode && len(n.Content) > 0 {
+		return n.Content[0]
+	}
+	return n
+}
+
+// mappingValue returns key's value node within mapping's Content, and
+// whether key was present at all. mapping being nil or not a MappingNode
+// (a shape error already reported elsewhere) reports key absent.
+func mappingValue(mapping *yaml.Node, key string) (*yaml.Node, bool) {
+	if mapping == nil || mapping.Kind != yaml.MappingNode {
+		return nil, false
+	}
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			return mapping.Content[i+1], true
+		}
+	}
+	return nil, false
+}
+
+// mappingKeys returns every key in mapping's Content, in the file's own
+// order - already deterministic (unlike a Go map's iteration order), since
+// it comes straight from the parsed document. mapping being nil or not a
+// MappingNode returns nil.
+func mappingKeys(mapping *yaml.Node) []string {
+	if mapping == nil || mapping.Kind != yaml.MappingNode {
+		return nil
+	}
+	keys := make([]string, 0, len(mapping.Content)/2)
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		keys = append(keys, mapping.Content[i].Value)
+	}
+	return keys
 }
 
 // FindPlayerByEmail returns the player whose email matches, if any. The
@@ -884,27 +1064,75 @@ func cleanupLoginCodes(rows []LoginCode, now time.Time) []LoginCode {
 	return cleaned
 }
 
-// writeLocked serializes the in-memory document and atomically replaces the
-// file on disk by writing to a temporary file in the same directory and
-// renaming it over the original (AD-27). Before marshaling, it computes
-// cleanupLoginCodes(s.doc.LoginCodes, now) and writes that cleaned slice in
-// place of s.doc.LoginCodes's own - on a copy of the document, never s.doc
-// itself, so a failed write leaves s.doc.LoginCodes exactly as the calling
+// spliceNamedValueLocked replaces key's value node within mapping's Content
+// with value, appending a new "key: value" pair at mapping's end when key
+// isn't present yet (a hand-seeded fixture, or a pre-spec-7-4 file, that
+// omits login_codes: or predictions: entirely still needs a write to
+// succeed). It returns a restore closure that undoes exactly this splice -
+// reassigning the old value node back in place, or truncating the appended
+// pair - so writeLocked can roll every splice back in reverse order if a
+// later step fails. Callers must hold s.mu for writing.
+func spliceNamedValueLocked(mapping *yaml.Node, key string, value *yaml.Node) (restore func()) {
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		if mapping.Content[i].Value == key {
+			old := mapping.Content[i+1]
+			mapping.Content[i+1] = value
+			return func() { mapping.Content[i+1] = old }
+		}
+	}
+
+	var keyNode yaml.Node
+	keyNode.SetString(key)
+	mapping.Content = append(mapping.Content, &keyNode, value)
+	return func() { mapping.Content = mapping.Content[:len(mapping.Content)-2] }
+}
+
+// writeLocked atomically replaces the file on disk by writing to a
+// temporary file in the same directory and renaming it over the original
+// (AD-27). Before encoding, it computes cleanupLoginCodes(s.doc.LoginCodes,
+// now) and encodes that cleaned slice - a fresh node, never s.doc.LoginCodes
+// itself - so a failed write leaves s.doc.LoginCodes exactly as the calling
 // method's own mutation left it (its existing rollback logic stays correct,
-// untouched - spec-7-2's Design Notes). Only once the rename succeeds is
-// s.doc.LoginCodes itself updated to the cleaned slice. On success it also
-// logs exactly one slog.Info line naming reason, the caller's own literal
-// label for why this write happened (e.g. "create login code") - the sole
-// place any Store write is logged, so every mutating method's call site
-// stays a one-line addition instead of duplicating a log call at every site
+// untouched - spec-7-2's Design Notes). It splices that node and a fresh
+// s.doc.Predictions node into s.raw's own top-level mapping and encodes
+// s.raw itself - every other hand-maintained section (players,
+// prediction_sets, teams, nhl_players, playoff_matchups, results,
+// award_finalists) round-trips through the exact node objects it was parsed
+// into, never reconstructed from doc's typed fields (spec-7-4, AD-23). Only
+// once the rename succeeds are s.doc.LoginCodes and the two spliced nodes
+// committed permanently; on any failure both splices are undone first, so
+// s.raw is left exactly as it was before this call. On success it also logs
+// exactly one slog.Info line naming reason, the caller's own literal label
+// for why this write happened (e.g. "create login code") - the sole place
+// any Store write is logged, so every mutating method's call site stays a
+// one-line addition instead of duplicating a log call at every site
 // (spec-7-1's Design Notes). reason is always a fixed, non-identifying
 // literal, never a login code or player email. Callers must hold s.mu for
 // writing.
 func (s *Store) writeLocked(reason string, now time.Time) error {
 	cleaned := cleanupLoginCodes(s.doc.LoginCodes, now)
 
-	docToWrite := s.doc
-	docToWrite.LoginCodes = cleaned
+	var loginCodesNode, predictionsNode yaml.Node
+	// Encode only fails for a type yaml can't represent at all - never the
+	// case for []LoginCode/[]Prediction - so these branches are defensive
+	// and intentionally untested (spec-7-3's I/O matrix).
+	if err := loginCodesNode.Encode(cleaned); err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	if err := predictionsNode.Encode(s.doc.Predictions); err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+
+	mapping := topLevelMapping(s.raw)
+	restoreLoginCodes := spliceNamedValueLocked(mapping, "login_codes", &loginCodesNode)
+	restorePredictions := spliceNamedValueLocked(mapping, "predictions", &predictionsNode)
+	restoreSplices := func() {
+		// Undo in reverse order: each restore closure trims from
+		// mapping.Content's current end when it originally appended,
+		// so undoing the later splice first keeps that trim correct.
+		restorePredictions()
+		restoreLoginCodes()
+	}
 
 	// A plain yaml.Marshal indents a sequence nested inside a mapping
 	// that's itself inside a list (e.g. Prediction.TeamIDs) by a smaller
@@ -913,16 +1141,15 @@ func (s *Store) writeLocked(reason string, now time.Time) error {
 	// CompactSeqIndent applies the same relative increment to every
 	// sequence regardless of nesting depth, producing yamllint-compliant
 	// output (spec-7-3's Design Notes).
-	// Encode/Close only fail for a type yaml can't represent at all - never
-	// the case for document's own field types - so these branches are
-	// defensive and intentionally untested (spec-7-3's I/O matrix).
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.CompactSeqIndent()
-	if err := enc.Encode(docToWrite); err != nil {
+	if err := enc.Encode(s.raw); err != nil {
+		restoreSplices()
 		return fmt.Errorf("marshal: %w", err)
 	}
 	if err := enc.Close(); err != nil {
+		restoreSplices()
 		return fmt.Errorf("marshal: %w", err)
 	}
 	out := buf.Bytes()
@@ -930,6 +1157,7 @@ func (s *Store) writeLocked(reason string, now time.Time) error {
 	dir := filepath.Dir(s.path)
 	tmp, err := os.CreateTemp(dir, ".fantasy-hockey-*.tmp")
 	if err != nil {
+		restoreSplices()
 		return fmt.Errorf("create temp file: %w", err)
 	}
 	tmpPath := tmp.Name()
@@ -937,12 +1165,15 @@ func (s *Store) writeLocked(reason string, now time.Time) error {
 
 	if _, err := tmp.Write(out); err != nil {
 		tmp.Close()
+		restoreSplices()
 		return fmt.Errorf("write temp file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
+		restoreSplices()
 		return fmt.Errorf("close temp file: %w", err)
 	}
 	if err := os.Rename(tmpPath, s.path); err != nil {
+		restoreSplices()
 		return fmt.Errorf("rename temp file: %w", err)
 	}
 
@@ -1127,19 +1358,146 @@ func (s *Store) RecordedAwardFinalists(award string) []string {
 // and award_finalists sections: an unknown team abbreviation, finalist
 // slug, division, award or round, a series key with no matching
 // playoff_matchups entry, games outside 4-7, a series winner that is not
-// one of its matchup's two teams, or a team_marks team from another
-// division. The store only reports them
-// (the read methods above ignore each bad entry); main.go logs them.
+// one of its matchup's two teams, a team_marks team from another division,
+// a misspelled or unknown fixed-shape key (AC1), or a value New tolerated
+// because its wrong shape was confined to results:/award_finalists: (AC2).
+// The store only reports them (the read methods above ignore each bad
+// entry); main.go logs them.
 func (s *Store) ResultProblems() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	var problems []string
+	problems = append(problems, s.toleratedShapeErrorProblemsLocked()...)
+	problems = append(problems, s.unknownKeyProblemsLocked()...)
 	problems = append(problems, s.teamMarkProblemsLocked()...)
 	problems = append(problems, s.teamProblemLocked("results.presidents_trophy", s.doc.Results.PresidentsTrophy)...)
 	problems = append(problems, s.teamProblemLocked("results.stanley_cup_winner", s.doc.Results.StanleyCupWinner)...)
 	problems = append(problems, s.seriesProblemsLocked()...)
 	problems = append(problems, s.awardProblemsLocked()...)
+	return problems
+}
+
+// toleratedShapeErrorProblemsLocked formats every *yaml.TypeError message
+// New tolerated at load (AC2) into the same "problem" shape ResultProblems'
+// other helpers return, so main.go's per-problem warning loop covers it
+// too. Callers must hold s.mu for reading.
+func (s *Store) toleratedShapeErrorProblemsLocked() []string {
+	if len(s.toleratedShapeErrors) == 0 {
+		return nil
+	}
+	problems := make([]string, len(s.toleratedShapeErrors))
+	for i, msg := range s.toleratedShapeErrors {
+		problems[i] = "results/award_finalists: " + msg
+	}
+	return problems
+}
+
+// resultsTopLevelKeys/divisionMarksKeys/seriesOutcomeKeys/
+// awardFinalistEntryKeys are the fixed-shape struct fields AC1's
+// unknown-key detection checks - the ones a typed struct silently drops
+// instead of erroring on (Design Notes). unknownKeyProblemsLocked never
+// re-checks the map-keyed vocabularies (division/round/award names)
+// teamMarkProblemsLocked/seriesProblemsLocked/awardProblemsLocked already
+// validate - a Go map, unlike a struct, keeps every key it's given.
+var (
+	resultsTopLevelKeys    = []string{"team_marks", "presidents_trophy", "stanley_cup_winner", "series"}
+	divisionMarksKeys      = []string{"playoffs", "division_winner"}
+	seriesOutcomeKeys      = []string{"winner", "games"}
+	awardFinalistEntryKeys = []string{"slug", "display_name"}
+)
+
+// unknownMappingKeys reports every key in node (a mapping) not in known, at
+// path "prefix.key" - node being nil or not a MappingNode (a shape error
+// already reported elsewhere, or a section simply not present) reports
+// nothing.
+func unknownMappingKeys(prefix string, node *yaml.Node, known []string) []string {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return nil
+	}
+	var problems []string
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key := node.Content[i].Value
+		if !slices.Contains(known, key) {
+			problems = append(problems, fmt.Sprintf("%s.%s: unknown key", prefix, key))
+		}
+	}
+	return problems
+}
+
+// unknownKeyProblemsLocked reports a misspelled or unknown key anywhere in
+// results:/award_finalists:'s fixed-shape struct fields - the one class of
+// mistake yaml.Unmarshal never errors on (a misspelled field is simply
+// never populated, Design Notes), so it's the one class ResultProblems'
+// other helpers can't catch on their own (AC1). Callers must hold s.mu for
+// reading.
+func (s *Store) unknownKeyProblemsLocked() []string {
+	if s.raw == nil {
+		return nil
+	}
+	mapping := topLevelMapping(s.raw)
+
+	var problems []string
+	if resultsNode, ok := mappingValue(mapping, "results"); ok {
+		problems = append(problems, unknownMappingKeys("results", resultsNode, resultsTopLevelKeys)...)
+		problems = append(problems, unknownTeamMarksKeys(resultsNode)...)
+		problems = append(problems, unknownSeriesOutcomeKeys(resultsNode)...)
+	}
+	if finalists, ok := mappingValue(mapping, "award_finalists"); ok {
+		problems = append(problems, unknownAwardFinalistEntryKeys(finalists)...)
+	}
+	return problems
+}
+
+// unknownTeamMarksKeys reports an unknown key inside any of resultsNode's
+// team_marks.<division> entries - shared by unknownKeyProblemsLocked to keep
+// its own cyclomatic complexity in check.
+func unknownTeamMarksKeys(resultsNode *yaml.Node) []string {
+	teamMarks, ok := mappingValue(resultsNode, "team_marks")
+	if !ok {
+		return nil
+	}
+	var problems []string
+	for _, division := range mappingKeys(teamMarks) {
+		marks, _ := mappingValue(teamMarks, division)
+		problems = append(problems, unknownMappingKeys("results.team_marks."+division, marks, divisionMarksKeys)...)
+	}
+	return problems
+}
+
+// unknownSeriesOutcomeKeys reports an unknown key inside any of resultsNode's
+// series.<round>.<key> entries - shared by unknownKeyProblemsLocked to keep
+// its own cyclomatic complexity in check.
+func unknownSeriesOutcomeKeys(resultsNode *yaml.Node) []string {
+	rounds, ok := mappingValue(resultsNode, "series")
+	if !ok {
+		return nil
+	}
+	var problems []string
+	for _, round := range mappingKeys(rounds) {
+		matchups, _ := mappingValue(rounds, round)
+		for _, key := range mappingKeys(matchups) {
+			outcome, _ := mappingValue(matchups, key)
+			problems = append(problems, unknownMappingKeys(fmt.Sprintf("results.series.%s.%s", round, key), outcome, seriesOutcomeKeys)...)
+		}
+	}
+	return problems
+}
+
+// unknownAwardFinalistEntryKeys reports an unknown key inside any of
+// finalists' award_finalists.<award>[i] entries - shared by
+// unknownKeyProblemsLocked to keep its own cyclomatic complexity in check.
+func unknownAwardFinalistEntryKeys(finalists *yaml.Node) []string {
+	var problems []string
+	for _, award := range mappingKeys(finalists) {
+		list, _ := mappingValue(finalists, award)
+		if list == nil || list.Kind != yaml.SequenceNode {
+			continue
+		}
+		for i, entry := range list.Content {
+			problems = append(problems, unknownMappingKeys(fmt.Sprintf("award_finalists.%s[%d]", award, i), entry, awardFinalistEntryKeys)...)
+		}
+	}
 	return problems
 }
 

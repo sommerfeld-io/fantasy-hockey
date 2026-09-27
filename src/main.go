@@ -61,18 +61,23 @@ func resolveConfig(args []string) (config, error) {
 }
 
 // openStore opens the data file and logs one warning per malformed
-// hand-recorded result value (store.ResultProblems). A bad value never stops
-// startup: the store ignores it, so it simply scores nothing. A results
-// entry of the wrong YAML shape (e.g. a scalar where a list belongs) still
-// fails to load and is returned as an error.
+// hand-recorded result value (store.ResultProblems), followed by one info
+// line summarizing the total problem count found (including zero, AC4). A
+// bad value never stops startup: the store ignores it, so it simply scores
+// nothing. A misspelled/unknown key or wrongly shaped entry confined to
+// results:/award_finalists: is reported the same way (spec-7-4); a shape
+// error anywhere else (players:, teams:, etc.) still fails to load and is
+// returned as an error.
 func openStore(path string, logger *slog.Logger) (*store.Store, error) {
 	st, err := store.New(path)
 	if err != nil {
 		return nil, fmt.Errorf("open data file %s: %w", path, err)
 	}
-	for _, problem := range st.ResultProblems() {
+	problems := st.ResultProblems()
+	for _, problem := range problems {
 		logger.Warn("malformed result in data file", "file", path, "problem", problem)
 	}
+	logger.Info("result problems found", "count", len(problems))
 	return st, nil
 }
 

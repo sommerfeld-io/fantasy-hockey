@@ -76,7 +76,7 @@ development_status:
   7-1-log-data-changing-writes: review
   7-2-clean-up-unusable-login-codes: review
   7-3-keep-written-yaml-yamllint-compliant: review
-  7-4-hand-edited-results-are-safe-to-edit: backlog
+  7-4-hand-edited-results-are-safe-to-edit: review
   epic-7-retrospective: optional
 
 # Action items committed during retrospectives (section created by the retrospective workflow)

@@ -134,6 +134,9 @@ func TestOpenStoreShouldWarnAboutAMalformedResultAndStillSucceed(t *testing.T) {
 	if got := strings.Count(logs.String(), "level=WARN"); got != 2 {
 		t.Errorf("expected one warning per bad entry (2), got %d in %q", got, logs.String())
 	}
+	if !strings.Contains(logs.String(), `msg="result problems found" count=2`) {
+		t.Errorf("expected a summary line reporting count=2 (AC4), got %q", logs.String())
+	}
 }
 
 func TestOpenStoreShouldNotWarnForAWellFormedFile(t *testing.T) {
@@ -148,8 +151,11 @@ func TestOpenStoreShouldNotWarnForAWellFormedFile(t *testing.T) {
 	if _, err := openStore(path, logger); err != nil {
 		t.Fatalf("openStore returned error: %v", err)
 	}
-	if logs.Len() != 0 {
-		t.Errorf("expected no log output, got %q", logs.String())
+	if strings.Contains(logs.String(), "level=WARN") {
+		t.Errorf("expected no warnings, got %q", logs.String())
+	}
+	if !strings.Contains(logs.String(), `msg="result problems found" count=0`) {
+		t.Errorf("expected a summary line reporting count=0 (AC4) even for a clean file, got %q", logs.String())
 	}
 }
 

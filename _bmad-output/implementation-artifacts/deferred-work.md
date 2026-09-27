@@ -96,10 +96,16 @@
 ## Deferred from: code review of spec-4-1-automatic-scoring-engine.md (2026-09-25)
 
 - Nothing tests that `run()` in src/main.go goes through `openStore`, so the startup malformed-result warning could silently disappear. `run()` has no test seam.
-- A wrongly shaped results entry (e.g. `playoffs: FLA`) makes store.New fail and the app refuse to start instead of warning. Deferred to story 7-3 by user decision.
-- A misspelled key under `results:` (e.g. `stanley_cup_winer`) is silently ignored with no warning, and it is dropped from the file on the next save. Deferred to story 7-3 by user decision.
-- Every prediction save re-serializes the hand-maintained results and award_finalists sections, which drops comments and unmodelled keys and re-quotes `games`. Reason (user): the Never rule means the app never creates or changes results. Byte and comment preservation belongs to story 7-3.
+- ~~A wrongly shaped results entry (e.g. `playoffs: FLA`) makes store.New fail and the app refuse to start instead of warning. Deferred to story 7-3 by user decision.~~ **Resolved in Story 7.4**: `New` now tolerates a shape error confined to `results:`/`award_finalists:` — see `spec-7-4-hand-edited-results-are-safe-to-edit.md`.
+- ~~A misspelled key under `results:` (e.g. `stanley_cup_winer`) is silently ignored with no warning, and it is dropped from the file on the next save. Deferred to story 7-3 by user decision.~~ **Resolved in Story 7.4**: `unknownKeyProblemsLocked` now reports it, and it survives a save unchanged.
+- ~~Every prediction save re-serializes the hand-maintained results and award_finalists sections, which drops comments and unmodelled keys and re-quotes `games`. Reason (user): the Never rule means the app never creates or changes results. Byte and comment preservation belongs to story 7-3.~~ **Resolved in Story 7.4**: `writeLocked` now splices only `login_codes`/`predictions` into the original parsed node tree; every hand-maintained section round-trips through its own original nodes.
 
 - source_spec: none
   summary: Epic 4 retro A9, which hoists the duplicated YAML-seed store helpers, prediction-row renderers, acceptance seed builders and the submitted_at literal into shared test support before Epic 5.
   evidence: The user split it out of the Epic 4 retro hardening spec on 2026-09-25. It rewrites the same step files that A6 extends, so it should ship as its own change.
+
+## Deferred from: code review of spec-7-4-hand-edited-results-are-safe-to-edit.md (2026-09-27)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-7-4-hand-edited-results-are-safe-to-edit.md`
+  summary: `unknownKeyProblemsLocked`'s four hardcoded key-vocabulary slices (`resultsTopLevelKeys`, `divisionMarksKeys`, `seriesOutcomeKeys`, `awardFinalistEntryKeys`) duplicate the yaml struct tags already on `results`/`divisionMarks`/`seriesOutcome`/`AwardFinalist` with no structural safeguard tying the two together.
+  evidence: Verified real (blind-hunter): a future rename or field addition on any of those structs silently desyncs the unknown-key detector (a false positive on a legitimate new field, or a missed typo) unless both places are updated by hand. `AwardFinalist.Position` being flagged as "unknown" inside `award_finalists.<award>` entries (accepted, since the runbook's own documented example never shows `position` there) is a live instance of exactly this drift. Fixing it structurally (e.g. reflection over the struct tags) is a bigger change than this story's spec asked for, given the schema is small and rarely changes.

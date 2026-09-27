@@ -53,6 +53,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeAutomaticScoringScenario(ctx)
 			InitializeLeaderboardScenario(ctx)
 			InitializeCompareScenario(ctx)
+			InitializeHandEditedResultsScenario(ctx)
 		},
 		Options: &opts,
 	}

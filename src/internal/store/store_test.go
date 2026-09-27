@@ -2768,3 +2768,328 @@ func TestResultProblemsShouldAcceptTeamMarksFromTheirOwnDivision(t *testing.T) {
 		t.Errorf("DivisionResult(Pacific) = %v, %q, want [EDM], EDM", playoffs, winner)
 	}
 }
+
+// --- spec-7-4: hand-edited results are safe to edit ---
+
+func TestResultProblemsShouldReportAnUnknownOrMisspelledKeyInsideResultsOrAwardFinalists(t *testing.T) {
+	tests := []struct {
+		name     string
+		results  string
+		wantPath string
+	}{
+		{
+			name:     "unknown results top-level key",
+			results:  "results:\n    stanley_cup_winer: FLA\n",
+			wantPath: "results.stanley_cup_winer",
+		},
+		{
+			name:     "unknown division marks key",
+			results:  "results:\n    team_marks:\n        atlantic:\n            playoffs: [FLA]\n            division_champ: FLA\n",
+			wantPath: "results.team_marks.atlantic.division_champ",
+		},
+		{
+			name:     "unknown series outcome key",
+			results:  "results:\n    series:\n        round1:\n            s1: {winner: FLA, gams: 5}\n",
+			wantPath: "results.series.round1.s1.gams",
+		},
+		{
+			name:     "unknown award finalist entry key",
+			results:  "award_finalists:\n    hart:\n        - {slug: mcdavid-connor, dispaly_name: Connor McDavid}\n",
+			wantPath: "award_finalists.hart[0].dispaly_name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st, _ := newSeededStore(t, resultsFixtureBase+tt.results)
+
+			problems := st.ResultProblems()
+			if len(problems) != 1 || !strings.Contains(problems[0], tt.wantPath) || !strings.Contains(problems[0], "unknown key") {
+				t.Errorf("ResultProblems = %v, want exactly one naming %q as an unknown key", problems, tt.wantPath)
+			}
+		})
+	}
+}
+
+func TestResultProblemsShouldNotFlagAKnownFixedShapeKeyAsUnknown(t *testing.T) {
+	st, _ := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	for _, problem := range st.ResultProblems() {
+		if strings.Contains(problem, "unknown key") {
+			t.Errorf("ResultProblems = %v, expected no false positive for a well-formed file", problem)
+		}
+	}
+}
+
+func TestNewShouldTolerateAWronglyShapedResultsEntryAndStartAnyway(t *testing.T) {
+	seed := resultsFixtureBase + "results:\n    team_marks:\n        atlantic:\n            playoffs: FLA\n            division_winner: FLA\n"
+	st, _ := newSeededStore(t, seed)
+
+	if playoffs, winner := st.DivisionResult("Atlantic"); len(playoffs) != 0 || winner != "FLA" {
+		t.Errorf("DivisionResult(Atlantic) = %v, %q, want no playoffs (tolerated as zero-valued) but the sibling division_winner field still populated", playoffs, winner)
+	}
+
+	problems := st.ResultProblems()
+	if len(problems) != 1 || !strings.Contains(problems[0], "results") || !strings.Contains(problems[0], "line") {
+		t.Errorf("ResultProblems = %v, want exactly one problem naming the tolerated shape error", problems)
+	}
+}
+
+func TestNewShouldTolerateAWronglyShapedAwardFinalistsEntryAndStartAnyway(t *testing.T) {
+	seed := resultsFixtureBase + "award_finalists:\n    hart: FLA\n"
+	st, _ := newSeededStore(t, seed)
+
+	if got := st.RecordedAwardFinalists(AwardHart); len(got) != 0 {
+		t.Errorf("RecordedAwardFinalists(hart) = %v, want none (tolerated as zero-valued)", got)
+	}
+	problems := st.ResultProblems()
+	if len(problems) != 1 || !strings.Contains(problems[0], "award_finalists") || !strings.Contains(problems[0], "line") {
+		t.Errorf("ResultProblems = %v, want exactly one problem naming the tolerated shape error", problems)
+	}
+}
+
+func TestNewShouldStillFailForAShapeErrorOutsideResultsAndAwardFinalists(t *testing.T) {
+	seed := "season: \"2026-27\"\nteams: FLA\nresults:\n    stanley_cup_winner: FLA\n"
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+
+	if _, err := New(path); err == nil {
+		t.Fatal("expected New to fail for a shape error outside results:/award_finalists:, even alongside a well-formed results: section")
+	}
+}
+
+func TestNewShouldStillFailForAShapeErrorMixingAToleratedAndAnUntoleratedLine(t *testing.T) {
+	seed := "season: \"2026-27\"\nteams: FLA\nresults:\n    team_marks:\n        atlantic:\n            playoffs: FLA\n"
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+
+	if _, err := New(path); err == nil {
+		t.Fatal("expected New to fail when even one malformed line falls outside results:/award_finalists:, despite another falling inside")
+	}
+}
+
+// TestNewShouldTolerateShapeErrorsInBothResultsAndAwardFinalistsAtOnce
+// exercises typeErrorConfinedToLenientSections' multi-range support with
+// both of its ranges actually populated at once - every other tolerated-
+// shape-error test only ever seeds one of the two sections.
+func TestNewShouldTolerateShapeErrorsInBothResultsAndAwardFinalistsAtOnce(t *testing.T) {
+	seed := resultsFixtureBase +
+		"results:\n    team_marks:\n        atlantic:\n            playoffs: FLA\n" +
+		"award_finalists:\n    hart: FLA\n"
+	st, _ := newSeededStore(t, seed)
+
+	if playoffs, _ := st.DivisionResult("Atlantic"); len(playoffs) != 0 {
+		t.Errorf("DivisionResult(Atlantic) = %v, want no playoffs (tolerated as zero-valued)", playoffs)
+	}
+	if got := st.RecordedAwardFinalists(AwardHart); len(got) != 0 {
+		t.Errorf("RecordedAwardFinalists(hart) = %v, want none (tolerated as zero-valued)", got)
+	}
+
+	problems := st.ResultProblems()
+	if len(problems) != 2 {
+		t.Fatalf("ResultProblems = %v, want exactly 2 problems (one per tolerated section)", problems)
+	}
+}
+
+func TestSavingAPredictionShouldLeaveAToleratedShapeErrorByteForByteUnchanged(t *testing.T) {
+	seed := resultsFixtureBase + "results:\n    team_marks:\n        atlantic:\n            playoffs: FLA\n            division_winner: FLA\n"
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read data file: %v", err)
+	}
+	wantSection := "results:\n    team_marks:\n        atlantic:\n            playoffs: FLA\n            division_winner: FLA\n"
+	if !strings.Contains(string(raw), wantSection) {
+		t.Errorf("expected the tolerated results: section to survive a save byte-for-byte, got:\n%s", raw)
+	}
+}
+
+func TestSavingAPredictionShouldPreserveCommentsFlowStyleAndUnusualKeyOrderInHandMaintainedSections(t *testing.T) {
+	seed := resultsFixtureBase + `results:
+    team_marks:
+        atlantic: {playoffs: [FLA, TOR], division_winner: FLA} # division call
+    stanley_cup_winner: FLA
+award_finalists:
+    hart:
+        - {display_name: Connor McDavid, slug: mcdavid-connor}
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+
+	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read data file: %v", err)
+	}
+	got := string(raw)
+	// The whole results:/award_finalists: block, byte-for-byte, except the
+	// one property the Design Notes explicitly exempt: a block sequence's
+	// indentation (award_finalists.hart's list item shifts from 8 to 6
+	// spaces here) - empirically confirmed this is the *only* difference
+	// from the original seed for this fixture. Everything else (comments,
+	// flow style, key order, quoting) must match exactly, not just appear
+	// somewhere in the file - a bug that duplicated, reordered, or inserted
+	// content elsewhere in this section would fail this check even if the
+	// individual fragments below still happened to appear.
+	wantBlock := `results:
+    team_marks:
+        atlantic: {playoffs: [FLA, TOR], division_winner: FLA} # division call
+    stanley_cup_winner: FLA
+award_finalists:
+    hart:
+      - {display_name: Connor McDavid, slug: mcdavid-connor}
+`
+	if !strings.Contains(got, wantBlock) {
+		t.Errorf("expected the results:/award_finalists: block to match exactly (aside from the documented indentation exception), got:\n%s", got)
+	}
+}
+
+func TestWriteLockedShouldRollBackAnAppendedRawNodeWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	seed := "season: \"2026-27\"\nplayers:\n    - id: basti\n      name: Basti\n      email: basti@example.com\n"
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	// This seed has neither a login_codes: nor a predictions: key, so the
+	// coming write has to append both - the code path a bootstrapped file
+	// (which always has both already) never exercises.
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+	if err := st.CreateLoginCode("basti", "hash-1", time.Now()); err == nil {
+		t.Fatal("expected CreateLoginCode to return an error when the write fails")
+	}
+
+	st.mu.RLock()
+	_, loginCodesFound := mappingValue(topLevelMapping(st.raw), "login_codes")
+	_, predictionsFound := mappingValue(topLevelMapping(st.raw), "predictions")
+	st.mu.RUnlock()
+	if loginCodesFound || predictionsFound {
+		t.Error("expected both appended nodes to be rolled back from s.raw after a failed write")
+	}
+}
+
+// TestWriteLockedShouldRollBackAReplacedRawNodeWhenTheWriteFails is the
+// should-not counterpart of the append-branch rollback test above, for
+// spliceNamedValueLocked's other branch: a bootstrapped store already has
+// login_codes:/predictions: keys present, so every write after the first
+// replaces their value node rather than appending one - the branch every
+// real, long-running store actually exercises on every write. A failed
+// write must restore the previously-committed node, not just remove it.
+func TestWriteLockedShouldRollBackAReplacedRawNodeWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	// One successful write first, so login_codes:/predictions: are already
+	// present with real content - the coming failed write has to replace,
+	// not append.
+	if err := st.CreateLoginCode("basti", "hash-1", time.Now()); err != nil {
+		t.Fatalf("first CreateLoginCode returned error: %v", err)
+	}
+
+	st.mu.RLock()
+	loginCodesNode, _ := mappingValue(topLevelMapping(st.raw), "login_codes")
+	committedLen := len(loginCodesNode.Content)
+	st.mu.RUnlock()
+	if committedLen != 1 {
+		t.Fatalf("expected 1 committed login code node before the failed write, got %d", committedLen)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+	if err := st.CreateLoginCode("basti", "hash-2", time.Now()); err == nil {
+		t.Fatal("expected the second CreateLoginCode to return an error when the write fails")
+	}
+
+	st.mu.RLock()
+	defer st.mu.RUnlock()
+	rolledBackNode, ok := mappingValue(topLevelMapping(st.raw), "login_codes")
+	if !ok {
+		t.Fatal("expected the login_codes node to still be present after a failed replace")
+	}
+	if len(rolledBackNode.Content) != committedLen {
+		t.Errorf("expected the login_codes node to be rolled back to its previously-committed content (%d entries), got %d", committedLen, len(rolledBackNode.Content))
+	}
+}
+
+func TestNewShouldRoundTripACleanFileEndToEnd(t *testing.T) {
+	st, path := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
+
+	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	reopened, err := New(path)
+	if err != nil {
+		t.Fatalf("New returned error: %v", err)
+	}
+	assertFixtureResultsRecorded(t, reopened)
+	if prediction, ok := reopened.FindPrediction("basti", KindCupChampion); !ok || prediction.TeamID != "FLA" {
+		t.Errorf("FindPrediction(basti, cup) = %+v, %v, want TeamID FLA, true", prediction, ok)
+	}
+}
+
+// TestNewShouldAllowWritesAfterLoadingAnEmptyExistingFile is a regression
+// test for a review finding (edge-case-hunter, spec-7-4): an existing file
+// that's empty, whitespace-only, or comment-only parses to a *yaml.Node with
+// no content at all (Kind 0) - New used to accept that silently, but the
+// very next write then failed with "yaml: cannot encode node with unknown
+// kind 0" since writeLocked has nothing to splice into. New now rebuilds raw
+// from the (zero-valued) typed doc in that case, matching the bootstrap
+// path, so a write right after loading such a file still succeeds.
+func TestNewShouldAllowWritesAfterLoadingAnEmptyExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	if err := os.WriteFile(path, []byte("# just a comment, no content\n"), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+
+	if err := st.CreateLoginCode("basti", "hash-1", time.Now().UTC()); err != nil {
+		t.Fatalf("expected a write after loading an empty file to succeed, got error: %v", err)
+	}
+}
