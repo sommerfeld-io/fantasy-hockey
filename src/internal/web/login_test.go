@@ -239,7 +239,7 @@ func newTestStoreWithLoginCode(t *testing.T, code string, issuedAt time.Time) *s
 	st := newTestStore(t)
 	sum := sha256.Sum256([]byte(code))
 	hash := hex.EncodeToString(sum[:])
-	if err := st.CreateLoginCode("basti", hash, issuedAt.Format(time.RFC3339)); err != nil {
+	if err := st.CreateLoginCode("basti", hash, issuedAt); err != nil {
 		t.Fatalf("CreateLoginCode: %v", err)
 	}
 	return st

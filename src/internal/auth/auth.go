@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
-	"time"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/clock"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
@@ -47,8 +46,7 @@ func RequestLoginCode(st *store.Store, send mailer.Sender, email string) error {
 		return nil
 	}
 
-	issuedAt := clock.NowTime().UTC().Format(time.RFC3339)
-	if err := st.CreateLoginCode(player.ID, hashCode(code), issuedAt); err != nil {
+	if err := st.CreateLoginCode(player.ID, hashCode(code), clock.NowTime()); err != nil {
 		return fmt.Errorf("auth: persist login code: %w", err)
 	}
 

@@ -107,7 +107,7 @@ func (s *enterLoginCodeScenarioState) ensureReady() error {
 
 	sum := sha256.Sum256([]byte(s.code))
 	hash := hex.EncodeToString(sum[:])
-	if err := st.CreateLoginCode(s.playerID, hash, s.issuedAt.Format(time.RFC3339)); err != nil {
+	if err := st.CreateLoginCode(s.playerID, hash, s.issuedAt); err != nil {
 		return fmt.Errorf("seed login code: %w", err)
 	}
 
@@ -324,7 +324,11 @@ type enterLoginCodeDocument struct {
 	} `yaml:"login_codes"`
 }
 
-func (s *enterLoginCodeScenarioState) theLoginCodeIsMarkedUsed() error {
+// theLoginCodeIsNoLongerUsable asserts the login code is no longer
+// redeemable: spec-7-2's opportunistic cleanup prunes a used LoginCode row
+// from the very same write that marks it used, so this is observed as the
+// row's absence from the persisted file, not a lingering used_at field.
+func (s *enterLoginCodeScenarioState) theLoginCodeIsNoLongerUsable() error {
 	raw, err := os.ReadFile(s.dataFile)
 	if err != nil {
 		return fmt.Errorf("read data file: %w", err)
@@ -338,13 +342,10 @@ func (s *enterLoginCodeScenarioState) theLoginCodeIsMarkedUsed() error {
 	hash := hex.EncodeToString(sum[:])
 	for _, row := range doc.LoginCodes {
 		if row.CodeHash == hash {
-			if row.UsedAt == nil {
-				return fmt.Errorf("expected the login code's used_at to be set, got nil")
-			}
-			return nil
+			return fmt.Errorf("expected the used login code to be pruned by its own write, still found %+v", row)
 		}
 	}
-	return fmt.Errorf("expected a persisted login code matching the emailed code, found %+v", doc.LoginCodes)
+	return nil
 }
 
 // InitializeEnterLoginCodeScenario registers the enter-login-code step
@@ -370,5 +371,5 @@ func InitializeEnterLoginCodeScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^no session cookie is set$`, s.noSessionCookieIsSet)
 	ctx.Step(`^the player then requests a protected route$`, s.thePlayerThenRequestsAProtectedRoute)
 	ctx.Step(`^that follow-up request is redirected to "([^"]*)"$`, s.loginCodeResponseRedirectsTo)
-	ctx.Step(`^the login code is marked used$`, s.theLoginCodeIsMarkedUsed)
+	ctx.Step(`^the login code is no longer usable$`, s.theLoginCodeIsNoLongerUsable)
 }

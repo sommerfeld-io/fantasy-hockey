@@ -591,7 +591,7 @@ playoff_matchups:
 func TestCreateLoginCodeShouldAppendANewRow(t *testing.T) {
 	st := newTestStore(t)
 
-	if err := st.CreateLoginCode("basti", "hash-1", "2026-09-14T10:00:00Z"); err != nil {
+	if err := st.CreateLoginCode("basti", "hash-1", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("CreateLoginCode returned error: %v", err)
 	}
 
@@ -615,10 +615,10 @@ func TestCreateLoginCodeShouldAppendANewRow(t *testing.T) {
 func TestCreateLoginCodeShouldNotMutateAnEarlierRowOnARepeatRequest(t *testing.T) {
 	st := newTestStore(t)
 
-	if err := st.CreateLoginCode("basti", "hash-1", "2026-09-14T10:00:00Z"); err != nil {
+	if err := st.CreateLoginCode("basti", "hash-1", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("first CreateLoginCode returned error: %v", err)
 	}
-	if err := st.CreateLoginCode("basti", "hash-2", "2026-09-14T10:05:00Z"); err != nil {
+	if err := st.CreateLoginCode("basti", "hash-2", time.Date(2026, 9, 14, 10, 5, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("second CreateLoginCode returned error: %v", err)
 	}
 
@@ -641,7 +641,7 @@ func TestCreateLoginCodeShouldPersistToDisk(t *testing.T) {
 		t.Fatalf("New() returned error: %v", err)
 	}
 
-	if err := st.CreateLoginCode("basti", "hash-1", "2026-09-14T10:00:00Z"); err != nil {
+	if err := st.CreateLoginCode("basti", "hash-1", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("CreateLoginCode returned error: %v", err)
 	}
 
@@ -662,7 +662,7 @@ func TestCreateLoginCodeShouldLogOnASuccessfulWrite(t *testing.T) {
 	st := newTestStore(t)
 	logs := captureLogs(t)
 
-	if err := st.CreateLoginCode("basti", "hash-1", "2026-09-14T10:00:00Z"); err != nil {
+	if err := st.CreateLoginCode("basti", "hash-1", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("CreateLoginCode returned error: %v", err)
 	}
 
@@ -692,7 +692,7 @@ func TestCreateLoginCodeShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	}
 	logs := captureLogs(t)
 
-	if err := st.CreateLoginCode("basti", "hash-1", "2026-09-14T10:00:00Z"); err == nil {
+	if err := st.CreateLoginCode("basti", "hash-1", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err == nil {
 		t.Fatal("expected CreateLoginCode to return an error when the write fails")
 	}
 
@@ -730,10 +730,13 @@ func TestConsumeLoginCodeShouldMatchAnUnusedUnexpiredCode(t *testing.T) {
 		t.Errorf("expected player id %q, got %q", "basti", playerID)
 	}
 
+	// The consumed row is now used, so writeLocked's own cleanup prunes it
+	// in this same write (spec-7-2) - its used_at getting set is proven
+	// indirectly, by the row no longer being present at all.
 	st.mu.RLock()
 	defer st.mu.RUnlock()
-	if st.doc.LoginCodes[0].UsedAt == nil {
-		t.Fatal("expected used_at to be set")
+	if len(st.doc.LoginCodes) != 0 {
+		t.Fatalf("expected the just-consumed row to be pruned by the same write, got %+v", st.doc.LoginCodes)
 	}
 }
 
@@ -836,10 +839,17 @@ func TestConsumeLoginCodeShouldNotTouchAnyOtherRow(t *testing.T) {
 		t.Fatalf("ConsumeLoginCode(hash-1) = ok=%v, err=%v", ok, err)
 	}
 
+	// Cleanup prunes the just-consumed row in this same write, shifting the
+	// second row down - find it by CodeHash rather than a fixed index
+	// (spec-7-2).
 	st.mu.RLock()
 	defer st.mu.RUnlock()
-	if st.doc.LoginCodes[1].UsedAt != nil {
-		t.Errorf("expected the second row to stay untouched, got used_at=%v", *st.doc.LoginCodes[1].UsedAt)
+	i := slices.IndexFunc(st.doc.LoginCodes, func(row LoginCode) bool { return row.CodeHash == "hash-2" })
+	if i < 0 {
+		t.Fatalf("expected the second row to still be present, got %+v", st.doc.LoginCodes)
+	}
+	if st.doc.LoginCodes[i].UsedAt != nil {
+		t.Errorf("expected the second row to stay untouched, got used_at=%v", *st.doc.LoginCodes[i].UsedAt)
 	}
 }
 
@@ -873,6 +883,183 @@ func TestConsumeLoginCodeShouldRollBackTheMarkWhenTheWriteFails(t *testing.T) {
 		t.Errorf("expected the failed mark to be rolled back, got used_at=%v", *st.doc.LoginCodes[0].UsedAt)
 	}
 	assertNoLogOutput(t, logs)
+}
+
+func TestCleanupLoginCodesShouldRemoveAnExpiredRow(t *testing.T) {
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	rows := []LoginCode{
+		{ID: "lc1", CodeHash: "hash-1", IssuedAt: now.Add(-11 * time.Minute).Format(time.RFC3339)},
+	}
+
+	got := cleanupLoginCodes(rows, now)
+
+	if len(got) != 0 {
+		t.Errorf("expected the expired row to be removed, got %+v", got)
+	}
+}
+
+func TestCleanupLoginCodesShouldRemoveAUsedRow(t *testing.T) {
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	usedAt := now.Add(-1 * time.Minute).Format(time.RFC3339)
+	rows := []LoginCode{
+		{ID: "lc1", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339), UsedAt: &usedAt},
+	}
+
+	got := cleanupLoginCodes(rows, now)
+
+	if len(got) != 0 {
+		t.Errorf("expected the used row to be removed, got %+v", got)
+	}
+}
+
+func TestCleanupLoginCodesShouldKeepAnUnexpiredUnusedRow(t *testing.T) {
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	rows := []LoginCode{
+		{ID: "lc1", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)},
+	}
+
+	got := cleanupLoginCodes(rows, now)
+
+	if len(got) != 1 || got[0].ID != "lc1" {
+		t.Errorf("expected the unexpired, unused row to be kept, got %+v", got)
+	}
+}
+
+// TestCleanupLoginCodesShouldKeepARowExactlyAtTheValidityBoundary proves the
+// comparison is strict (>), not >=: a row issued exactly loginCodeValidity
+// ago is not yet expired, matching ConsumeLoginCode's own identical check.
+func TestCleanupLoginCodesShouldKeepARowExactlyAtTheValidityBoundary(t *testing.T) {
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	rows := []LoginCode{
+		{ID: "lc1", CodeHash: "hash-1", IssuedAt: now.Add(-loginCodeValidity).Format(time.RFC3339)},
+	}
+
+	got := cleanupLoginCodes(rows, now)
+
+	if len(got) != 1 || got[0].ID != "lc1" {
+		t.Errorf("expected a row exactly at the validity boundary to be kept, got %+v", got)
+	}
+}
+
+// TestCleanupLoginCodesShouldKeepARowWithUnparseableIssuedAt is the
+// should-not counterpart of TestCleanupLoginCodesShouldRemoveAnExpiredRow -
+// cleanupLoginCodes can't confirm a malformed issued_at is expired, so it
+// must never destroy that row (spec-7-2's Boundaries & Constraints).
+func TestCleanupLoginCodesShouldKeepARowWithUnparseableIssuedAt(t *testing.T) {
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	rows := []LoginCode{
+		{ID: "lc1", CodeHash: "hash-1", IssuedAt: "not-a-timestamp"},
+	}
+
+	got := cleanupLoginCodes(rows, now)
+
+	if len(got) != 1 || got[0].ID != "lc1" {
+		t.Errorf("expected a row with an unparseable issued_at to be kept rather than destroyed, got %+v", got)
+	}
+}
+
+func TestCleanupLoginCodesShouldPreserveOrderOfKeptRows(t *testing.T) {
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	usedAt := now.Add(-1 * time.Minute).Format(time.RFC3339)
+	rows := []LoginCode{
+		{ID: "lc1", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)},
+		{ID: "lc2", CodeHash: "hash-2", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339), UsedAt: &usedAt},
+		{ID: "lc3", CodeHash: "hash-3", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)},
+	}
+
+	got := cleanupLoginCodes(rows, now)
+
+	if len(got) != 2 || got[0].ID != "lc1" || got[1].ID != "lc3" {
+		t.Errorf("expected kept rows [lc1, lc3] in order, got %+v", got)
+	}
+}
+
+// TestSavePredictionShouldPruneAStaleLoginCodeRowOnItsNextWrite proves
+// cleanup runs from writeLocked itself, so an unrelated mutation (here,
+// SavePrediction) also prunes a stale LoginCode row - spec-7-2's central
+// intent, that cleanup piggybacks on any write for any reason.
+func TestSavePredictionShouldPruneAStaleLoginCodeRowOnItsNextWrite(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-11 * time.Minute).Format(time.RFC3339)})
+
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	st.mu.RLock()
+	defer st.mu.RUnlock()
+	if len(st.doc.LoginCodes) != 0 {
+		t.Errorf("expected the stale login code row to be pruned by an unrelated write, got %+v", st.doc.LoginCodes)
+	}
+}
+
+// TestSavePredictionShouldPruneAUsedLoginCodeRowOnItsNextWrite is
+// TestSavePredictionShouldPruneAStaleLoginCodeRowOnItsNextWrite's own
+// used-row counterpart.
+func TestSavePredictionShouldPruneAUsedLoginCodeRowOnItsNextWrite(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	usedAt := now.Add(-1 * time.Minute).Format(time.RFC3339)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339), UsedAt: &usedAt})
+
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	st.mu.RLock()
+	defer st.mu.RUnlock()
+	if len(st.doc.LoginCodes) != 0 {
+		t.Errorf("expected the used login code row to be pruned by an unrelated write, got %+v", st.doc.LoginCodes)
+	}
+}
+
+// TestSavePredictionShouldNotPruneAnUnexpiredUnusedLoginCodeRowOnItsNextWrite
+// is the should-not counterpart of both prune tests above: a row that's
+// still genuinely redeemable must survive an unrelated write untouched.
+func TestSavePredictionShouldNotPruneAnUnexpiredUnusedLoginCodeRowOnItsNextWrite(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)})
+
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	st.mu.RLock()
+	defer st.mu.RUnlock()
+	if len(st.doc.LoginCodes) != 1 || st.doc.LoginCodes[0].ID != "lc1" {
+		t.Errorf("expected the unexpired, unused login code row to survive an unrelated write untouched, got %+v", st.doc.LoginCodes)
+	}
+}
+
+// TestConsumeLoginCodeShouldRejectAResubmissionOfACodeCleanedUpByAnEarlierWrite
+// is a regression test, not a behavior change: ConsumeLoginCode's existing
+// no-match linear scan already returns the generic ok=false, err=nil outcome
+// for a hash it can't find, whether that's because the code was always
+// wrong or because an earlier write's cleanup already removed its row
+// (spec-7-2's Boundaries & Constraints).
+func TestConsumeLoginCodeShouldRejectAResubmissionOfACodeCleanedUpByAnEarlierWrite(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-11 * time.Minute).Format(time.RFC3339)})
+
+	// An unrelated write triggers cleanup, pruning the already-expired row
+	// before it's ever submitted for consumption.
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+
+	playerID, ok, err := st.ConsumeLoginCode("hash-1", now)
+	if err != nil {
+		t.Fatalf("ConsumeLoginCode returned error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected a resubmission of a cleaned-up code to be rejected")
+	}
+	if playerID != "" {
+		t.Errorf("expected an empty player id, got %q", playerID)
+	}
 }
 
 func TestFindPredictionShouldNotReturnARowOnNoMatch(t *testing.T) {
@@ -1078,6 +1265,37 @@ func TestSavePredictionShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 		t.Error("expected the failed append to be rolled back, but a Prediction row was found")
 	}
 	assertNoLogOutput(t, logs)
+}
+
+// TestSavePredictionShouldNotCommitLoginCodeCleanupWhenTheWriteFails closes
+// the "Write fails mid-cleanup" row of spec-7-2's I/O matrix: writeLocked
+// only assigns s.doc.LoginCodes = cleaned after a successful rename, so a
+// failed write must leave an already-stale row exactly as it was, not
+// silently pruned - this is what makes CreateLoginCode's/ConsumeLoginCode's
+// own narrower rollbacks stay correct (spec-7-2's Design Notes).
+func TestSavePredictionShouldNotCommitLoginCodeCleanupWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, DataFileName)
+	st, err := New(path)
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+	now := time.Now().UTC()
+	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-11 * time.Minute).Format(time.RFC3339)})
+
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+
+	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err == nil {
+		t.Fatal("expected SavePrediction to return an error when the write fails")
+	}
+
+	st.mu.RLock()
+	defer st.mu.RUnlock()
+	if len(st.doc.LoginCodes) != 1 || st.doc.LoginCodes[0].ID != "lc1" {
+		t.Errorf("expected the stale login code row to survive a failed write untouched, got %+v", st.doc.LoginCodes)
+	}
 }
 
 func TestSavePredictionShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
@@ -1967,7 +2185,7 @@ func TestStoreShouldBeSafeForConcurrentCreateLoginCode(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			if err := st.CreateLoginCode("basti", "hash", "2026-09-14T10:00:00Z"); err != nil {
+			if err := st.CreateLoginCode("basti", "hash", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 				t.Errorf("CreateLoginCode returned error: %v", err)
 			}
 		}()

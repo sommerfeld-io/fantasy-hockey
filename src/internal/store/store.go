@@ -336,7 +336,7 @@ func New(path string) (*Store, error) {
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		st.doc = document{Season: DefaultSeason, Players: []Player{}}
-		if err := st.writeLocked("bootstrap data file"); err != nil {
+		if err := st.writeLocked("bootstrap data file", time.Now().UTC()); err != nil {
 			return nil, fmt.Errorf("store: bootstrap %s: %w", path, err)
 		}
 		return st, nil
@@ -472,14 +472,18 @@ func (s *Store) PlayoffMatchups(setID string) []PlayoffMatchup {
 }
 
 // CreateLoginCode appends a new LoginCode row for playerID and persists it.
-// It never mutates or removes any existing row. If the write fails, the
-// appended row is rolled back from memory so a caller told the write failed
-// can't later have that row silently persisted by an unrelated successful
-// write.
-func (s *Store) CreateLoginCode(playerID, codeHash, issuedAt string) error {
+// It never mutates any existing row itself, though the write it triggers may
+// still prune other rows that are already expired or used (writeLocked's
+// opportunistic cleanup, spec-7-2). now is used both as the row's own
+// issued_at (RFC3339, UTC) and as the write's cleanup instant. If the write
+// fails, the appended row is rolled back from memory so a caller told the
+// write failed can't later have that row silently persisted by an unrelated
+// successful write.
+func (s *Store) CreateLoginCode(playerID, codeHash string, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	issuedAt := now.UTC().Format(time.RFC3339)
 	s.doc.LoginCodes = append(s.doc.LoginCodes, LoginCode{
 		ID:       uuid.NewString(),
 		PlayerID: playerID,
@@ -487,7 +491,7 @@ func (s *Store) CreateLoginCode(playerID, codeHash, issuedAt string) error {
 		IssuedAt: issuedAt,
 	})
 
-	if err := s.writeLocked("create login code"); err != nil {
+	if err := s.writeLocked("create login code", now); err != nil {
 		s.doc.LoginCodes = s.doc.LoginCodes[:len(s.doc.LoginCodes)-1]
 		return fmt.Errorf("store: persist login code: %w", err)
 	}
@@ -523,7 +527,7 @@ func (s *Store) ConsumeLoginCode(codeHash string, now time.Time) (playerID strin
 		usedAt := now.UTC().Format(time.RFC3339)
 		row.UsedAt = &usedAt
 
-		if err := s.writeLocked("consume login code"); err != nil {
+		if err := s.writeLocked("consume login code", now); err != nil {
 			row.UsedAt = nil
 			return "", false, fmt.Errorf("store: persist consumed login code: %w", err)
 		}
@@ -570,7 +574,7 @@ func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) err
 		row.TeamID = teamID
 		row.SubmittedAt = submittedAt
 
-		if err := s.writeLocked("save prediction"); err != nil {
+		if err := s.writeLocked("save prediction", now); err != nil {
 			row.TeamID, row.SubmittedAt = oldTeamID, oldSubmittedAt
 			return fmt.Errorf("store: persist prediction: %w", err)
 		}
@@ -585,7 +589,7 @@ func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) err
 		SubmittedAt: submittedAt,
 	})
 
-	if err := s.writeLocked("save prediction"); err != nil {
+	if err := s.writeLocked("save prediction", now); err != nil {
 		s.doc.Predictions = s.doc.Predictions[:len(s.doc.Predictions)-1]
 		return fmt.Errorf("store: persist prediction: %w", err)
 	}
@@ -635,7 +639,7 @@ func (s *Store) SaveSeriesPick(playerID, seriesKey, teamID, games string, now ti
 		row.Games = games
 		row.SubmittedAt = submittedAt
 
-		if err := s.writeLocked("save series pick"); err != nil {
+		if err := s.writeLocked("save series pick", now); err != nil {
 			row.TeamID, row.Games, row.SubmittedAt = oldTeamID, oldGames, oldSubmittedAt
 			return fmt.Errorf("store: persist series pick: %w", err)
 		}
@@ -652,7 +656,7 @@ func (s *Store) SaveSeriesPick(playerID, seriesKey, teamID, games string, now ti
 		SubmittedAt: submittedAt,
 	})
 
-	if err := s.writeLocked("save series pick"); err != nil {
+	if err := s.writeLocked("save series pick", now); err != nil {
 		s.doc.Predictions = s.doc.Predictions[:len(s.doc.Predictions)-1]
 		return fmt.Errorf("store: persist series pick: %w", err)
 	}
@@ -723,7 +727,7 @@ func (s *Store) SaveDivisionPicks(playerID string, playoffTeams map[string][]str
 		s.upsertDivisionPredictionLocked(playerID, KindDivisionWinner, division, nil, teamID, submittedAt)
 	}
 
-	if err := s.writeLocked("save division picks"); err != nil {
+	if err := s.writeLocked("save division picks", now); err != nil {
 		s.doc.Predictions = snapshot
 		return fmt.Errorf("store: persist division picks: %w", err)
 	}
@@ -822,7 +826,7 @@ func (s *Store) SaveAwardPicks(playerID string, finalists map[string][]string, n
 		s.upsertAwardPredictionLocked(playerID, award, slugs, submittedAt)
 	}
 
-	if err := s.writeLocked("save award picks"); err != nil {
+	if err := s.writeLocked("save award picks", now); err != nil {
 		s.doc.Predictions = snapshot
 		return fmt.Errorf("store: persist award picks: %w", err)
 	}
@@ -855,17 +859,53 @@ func (s *Store) upsertAwardPredictionLocked(playerID, award string, slugs []stri
 	})
 }
 
+// cleanupLoginCodes returns the subset of rows that are still eligible to be
+// consumed as of now: a row is dropped when it has already been used
+// (UsedAt != nil) or when its IssuedAt parses and is more than
+// loginCodeValidity in now's past. A row whose IssuedAt fails to parse is
+// always kept - the code can't confirm it's expired, so it never destroys
+// that data (spec-7-2's Boundaries & Constraints). Order of kept rows is
+// preserved. This is the single home for the opposite-direction check
+// ConsumeLoginCode's own scan already performs inline; the two are
+// intentionally not shared, since ConsumeLoginCode also matches on
+// CodeHash/future-dating, a different job from pruning.
+func cleanupLoginCodes(rows []LoginCode, now time.Time) []LoginCode {
+	cleaned := make([]LoginCode, 0, len(rows))
+	for _, row := range rows {
+		if row.UsedAt != nil {
+			continue
+		}
+		if issuedAt, err := time.Parse(time.RFC3339, row.IssuedAt); err == nil && now.Sub(issuedAt) > loginCodeValidity {
+			continue
+		}
+		cleaned = append(cleaned, row)
+	}
+	return cleaned
+}
+
 // writeLocked serializes the in-memory document and atomically replaces the
 // file on disk by writing to a temporary file in the same directory and
-// renaming it over the original (AD-27). On success it logs exactly one
-// slog.Info line naming reason, the caller's own literal label for why this
-// write happened (e.g. "create login code") - the sole place any Store
-// write is logged, so every mutating method's call site stays a one-line
-// addition instead of duplicating a log call at every site (spec-7-1's
-// Design Notes). reason is always a fixed, non-identifying literal, never a
-// login code or player email. Callers must hold s.mu for writing.
-func (s *Store) writeLocked(reason string) error {
-	out, err := yaml.Marshal(s.doc)
+// renaming it over the original (AD-27). Before marshaling, it computes
+// cleanupLoginCodes(s.doc.LoginCodes, now) and writes that cleaned slice in
+// place of s.doc.LoginCodes's own - on a copy of the document, never s.doc
+// itself, so a failed write leaves s.doc.LoginCodes exactly as the calling
+// method's own mutation left it (its existing rollback logic stays correct,
+// untouched - spec-7-2's Design Notes). Only once the rename succeeds is
+// s.doc.LoginCodes itself updated to the cleaned slice. On success it also
+// logs exactly one slog.Info line naming reason, the caller's own literal
+// label for why this write happened (e.g. "create login code") - the sole
+// place any Store write is logged, so every mutating method's call site
+// stays a one-line addition instead of duplicating a log call at every site
+// (spec-7-1's Design Notes). reason is always a fixed, non-identifying
+// literal, never a login code or player email. Callers must hold s.mu for
+// writing.
+func (s *Store) writeLocked(reason string, now time.Time) error {
+	cleaned := cleanupLoginCodes(s.doc.LoginCodes, now)
+
+	docToWrite := s.doc
+	docToWrite.LoginCodes = cleaned
+
+	out, err := yaml.Marshal(docToWrite)
 	if err != nil {
 		return fmt.Errorf("marshal: %w", err)
 	}
@@ -889,6 +929,7 @@ func (s *Store) writeLocked(reason string) error {
 		return fmt.Errorf("rename temp file: %w", err)
 	}
 
+	s.doc.LoginCodes = cleaned
 	slog.Info("store write", "reason", reason)
 	return nil
 }

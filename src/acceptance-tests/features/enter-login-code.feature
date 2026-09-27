@@ -11,7 +11,7 @@ Feature: Enter Login Code and Establish Session
     Then the login-code response redirects to "/"
     And a session cookie is set
     And the session cookie identifies "Basti" as the logged-in player
-    And the login code is marked used
+    And the login code is no longer usable
 
   Scenario: A wrong code shows a generic error
     When the player submits the login code "000000"

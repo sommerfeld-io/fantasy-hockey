@@ -29,7 +29,7 @@ func seedStoreWithCode(t *testing.T, playerID, code string, issuedAt time.Time) 
 		t.Fatalf("store.New: %v", err)
 	}
 	sum := sha256Hex(code)
-	if err := st.CreateLoginCode(playerID, sum, issuedAt.Format(time.RFC3339)); err != nil {
+	if err := st.CreateLoginCode(playerID, sum, issuedAt); err != nil {
 		t.Fatalf("CreateLoginCode: %v", err)
 	}
 	return st
