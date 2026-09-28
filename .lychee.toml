@@ -7,7 +7,11 @@ exclude_path = [
     'target',
     # Go html/template source: its "/login" and "/static/..." paths are
     # server-routed by internal/web, not filesystem-relative links.
-    'src/internal/web/templates'
+    'src/internal/web/templates',
+    # Generated copy of docs/game-rules.md (see `task docs:embed-game-rules`),
+    # committed only so go:embed has a file inside its own package tree.
+    # docs/game-rules.md, the canonical source, is still checked.
+    'src/internal/web/rules'
 ]
 exclude_loopback = true
 exclude = [
