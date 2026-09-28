@@ -425,7 +425,7 @@ action_items:
       at info level when it creates a fresh file (path + season), so a mistyped rollover
       path doesn't silently produce an empty pool with no diagnostic trail"
     owner: "next dev touching main.go/internal/store"
-    status: open
+    status: in-progress
     ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
   - id: "epic-6-retro-item-44-correct-epic-6-context-md-s-read-only-hi"
     epic: 6
@@ -460,3 +460,96 @@ action_items:
     owner: "next dev touching internal/store/store.go"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
+  - id: "epic-7-retro-item-48-fix-or-explicitly-scope-the-duplicate-ke"
+    epic: 7
+    action: "Fix or explicitly scope the duplicate-key sibling-zeroing bug in results:/award_finalists:
+      tolerance -- a duplicate key at a struct level silently zeroes ALL sibling fields
+      in memory, not just the duplicated one (confirmed live: presidents_trophy/stanley_cup_winner
+      both come back empty after a duplicate team_marks key, with only the duplicate
+      key named in the warning). Needs a human decision on approach."
+    owner: "Winston (Architect) / dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-7-retro-item-49-re-open-the-playoff_matchups-results-yam"
+    epic: 7
+    action: "Re-open the playoff_matchups/results yamllint known-limitation decision
+      -- playoff_matchups shares the identical indentation-mismatch bug already accepted
+      for results:, but is hand-populated at the start of every playoff round (confirmed
+      by live reproduction), not a hypothetical future season. The existing accept-for-now
+      decision did not check this timing."
+    owner: "John (PM) / Winston (Architect)"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-7-retro-item-50-correct-docs-recording-results-and-playo"
+    epic: 7
+    action: "Correct docs/recording-results-and-playoffs.md line 69 known-limitation
+      wording and scope: it calls the mismatch purely cosmetic (it is real error-level
+      yamllint violations, only invisible because the file is lint-ignored) and scopes
+      it to results:/award_finalists: only (it also hits playoff_matchups:)."
+    owner: "same as playoff_matchups item"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-7-retro-item-51-add-a-doc-comment-tying-document-s-field"
+    epic: 7
+    action: "Add a doc comment tying document's field set to writeLocked's splice
+      list, so a future mutating method that adds a new app-writable field without
+      also adding it to the splice list fails silently (compiles, reports success,
+      never persists)."
+    owner: "next dev touching internal/store/store.go writeLocked"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-7-retro-item-52-add-coverage-proving-resultproblems-two"
+    epic: 7
+    action: "Add coverage proving ResultProblems' two new categories (tolerated shape
+      error, unknown key) actually reach openStore's WARN loop and the AC4 count line,
+      not just st.ResultProblems() directly."
+    owner: "next dev touching main_test.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-7-retro-item-53-add-a-persisted-file-or-fresh-new-re-rea"
+    epic: 7
+    action: "Add a persisted-file (or fresh-New()) re-read assertion to at least one
+      login-code cleanup test -- every cleanup test today asserts only st.doc.LoginCodes,
+      never the actual written bytes."
+    owner: "next dev touching internal/store/store_test.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-7-retro-item-54-add-a-comment-above-writelocked-s-enc-en"
+    epic: 7
+    action: "Add a comment above writeLocked's enc.Encode(s.raw)/enc.Close() calls
+      stating why they're considered untested/unreachable -- the existing nearby comment
+      only justifies two different, smaller typed-slice encode calls."
+    owner: "next dev touching internal/store/store.go writeLocked"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-7-retro-item-55-correct-internal-store-readme-md-s-stale"
+    epic: 7
+    action: "Correct internal/store/README.md's stale bullet claiming every write
+      serializes the whole in-memory document -- writeLocked now splices only login_codes:/predictions:
+      into s.raw and encodes that."
+    owner: "next dev touching internal/store/README.md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-7-retro-item-56-add-path-season-fields-to-the-bootstrap"
+    epic: 7
+    action: "Add path/season fields to the bootstrap log line to fully close epic-6-retro-item-43
+      (currently logs only reason)."
+    owner: "next dev touching internal/store/store.go New"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-7-retro-item-57-consider-splitting-internal-store-store"
+    epic: 7
+    action: "Consider splitting internal/store/store.go (1212 to 1666 lines, +37%25,
+      this epic alone) along its three concerns -- core CRUD, raw-YAML splice/preserve
+      mechanics, result-problem validation -- before a future story adds a fourth."
+    owner: "whoever plans the next internal/store-touching story"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-7-retro-item-58-once-the-playoff_matchups-results-yamlli"
+    epic: 7
+    action: "Once the playoff_matchups/results yamllint decision is re-resolved, add
+      a regression test in yamllint_test.go that seeds a hand-maintained section and
+      exercises it through the real write path against real yamllint."
+    owner: "whoever implements the playoff_matchups/results yamllint decision"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
