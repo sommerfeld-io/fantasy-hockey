@@ -5,6 +5,7 @@ go 1.26.6
 require (
 	github.com/cucumber/godog v0.16.0
 	github.com/google/uuid v1.6.0
+	github.com/yuin/goldmark v1.8.6
 	go.yaml.in/yaml/v3 v3.0.5
 )
 

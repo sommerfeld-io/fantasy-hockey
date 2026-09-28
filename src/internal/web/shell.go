@@ -1,6 +1,7 @@
 package web
 
 import (
+	"html/template"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -16,6 +17,7 @@ const (
 	tabPredict     = "predict"
 	tabLeaderboard = "leaderboard"
 	tabCompare     = "compare"
+	tabRules       = "rules"
 )
 
 // tabTitles names each tab for the shell's <title> and nav label alike.
@@ -23,6 +25,7 @@ var tabTitles = map[string]string{
 	tabPredict:     "Predict",
 	tabLeaderboard: "Leaderboard",
 	tabCompare:     "Compare",
+	tabRules:       "Rules",
 }
 
 // compareSetQueryParam is the /compare query parameter naming the selected
@@ -35,7 +38,8 @@ const compareSetQueryParam = "set"
 // of a 500 or panic. Season is already presentation-formatted (e.g. "NHL
 // 2026–27"); ActiveTab selects which bottom-nav tab renders active; Title is
 // every tab's page title. Predict, Leaderboard and Compare are nil except on
-// their own tab, where they hold that tab's content.
+// their own tab, where they hold that tab's content. Rules is empty except
+// on its own tab, where it holds the pre-rendered game rules HTML.
 type shellData struct {
 	PlayerName  string
 	Season      string
@@ -44,6 +48,7 @@ type shellData struct {
 	Predict     *predictPhases
 	Leaderboard *leaderboardView
 	Compare     *compareView
+	Rules       template.HTML
 }
 
 // formatSeason turns the store's raw season value (e.g. "2026-27") into the
@@ -93,6 +98,9 @@ func handleShell(st *store.Store, tab string) http.HandlerFunc {
 		if tab == tabCompare {
 			compare := buildCompare(st, playerID, r.URL.Query().Get(compareSetQueryParam), clock.NowTime())
 			data.Compare = &compare
+		}
+		if tab == tabRules {
+			data.Rules = rulesHTML
 		}
 
 		renderTemplate(w, "shell.html", data)

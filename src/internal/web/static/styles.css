@@ -247,6 +247,115 @@ button {
 }
 
 /*
+  Rules screen: server-rendered markdown (rules/game-rules.md via goldmark).
+  No component spec exists for this in DESIGN.md - styled to match the
+  app's existing typography tokens and reads directly against .shell-content.
+*/
+
+.rules h1,
+.rules h2,
+.rules h3 {
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.rules h1 {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+
+.rules h2 {
+  font-size: 15px;
+  margin: 24px 0 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.rules h2:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.rules h3 {
+  font-size: 13px;
+  margin: 16px 0 6px;
+}
+
+.rules p,
+.rules li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.rules ul,
+.rules ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.rules a {
+  color: var(--ice);
+}
+
+.rules img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 12px 0;
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.rules table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 16px;
+  font-size: 12px;
+}
+
+.rules th,
+.rules td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.rules th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.rules code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--raised);
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 12px;
+}
+
+.rules blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+
+.rules-github-link {
+  margin: 24px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-soft);
+  text-align: center;
+}
+
+.rules-github-link a {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/*
   Predict screen (Story 2.1): two phase-grouped sections of Prediction Set
   rows, per DESIGN.md's Section header icon, Status pill, and Set row
   components.

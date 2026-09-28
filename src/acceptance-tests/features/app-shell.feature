@@ -1,7 +1,7 @@
 Feature: Persistent App Shell With Player Identity and Navigation
   As a logged-in player,
-  I want a persistent header and bottom navigation around Predict, Leaderboard, and Compare,
-  so that I can move between destinations and always see who I'm logged in as.
+  I want a persistent header and bottom navigation around Predict, Leaderboard, Compare, and Rules,
+  so that I can move between destinations, always see who I'm logged in as, and look up the game rules.
 
   Background:
     Given the player "Basti" is signed in
@@ -22,6 +22,11 @@ Feature: Persistent App Shell With Player Identity and Navigation
     When the player visits the Compare destination
     Then the shell shows "Compare" as the active tab
     And the shell shows the Compare content
+
+  Scenario: The Rules destination shows the shell with Rules active
+    When the player visits the Rules destination
+    Then the shell shows "Rules" as the active tab
+    And the shell shows the Rules content
 
   Scenario: The root path aliases to Predict
     When the player visits the root path

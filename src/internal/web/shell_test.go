@@ -35,6 +35,24 @@ var shellRouteTests = []struct {
 	{"/predict", "predict", "Predict", "Before the season"},
 	{"/leaderboard", "leaderboard", "Leaderboard", "Ranked by total points."},
 	{"/compare", "compare", "Compare", "Everyone's picks."},
+	{"/rules", "rules", "Rules", "Game Rules"},
+}
+
+// rulesGitHubDocsLink is the Rules tab's link out to the full docs/ folder
+// on GitHub, checked separately from shellRouteTests since no other
+// destination renders it.
+const rulesGitHubDocsLink = `<a href="https://github.com/sommerfeld-io/fantasy-hockey/tree/main/docs" target="_blank" rel="noopener noreferrer">Full documentation on GitHub`
+
+func TestNewServerShouldLinkToTheGitHubDocsFromTheRulesTab(t *testing.T) {
+	req := httptest.NewRequest("GET", "/rules", nil)
+	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+	rec := httptest.NewRecorder()
+
+	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+
+	if !strings.Contains(rec.Body.String(), rulesGitHubDocsLink) {
+		t.Errorf("expected the Rules tab to link to the GitHub docs, got %q", rec.Body.String())
+	}
 }
 
 func TestNewServerShouldRenderTheShellForEveryDestination(t *testing.T) {
@@ -80,6 +98,7 @@ var navHrefs = map[string]string{
 	"Predict":     "/predict",
 	"Leaderboard": "/leaderboard",
 	"Compare":     "/compare",
+	"Rules":       "/rules",
 }
 
 // assertActiveTab checks navLabel's anchor renders as the active tab, in

@@ -3,10 +3,11 @@
   components and EXPERIENCE.md's "fixed-height, three-region app shell":
   a pinned header, a single scrolling content region, and pinned bottom
   nav. Mounted on GET /{$} (aliased to Predict), /predict, /leaderboard,
-  and /compare. Predict renders its real, phase-grouped Prediction Set
-  lists (.Predict, Story 2.1); Leaderboard renders the ranked standings
+  /compare and /rules. Predict renders its real, phase-grouped Prediction
+  Set lists (.Predict, Story 2.1); Leaderboard renders the ranked standings
   (.Leaderboard, Story 4.2); Compare renders everyone's picks for one
-  selected Prediction Set (.Compare, Story 5.1).
+  selected Prediction Set (.Compare, Story 5.1); Rules renders the game
+  rules markdown, pre-rendered to HTML at package init (.Rules, rules.go).
 */}}
 {{/*
   predict-row renders one predictSetView (internal/web.go): an actionable
@@ -120,12 +121,18 @@
       </div>
       {{if .Compare.Table}}{{template "compare-table" .Compare.Table}}{{else if .Compare.Note}}<p class="cmp-note-dashed">{{.Compare.Note}}</p>{{end}}
     </section>
+    {{else if .Rules}}
+    <section class="rules">
+      {{.Rules}}
+      <p class="rules-github-link"><a href="https://github.com/sommerfeld-io/fantasy-hockey/tree/main/docs" target="_blank" rel="noopener noreferrer">Full documentation on GitHub ↗</a></p>
+    </section>
     {{end}}
   </main>
   <nav class="shell-nav">
     <a href="/predict" class="nav-item{{if eq .ActiveTab "predict"}} active{{end}}"{{if eq .ActiveTab "predict"}} aria-current="page"{{end}}><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6l1.5 1.5L8 5"/><path d="M11 6h9"/><path d="M4 12l1.5 1.5L8 11"/><path d="M11 12h9"/><path d="M4 18l1.5 1.5L8 17"/><path d="M11 18h9"/></svg><span class="nav-label">Predict</span></a>
     <a href="/leaderboard" class="nav-item{{if eq .ActiveTab "leaderboard"}} active{{end}}"{{if eq .ActiveTab "leaderboard"}} aria-current="page"{{end}}><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 3L7 9M15 3l2 6"/><circle cx="12" cy="15" r="5"/><path d="M12 12.5l.9 1.8 2 .3-1.5 1.4.4 2-1.8-1-1.8 1 .4-2-1.5-1.4 2-.3z"/></svg><span class="nav-label">Leaderboard</span></a>
     <a href="/compare" class="nav-item{{if eq .ActiveTab "compare"}} active{{end}}"{{if eq .ActiveTab "compare"}} aria-current="page"{{end}}><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M4 19c0-3 2.2-5 5-5s5 2 5 5"/><circle cx="17" cy="9" r="2.3"/><path d="M14.5 19c.3-2.2 1.7-3.8 3.5-3.8 2 0 3.5 1.7 4 4"/></svg><span class="nav-label">Compare</span></a>
+    <a href="/rules" class="nav-item{{if eq .ActiveTab "rules"}} active{{end}}"{{if eq .ActiveTab "rules"}} aria-current="page"{{end}}><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5v-15z"/><path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"/></svg><span class="nav-label">Rules</span></a>
   </nav>
 </div>
 </body>

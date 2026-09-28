@@ -32,6 +32,7 @@ var navHrefsByTab = map[string]string{
 	"Predict":     "/predict",
 	"Leaderboard": "/leaderboard",
 	"Compare":     "/compare",
+	"Rules":       "/rules",
 }
 
 // newAppShellStore bootstraps a store seeded with one player ("Basti"),
@@ -184,6 +185,18 @@ func (s *appShellScenarioState) theShellShowsTheLeaderboardContent() error {
 	return nil
 }
 
+// theShellShowsTheRulesContent is a smoke check that /rules serves the
+// rendered game rules (from the embedded game-rules.md) rather than a
+// placeholder or an empty section.
+func (s *appShellScenarioState) theShellShowsTheRulesContent() error {
+	for _, want := range []string{"Game Rules", "Scoring"} {
+		if !strings.Contains(s.lastBody, want) {
+			return fmt.Errorf("expected the shell to show the Rules content %q, got %q", want, s.lastBody)
+		}
+	}
+	return nil
+}
+
 func (s *appShellScenarioState) everyVisitedDestinationShowedThePlayersName(name string) error {
 	if len(s.visitedBodies) == 0 {
 		return fmt.Errorf("no destination has been visited yet")
@@ -241,12 +254,13 @@ func InitializeAppShellScenario(ctx *godog.ScenarioContext) {
 
 	ctx.Step(`^the player "([^"]*)" is signed in$`, s.thePlayerIsSignedIn)
 	ctx.Step(`^the player visits the root path$`, s.thePlayerVisitsTheRootPath)
-	ctx.Step(`^the player visits the (Predict|Leaderboard|Compare) destination$`, s.thePlayerVisitsTheDestination)
+	ctx.Step(`^the player visits the (Predict|Leaderboard|Compare|Rules) destination$`, s.thePlayerVisitsTheDestination)
 	ctx.Step(`^the shell shows the player's name "([^"]*)"$`, s.theShellShowsThePlayersName)
 	ctx.Step(`^the shell shows the season "([^"]*)"$`, s.theShellShowsTheSeason)
 	ctx.Step(`^the shell shows "([^"]*)" as the active tab$`, s.theShellShowsAsTheActiveTab)
 	ctx.Step(`^the shell shows the Compare content$`, s.theShellShowsTheCompareContent)
 	ctx.Step(`^the shell shows the Leaderboard content$`, s.theShellShowsTheLeaderboardContent)
+	ctx.Step(`^the shell shows the Rules content$`, s.theShellShowsTheRulesContent)
 	ctx.Step(`^the shell shows the Predict content$`, s.theShellShowsThePredictContent)
 	ctx.Step(`^every visited destination showed the player's name "([^"]*)"$`, s.everyVisitedDestinationShowedThePlayersName)
 	ctx.Step(`^the player uses the shell's logout control$`, s.thePlayerUsesTheShellsLogoutControl)

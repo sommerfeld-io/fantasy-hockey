@@ -1,6 +1,7 @@
 // Package web is the presentation layer: it serves the app shell
-// (Predict/Leaderboard/Compare) and the login-code request flow over the
-// standard library's net/http, rendering server-side html/template views.
+// (Predict/Leaderboard/Compare/Rules) and the login-code request flow over
+// the standard library's net/http, rendering server-side html/template
+// views.
 package web
 
 import (
@@ -56,6 +57,7 @@ var shellRoutes = []struct {
 	{"GET /predict", tabPredict},
 	{"GET /leaderboard", tabLeaderboard},
 	{"GET /compare", tabCompare},
+	{"GET /rules", tabRules},
 }
 
 // NewServer wires the application's routes and returns an http.Handler
