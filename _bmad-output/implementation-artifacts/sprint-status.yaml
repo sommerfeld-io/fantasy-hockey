@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-27-2026 22:45
+last_updated: 09-28-2026 10:55
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -77,7 +77,12 @@ development_status:
   7-2-clean-up-unusable-login-codes: done
   7-3-keep-written-yaml-yamllint-compliant: done
   7-4-hand-edited-results-are-safe-to-edit: done
-  epic-7-retrospective: optional
+  epic-7-retrospective: done
+
+  epic-8: done
+  8-1-operator-runbook-index: done
+  8-2-in-app-game-rules-page: done
+  epic-8-retrospective: optional
 
 # Action items committed during retrospectives (section created by the retrospective workflow)
 action_items:

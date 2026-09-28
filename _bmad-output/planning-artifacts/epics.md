@@ -180,6 +180,10 @@ The pool can restart cleanly for a new NHL season without losing prior seasons' 
 The app's single hand-maintained data file stays observable, lean, and lint-clean: every write that changes it is logged, login codes that can no longer be used are cleaned up, and the file's own format always satisfies the repo's yamllint rules.
 **FRs covered:** None — infra/observability work surfaced by a dedicated brainstorming session (see brainstorm-intent.md), not a PRD requirement.
 
+### Epic 8: Documentation & In-App Rules
+A prospective or current player can learn how the game works without asking the person running the pool, the person running the pool has a single checklist for every hand-edit task and when to do it, and anyone touching the codebase can find the architecture, tooling and release process explained in one place.
+**FRs covered:** None — documentation and operator-enablement work, not a PRD requirement.
+
 *(FR-22, deadline reminder emails, is explicitly deferred out of MVP per the PRD/UX/SPEC and has no epic.)*
 
 ## Epic 1: Account Access & App Shell
@@ -698,3 +702,43 @@ So that a typo never silently costs someone points, never takes the app down, an
 **Then** one summary line reports how many result problems were found (including zero), so a clean restart is distinguishable from an unchecked one
 
 *References: Architecture AD-9, AD-23, AD-27; Epic 4 retro findings R3, R6, R7 (`epic-4-retro-2026-09-25.md`); `deferred-work.md` entries sourced from `spec-4-1-automatic-scoring-engine.md`; operator runbook `docs/recording-results-and-playoffs.md` (update its "not warned about" list when this ships). Out of scope: detecting a hand edit made while the app runs (the runbook's stop-edit-restart rule stands). Coordinate with Story 7.3, which owns lint-clean output. Ask the human whether a Gherkin acceptance test applies before implementation.*
+
+## Epic 8: Documentation & In-App Rules
+
+A prospective or current player can learn how the game works without asking the person running the pool, the person running the pool has a single checklist for every hand-edit task and when to do it, and anyone touching the codebase can find the architecture, tooling and release process explained in one place. Sourced from a direct documentation request, not a PRD requirement — no FR is covered by this epic.
+
+### Story 8.1: Operator Runbook Index
+
+As the person running the pool,
+I want one checklist-style doc listing every hand-edit task and when to do it,
+So that I don't have to reconstruct the operational timeline from memory or re-read the detailed YAML runbook each time.
+
+**Acceptance Criteria:**
+
+**Given** the operator needs to know what to do and when across a season
+**When** they open `docs/operator-guide.md`
+**Then** they find a single table/checklist of operational tasks (initial deploy config, adding players, playoff round kickoff, recording results, season rollover) each naming what triggers it and where the detailed steps live
+**And** prose is kept minimal — each row is an instruction, not an essay
+**And** the doc explicitly notes an AI coding assistant can help draft the exact data-file edit for any listed task
+
+*References: existing `docs/recording-results-and-playoffs.md` (the detailed runbook this checklist indexes rather than duplicates); Epic 6 Story 6.1 (season rollover, including the `DefaultSeason` staleness risk from the epic-6 retrospective); Epic 7 (data file hygiene). No Gherkin acceptance test — documentation content, not user-facing app behavior.*
+
+### Story 8.2: In-App Game Rules Page
+
+As a player,
+I want to read the game rules inside the app,
+So that I don't have to leave it or ask someone else to understand how predictions and scoring work.
+
+**Acceptance Criteria:**
+
+**Given** I am logged in
+**When** I open the Rules tab from the bottom navigation
+**Then** I see the game rules rendered from an embedded copy of the canonical `docs/game-rules.md`, covering phases, prediction sets and scoring, with no links inside the rendered content (a game-rules.md convention, since a cross-reference to another doc page can't be clicked from inside the app)
+**And** the active tab is highlighted exactly like Predict/Leaderboard/Compare (UX-DR5's active/inactive pattern)
+**And** the page ends with a link out to the full docs on GitHub — the one GitHub-docs link, rendered by the shell template, not part of game-rules.md's own content
+
+**Given** `docs/game-rules.md` changes
+**When** `task docs:embed-game-rules` (part of `task lint`) is run and the app is rebuilt
+**Then** the in-app Rules page reflects the new content without any other Go code change — content-only edits stay in markdown
+
+*References: FR-29/UX-DR5 (bottom nav, reused not modified — Rules is a 4th tab alongside Predict/Leaderboard/Compare); no PRD FR, new since v1 shipped. `docs/game-rules.md` is the canonical source (edit it there); `src/internal/web/rules/game-rules.md` is a committed, generated copy kept in sync via `task docs:embed-game-rules`, needed only because `go:embed` can't reach outside its own package's directory tree — the copy being committed means neither the Dockerfile nor `task go:build` needs `docs/` present to build the binary. Gherkin acceptance test: extends the existing `app-shell.feature` (Story 1.5's persistent-shell feature) with a Rules-tab scenario, since Rules is one more destination in that same shell rather than a separate feature.*
