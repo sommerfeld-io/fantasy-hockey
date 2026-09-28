@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-28-2026 10:55
+last_updated: 09-28-2026 16:36
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -82,7 +82,7 @@ development_status:
   epic-8: done
   8-1-operator-runbook-index: done
   8-2-in-app-game-rules-page: done
-  epic-8-retrospective: optional
+  epic-8-retrospective: done
 
 # Action items committed during retrospectives (section created by the retrospective workflow)
 action_items:
@@ -468,7 +468,7 @@ action_items:
       both come back empty after a duplicate team_marks key, with only the duplicate
       key named in the warning). Needs a human decision on approach."
     owner: "Winston (Architect) / dev"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
   - id: "epic-7-retro-item-49-re-open-the-playoff_matchups-results-yam"
     epic: 7
@@ -478,7 +478,7 @@ action_items:
       by live reproduction), not a hypothetical future season. The existing accept-for-now
       decision did not check this timing."
     owner: "John (PM) / Winston (Architect)"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
   - id: "epic-7-retro-item-50-correct-docs-recording-results-and-playo"
     epic: 7
@@ -487,7 +487,7 @@ action_items:
       yamllint violations, only invisible because the file is lint-ignored) and scopes
       it to results:/award_finalists: only (it also hits playoff_matchups:)."
     owner: "same as playoff_matchups item"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
   - id: "epic-7-retro-item-51-add-a-doc-comment-tying-document-s-field"
     epic: 7
@@ -553,3 +553,70 @@ action_items:
     owner: "whoever implements the playoff_matchups/results yamllint decision"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
+  - id: "epic-8-retro-item-59-fix-docs-architecture-md-s-factually-wro"
+    epic: 8
+    action: "Fix docs/architecture.md's factually wrong import rule -- it states the
+      only feature-to-feature import allowed anywhere is internal/standings to internal/scoring,
+      but internal/web and internal/auth both import internal/mailer directly (confirmed
+      in real code); correct the stated rule."
+    owner: "next dev touching docs/architecture.md"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-28.md"
+  - id: "epic-8-retro-item-60-close-the-docs-game-rules-md-and-its-emb"
+    epic: 8
+    action: "Close the docs/game-rules.md and its embedded copy drift gap -- CI's
+      pipeline ignores docs/** and **.md entirely, CI's lint job never calls the root
+      task lint (the only place the sync tasks run), common:copy is an unconditional
+      overwrite with no drift check, and task go:build/task go:run (this repo's own
+      mandated agent verification loop) don't touch the sync tasks either. Needs a
+      human decision on investment level; recommended minimum is a go test byte-comparison
+      between the two files."
+    owner: "John (PM) / Winston (Architect) for the decision"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-28.md"
+  - id: "epic-8-retro-item-61-add-a-no-links-and-list-rendering-test-t"
+    epic: 8
+    action: "Add a no-links and list-rendering test to rules_test.go, and consider
+      dropping the Linkify extension -- extension.GFM bundles auto-linkify, so a bare
+      URL or email in game-rules.md's prose silently becomes a real link with no markdown
+      syntax needed, and nothing tests for its absence."
+    owner: "next dev touching internal/web/rules_test.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-28.md"
+  - id: "epic-8-retro-item-62-extend-app-shell-feature-s-cross-destina"
+    epic: 8
+    action: "Extend app-shell.feature's cross-destination identity scenario to include
+      the Rules destination -- it currently visits Predict/Leaderboard/Compare only,
+      missing the 4th destination this epic added, the same class of gap already found
+      and fixed once before (Epic 1 retro item 2)."
+    owner: "next dev touching app-shell.feature"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-28.md"
+  - id: "epic-8-retro-item-63-document-goldmark-s-xss-safety-invariant"
+    epic: 8
+    action: "Document goldmark's XSS-safety invariant in rules.go and add a regression
+      test -- template.HTML(mustRenderGameRules()) is safe today only because of goldmark's
+      unstated default Unsafe:false behavior; no live vulnerability but no comment
+      or test protects it, and gosec is not enabled in this repo's linter config."
+    owner: "next dev touching internal/web/rules.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-28.md"
+  - id: "epic-8-retro-item-64-guard-against-an-emptied-or-whitespace-o"
+    epic: 8
+    action: "Guard against an emptied or whitespace-only game-rules.md -- would currently
+      render a silently blank Rules tab with the nav still showing it active and zero
+      error anywhere; cheap fix consistent with mustRenderGameRules's existing fail-fast
+      philosophy for its other two branches."
+    owner: "next dev touching internal/web/rules.go"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-28.md"
+  - id: "epic-8-retro-item-65-lower-priority-ux-doc-polish-give-the-ru"
+    epic: 8
+    action: "Lower priority UX/doc polish: give the Rules tab's headings a documented,
+      consistent treatment relative to the rest of the shell (currently the only tab
+      with real h1/h2 elements, no DESIGN.md coverage); cross-reference task lint's
+      doc/README-regeneration side effect from architecture.md's quick-reference table;
+      add horizontal-overflow handling to .rules table for narrow viewports."
+    owner: "whoever next touches the Rules page UX"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-28.md"

@@ -2889,6 +2889,57 @@ func TestNewShouldTolerateAWronglyShapedAwardFinalistsEntryAndStartAnyway(t *tes
 	}
 }
 
+// TestResultProblemsShouldWarnThatSiblingFieldsMayBeAffectedByADuplicateKey
+// covers a review finding (epic-7 retrospective): a duplicate key at the
+// same mapping level as other results: fields doesn't just zero the
+// duplicated key -- yaml.Unmarshal abandons decoding every field at that
+// same level, so presidents_trophy/stanley_cup_winner (team_marks'
+// siblings, not its contents) silently come back empty too, with the
+// tolerated-shape-error message naming only the duplicated key. The
+// warning must say so, since AC2's "does not wipe what the human wrote"
+// promise doesn't cover an unrelated sibling being wiped.
+func TestResultProblemsShouldWarnThatSiblingFieldsMayBeAffectedByADuplicateKey(t *testing.T) {
+	seed := resultsFixtureBase + "results:\n    team_marks:\n        atlantic:\n            playoffs: [FLA]\n    team_marks:\n        pacific:\n            playoffs: [EDM]\n    presidents_trophy: FLA\n    stanley_cup_winner: FLA\n"
+	st, _ := newSeededStore(t, seed)
+
+	if got := st.PresidentsTrophyWinner(); got != "" {
+		t.Errorf("PresidentsTrophyWinner() = %q, want empty (zeroed as a side effect of the sibling team_marks duplicate key)", got)
+	}
+	if got := st.StanleyCupWinner(); got != "" {
+		t.Errorf("StanleyCupWinner() = %q, want empty (zeroed as a side effect of the sibling team_marks duplicate key)", got)
+	}
+
+	problems := st.ResultProblems()
+	if len(problems) != 1 || !strings.Contains(problems[0], "already defined") {
+		t.Fatalf("ResultProblems = %v, want exactly one problem naming the duplicate key", problems)
+	}
+	if !strings.Contains(problems[0], "other fields in this section may also be unset") {
+		t.Errorf("ResultProblems = %v, want the duplicate-key warning to note that sibling fields in the same section may also be affected", problems)
+	}
+}
+
+// TestResultProblemsShouldNotAddTheDuplicateKeyNoteToAnOrdinaryTypeMismatch
+// is the should-not counterpart: an ordinary type-mismatch tolerated error
+// (which does NOT zero unrelated siblings, per Design Notes) must not carry
+// the duplicate-key note -- it would be misleading noise on a message where
+// siblings are, in fact, untouched.
+func TestResultProblemsShouldNotAddTheDuplicateKeyNoteToAnOrdinaryTypeMismatch(t *testing.T) {
+	seed := resultsFixtureBase + "results:\n    team_marks:\n        atlantic:\n            playoffs: FLA\n    presidents_trophy: FLA\n"
+	st, _ := newSeededStore(t, seed)
+
+	if got := st.PresidentsTrophyWinner(); got != "FLA" {
+		t.Errorf("PresidentsTrophyWinner() = %q, want %q (sibling of the malformed playoffs field, untouched)", got, "FLA")
+	}
+
+	problems := st.ResultProblems()
+	if len(problems) != 1 {
+		t.Fatalf("ResultProblems = %v, want exactly one problem", problems)
+	}
+	if strings.Contains(problems[0], "other fields in this section may also be unset") {
+		t.Errorf("ResultProblems = %v, want no duplicate-key note on an ordinary type-mismatch message", problems)
+	}
+}
+
 func TestNewShouldStillFailForAShapeErrorOutsideResultsAndAwardFinalists(t *testing.T) {
 	seed := "season: \"2026-27\"\nteams: FLA\nresults:\n    stanley_cup_winner: FLA\n"
 	dir := t.TempDir()

@@ -20,7 +20,7 @@ No database driver, migration tool, or client-side JS framework — the app is i
 
 ## Layered architecture
 
-One dependency direction: presentation depends on feature/domain packages, which depend on `internal/store`, which depends on nothing above it. The only feature-to-feature import allowed anywhere is `internal/standings` → `internal/scoring` (Leaderboard reuses the scoring engine's point math instead of re-deriving it).
+One dependency direction: presentation (`internal/web`) depends on domain packages (`internal/auth`, `internal/scoring`, `internal/standings`), and any layer may depend directly on the infrastructure packages (`internal/store`, `internal/mailer`, `internal/clock`), which depend on nothing above them. The only import between two domain packages is `internal/standings` → `internal/scoring` (Leaderboard reuses the scoring engine's point math instead of re-deriving it) — every other cross-package dependency is either presentation-to-domain or a layer reaching straight to an infrastructure package (e.g. both `internal/web` and `internal/auth` use `internal/mailer` directly).
 
 ![Layered architecture](https://kroki.io/mermaid/svg/eNp9kcFugzAMhu99iohTK43yAlVPO-ywSZXGDfVggkuihRgl6SrevgaXjQ5pHJD84--zE9oAvVHl60bx04H1VTa-9y0d6lActzcbrG8VeTfssrPK86OKGL4xVJn1CYMHV0gg_W9leVI1UYqJzYxMYumY6BvWC5SrBWfANw5DfFEmda5I2PUOEs4Wbp4UcE1m4RhLkThqrVeaGmRFxBgt-fiXjprGIy33l0QcPXGuNDh95dksWPGJt-T2uDTMmTjeERoMNUFoZnpc8oFTwCeUa8Eu4BPEITekv3DYD51b0fxv3NPdSyD850d5-rlxOdPvSEnnPf_PhX184Z4pvfCgaputl8x2580dZuy-tw==)
 
@@ -31,7 +31,7 @@ One dependency direction: presentation depends on feature/domain packages, which
 | `internal/scoring`   | The point table and every point calculation — the only home of scoring logic                                                       |
 | `internal/standings` | Live Leaderboard computation (Regular/Playoff/Total), reads `internal/scoring`                                                     |
 | `internal/store`     | The only package that reads or writes `fantasy-hockey.yml`                                                                         |
-| `internal/mailer`    | SMTP delivery, used by `internal/auth`                                                                                             |
+| `internal/mailer`    | SMTP delivery, used by `internal/auth` and `internal/web`                                                                          |
 | `internal/clock`     | Current time, RFC3339 formatting                                                                                                   |
 | `internal/server`    | HTTP bootstrap: port resolution, graceful shutdown — no business logic                                                             |
 | `main.go`            | Wiring only: config, opens the data file, starts the server                                                                        |

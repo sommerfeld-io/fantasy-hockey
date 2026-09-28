@@ -400,15 +400,26 @@ func (st *Store) loadExisting(path string, raw []byte) error {
 			return fmt.Errorf("store: parse %s: %w", path, err)
 		}
 		// st.doc is still partially populated (Design Notes) - every field
-		// the type mismatch didn't touch, including sibling fields in the
-		// same struct, is exactly as if this error never happened. Tag each
-		// message with the specific section it came from (review finding),
-		// rather than a generic "results/award_finalists" label for every
-		// message regardless of which one actually had the problem.
+		// an ordinary type mismatch didn't touch, including sibling fields
+		// in the same struct, is exactly as if this error never happened.
+		// A duplicate-key error is different (epic-7 retro finding,
+		// confirmed empirically): yaml.Unmarshal abandons every field at
+		// the SAME mapping level as the duplicate, not just the duplicated
+		// key itself, so an unrelated sibling (e.g. presidents_trophy next
+		// to a duplicated team_marks) silently zeroes too. Tag each message
+		// with the specific section it came from (review finding), rather
+		// than a generic "results/award_finalists" label for every message
+		// regardless of which one actually had the problem, and append a
+		// note when the message is a duplicate-key error so the operator
+		// knows to check nearby fields too.
 		ranges := lenientRanges(st.raw)
 		for _, msg := range typeErr.Errors {
 			line, _ := parseErrorLine(msg) // already validated above
-			st.toleratedShapeErrors = append(st.toleratedShapeErrors, sectionForLine(line, ranges)+": "+msg)
+			formatted := sectionForLine(line, ranges) + ": " + msg
+			if isDuplicateKeyError(msg) {
+				formatted += " (other fields in this section may also be unset)"
+			}
+			st.toleratedShapeErrors = append(st.toleratedShapeErrors, formatted)
 		}
 	}
 
@@ -452,6 +463,21 @@ func parseErrorLine(msg string) (int, bool) {
 	}
 	n, err := strconv.Atoi(m[1])
 	return n, err == nil
+}
+
+// duplicateKeyErrorSuffix is go.yaml.in/yaml/v3's stable, long-documented
+// suffix for a duplicate-mapping-key *yaml.TypeError entry (decode.go:
+// "line %d: mapping key %#v already defined at line %d") - distinct from
+// an ordinary "cannot unmarshal ..." type-mismatch message.
+const duplicateKeyErrorSuffix = "already defined at line"
+
+// isDuplicateKeyError reports whether msg (one entry of a *yaml.TypeError's
+// Errors) is a duplicate-key error rather than an ordinary type mismatch -
+// epic-7 retro finding: unlike a type mismatch, a duplicate key zeroes
+// every field at that same mapping level, not just the duplicated one, so
+// a tolerated duplicate-key message needs its own caveat about siblings.
+func isDuplicateKeyError(msg string) bool {
+	return strings.Contains(msg, duplicateKeyErrorSuffix)
 }
 
 // namedLenientRange is one of results:'s or award_finalists:'s own line
