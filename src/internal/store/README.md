@@ -37,6 +37,16 @@ Read methods, each returning copies under the read lock:
 - `RecordedAwardFinalists(award)` returns the finalist slugs.
 - `ResultProblems()` lists each malformed entry: an unknown team abbreviation, finalist slug, division, award or round, a series key with no matching `playoff_matchups` entry, games outside 4-7, a series winner that is not one of its matchup's two teams, or a `team_marks` team from another division. The read methods ignore every such entry, so it scores 0. The store only reports them; `main.go` logs each one as a warning at startup.
 
+## File layout
+
+| File                | Contents                                                                                                                                                                             |
+|---------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `store.go`          | `Store`, `New` and bootstrap, player/login-code reads and writes, the persisted series-key and round-set vocabulary.                                                                 |
+| `store_results.go`  | The read-only `results`/`award_finalists` reads (`DivisionResult`, trophy winners, `SeriesResult`, `RecordedAwardFinalists`) and `ResultProblems`'s malformed/unknown-key detection. |
+| `store_splice.go`   | The raw `*yaml.Node` splice/rollback mechanics (`spliceNamedValueLocked`) and the lenient-section line-range helpers a tolerated shape error is confined against.                    |
+
+Each file has a matching `*_test.go`. General test fixtures shared package-wide (`newSeededStore`, `resultsFixtureBase`, `resultsFixtureResults`, `resultsFixtureMatchups`) live in `store_results_test.go`, even though `store_test.go` and `store_splice_test.go` build on them too. A test is grouped with whichever concern its outcome actually surfaces, not with the file whose method it happens to call first.
+
 ## Design notes
 
 - `Store`'s in-memory document and mutex stay unexported; every access goes through an exported method (AD-29).

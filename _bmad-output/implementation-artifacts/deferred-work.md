@@ -104,6 +104,12 @@
   summary: Epic 4 retro A9, which hoists the duplicated YAML-seed store helpers, prediction-row renderers, acceptance seed builders and the submitted_at literal into shared test support before Epic 5.
   evidence: The user split it out of the Epic 4 retro hardening spec on 2026-09-25. It rewrites the same step files that A6 extends, so it should ship as its own change.
 
+## Deferred from: code review of spec-epic-7-retro-item-57-split-store-go-by-concern.md (2026-09-28)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-7-retro-item-57-split-store-go-by-concern.md`
+  summary: `yaml "go.yaml.in/yaml/v3"` aliases a package whose own declared name is already `yaml`, so the alias is redundant — now repeated in three files (`store.go`, `store_splice.go`, `store_results.go`) instead of one, tripling the number of places a future import-path or library change has to touch.
+  evidence: Verified real (blind-hunter): confirmed `go.yaml.in/yaml/v3`'s own `decode.go` declares `package yaml`. Pre-existing in the original `store.go` before this split — the split only repeated existing import syntax across the new files as an unavoidable consequence of each needing its own import block, not something this refactor introduced as new redundancy.
+
 ## Deferred from: code review of spec-7-4-hand-edited-results-are-safe-to-edit.md (2026-09-27)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-7-4-hand-edited-results-are-safe-to-edit.md`
