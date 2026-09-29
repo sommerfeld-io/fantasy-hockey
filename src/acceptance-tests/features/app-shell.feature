@@ -37,6 +37,7 @@ Feature: Persistent App Shell With Player Identity and Navigation
     When the player visits the Predict destination
     And the player visits the Leaderboard destination
     And the player visits the Compare destination
+    And the player visits the Rules destination
     Then every visited destination showed the player's name "Basti"
 
   Scenario: Logging out through the shell's logout control

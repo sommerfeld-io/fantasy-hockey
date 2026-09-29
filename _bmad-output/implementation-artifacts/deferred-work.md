@@ -110,6 +110,24 @@
   summary: `yaml "go.yaml.in/yaml/v3"` aliases a package whose own declared name is already `yaml`, so the alias is redundant — now repeated in three files (`store.go`, `store_splice.go`, `store_results.go`) instead of one, tripling the number of places a future import-path or library change has to touch.
   evidence: Verified real (blind-hunter): confirmed `go.yaml.in/yaml/v3`'s own `decode.go` declares `package yaml`. Pre-existing in the original `store.go` before this split — the split only repeated existing import syntax across the new files as an unavoidable consequence of each needing its own import block, not something this refactor introduced as new redundancy.
 
+## Deferred from: code review of spec-epic-8-retro-item-62-rules-cross-destination-scenario.md (2026-09-29)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-8-retro-item-62-rules-cross-destination-scenario.md`
+  summary: The Rules destination was never backfilled into `stay-logged-in.feature`'s idle-timeout scenarios, `log-out.feature`'s post-logout-unauthenticated scenarios, or `app-shell.feature`'s own logout scenario when Rules was added as a 4th destination in Epic 8 — the same class of gap this build fixed for the identity-persistence scenario, just left open in three other places.
+  evidence: Verified real (blind-hunter): confirmed via `grep` that neither `stay-logged-in.feature` nor `log-out.feature` mentions "rules" anywhere. `/rules` sits behind the identical `requireSession` middleware as `/predict`/`/leaderboard`/`/compare` (`internal/web/web.go`), so nothing structurally exempts it. Pre-existing since Epic 8, not caused by this build's one-line change (which only touched the identity-persistence scenario this item specifically named).
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-8-retro-item-62-rules-cross-destination-scenario.md`
+  summary: `everyVisitedDestinationShowedThePlayersName` (the step the new Rules line exercises) only asserts the player's *name* persists across visited destinations, never the season — a regression that broke the season display specifically on one tab would pass this scenario undetected.
+  evidence: Verified real (blind-hunter): confirmed the step's own implementation only checks `PlayerName`; `theShellShowsTheSeason` is a separate, unused-here step. Pre-existing scope of this helper, not introduced by adding Rules to the destination list.
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-8-retro-item-62-rules-cross-destination-scenario.md`
+  summary: The "Navigating between destinations..." identity scenario never includes the root path `/` (which aliases to Predict) even though it's a distinct route through `handleShell` and the scenario's stated purpose is proving identity persists across every route into the shell.
+  evidence: Verified real (blind-hunter). Pre-existing omission, not caused by this build's change.
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-8-retro-item-62-rules-cross-destination-scenario.md`
+  summary: Nothing enforces that `app_shell_steps_test.go`'s `navHrefsByTab` map, its `InitializeAppShellScenario` regex alternation, and each destination's title-casing stay in sync — unlike production code's `shellRoutes`, there's no single source of truth, so a future 5th destination could update one site and silently miss another.
+  evidence: Verified real (blind-hunter): confirmed all three sites currently agree for the 4 existing destinations, but nothing derives one from another. Pre-existing test-helper design, not caused by this build's change.
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-8-retro-item-62-rules-cross-destination-scenario.md`
+  summary: `theShellShowsTheRulesContent`'s smoke check only asserts the presence of "Game Rules"/"Scoring," unlike `theShellShowsTheCompareContent`, which also asserts the *absence* of leftover placeholder text ("coming soon") — an asymmetry in test rigor between the Rules and Compare tabs' own content checks.
+  evidence: Verified real (blind-hunter). Pre-existing gap in a different scenario than the one this build changed.
+
 ## Deferred from: code review of spec-7-4-hand-edited-results-are-safe-to-edit.md (2026-09-27)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-7-4-hand-edited-results-are-safe-to-edit.md`
