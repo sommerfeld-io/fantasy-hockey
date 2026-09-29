@@ -159,6 +159,93 @@ func TestOpenStoreShouldNotWarnForAWellFormedFile(t *testing.T) {
 	}
 }
 
+// TestOpenStoreShouldWarnAboutAToleratedShapeErrorFromResultProblems proves
+// New's tolerated-shape-error category (AC2, spec-7-4) reaches openStore's
+// WARN loop and AC4 count line, not just st.ResultProblems() directly
+// (already covered in store_results_test.go) (epic-7 retrospective, item 52).
+func TestOpenStoreShouldWarnAboutAToleratedShapeErrorFromResultProblems(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	// teams: FLA is required so division_winner: FLA validates - without it,
+	// FLA is an unrecognized team abbreviation and teamMarkProblemsLocked
+	// reports a second, unrelated problem, breaking this test's count=1
+	// assertion below.
+	seed := "season: \"2026-27\"\nteams:\n    - {id: FLA, name: Florida Panthers, conference: Eastern, division: Atlantic}\nresults:\n    team_marks:\n        atlantic:\n            playoffs: FLA\n            division_winner: FLA\n"
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	st, err := openStore(path, logger)
+
+	if err != nil || st == nil {
+		t.Fatalf("openStore = %v, %v, want a store and no error", st, err)
+	}
+	if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), `problem="results: `) || !strings.Contains(logs.String(), "line") {
+		t.Errorf("expected a warning naming the tolerated shape error (results-section-prefixed, with a source line), got %q", logs.String())
+	}
+	if got := strings.Count(logs.String(), "level=WARN"); got != 1 {
+		t.Errorf("expected exactly one warning for the one tolerated shape error, got %d in %q", got, logs.String())
+	}
+	if !strings.Contains(logs.String(), `msg="result problems found" count=1`) {
+		t.Errorf("expected a summary line reporting count=1 (AC4), got %q", logs.String())
+	}
+}
+
+// TestOpenStoreShouldWarnAboutAnUnknownKeyFromResultProblems proves New's
+// unknown/misspelled-key category (AC1, spec-7-4) reaches openStore's WARN
+// loop and AC4 count line, not just st.ResultProblems() directly (already
+// covered in store_results_test.go) (epic-7 retrospective, item 52).
+func TestOpenStoreShouldWarnAboutAnUnknownKeyFromResultProblems(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	seed := "season: \"2026-27\"\nresults:\n    stanley_cup_winer: FLA\n"
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	st, err := openStore(path, logger)
+
+	if err != nil || st == nil {
+		t.Fatalf("openStore = %v, %v, want a store and no error", st, err)
+	}
+	if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), "results.stanley_cup_winer: unknown key") {
+		t.Errorf("expected a warning naming the unknown key, got %q", logs.String())
+	}
+	if got := strings.Count(logs.String(), "level=WARN"); got != 1 {
+		t.Errorf("expected exactly one warning for the one unknown key, got %d in %q", got, logs.String())
+	}
+	if !strings.Contains(logs.String(), `msg="result problems found" count=1`) {
+		t.Errorf("expected a summary line reporting count=1 (AC4), got %q", logs.String())
+	}
+}
+
+// TestOpenStoreShouldNotWarnAboutCorrectlyShapedTeamMarksOrKeyNames is the
+// should-not counterpart to the two tests above: the correctly-shaped
+// equivalent of each seed (a real list for team_marks.playoffs, the
+// correctly-spelled stanley_cup_winner key) must not false-positive a
+// warning through openStore's WARN loop.
+func TestOpenStoreShouldNotWarnAboutCorrectlyShapedTeamMarksOrKeyNames(t *testing.T) {
+	path := filepath.Join(t.TempDir(), store.DataFileName)
+	seed := "season: \"2026-27\"\nteams:\n    - {id: FLA, name: Florida Panthers, conference: Eastern, division: Atlantic}\nresults:\n    team_marks:\n        atlantic:\n            playoffs: [FLA]\n            division_winner: FLA\n    stanley_cup_winner: FLA\n"
+	if err := os.WriteFile(path, []byte(seed), 0o600); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	if _, err := openStore(path, logger); err != nil {
+		t.Fatalf("openStore returned error: %v", err)
+	}
+	if strings.Contains(logs.String(), "level=WARN") {
+		t.Errorf("expected no warnings for correctly-shaped/spelled equivalents, got %q", logs.String())
+	}
+	if !strings.Contains(logs.String(), `msg="result problems found" count=0`) {
+		t.Errorf("expected a summary line reporting count=0 (AC4), got %q", logs.String())
+	}
+}
+
 func TestOpenStoreShouldReturnAnErrorForAnUnreadableFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), store.DataFileName)
 	if err := os.WriteFile(path, []byte("not: valid: yaml: at all"), 0o600); err != nil {
