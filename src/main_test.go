@@ -18,6 +18,24 @@ import (
 // succeed but doesn't itself exercise SESSION_SECRET's value.
 const testSessionSecret = "test-session-secret"
 
+// assertLogSilenceAndZeroProblems fails the test unless logs holds no
+// level=WARN line and reports the AC4 count=0 summary line - the shape
+// openStore's own Warn/Info calls produce for a file with zero malformed
+// results. It only observes what openStore itself logs through the logger
+// passed into it, not store.New's own bootstrap-write line (store.go's
+// writeLocked logs that separately, via the package-level default slog
+// logger, not the *slog.Logger a caller supplies). scenario names what the
+// test seeded, for a legible failure message.
+func assertLogSilenceAndZeroProblems(t *testing.T, logs *bytes.Buffer, scenario string) {
+	t.Helper()
+	if strings.Contains(logs.String(), "level=WARN") {
+		t.Errorf("expected no warnings for %s, got %q", scenario, logs.String())
+	}
+	if !strings.Contains(logs.String(), `msg="result problems found" count=0`) {
+		t.Errorf("expected a summary line reporting count=0 (AC4) for %s, got %q", scenario, logs.String())
+	}
+}
+
 func TestResolveConfigShouldApplyDefaultsWithNoArgsOrEnv(t *testing.T) {
 	t.Setenv("DATA_FILE", "")
 	t.Setenv("SESSION_SECRET", testSessionSecret)
@@ -153,12 +171,7 @@ func TestOpenStoreShouldNotWarnForAWellFormedFile(t *testing.T) {
 	if _, err := openStore(path, logger); err != nil {
 		t.Fatalf("openStore returned error: %v", err)
 	}
-	if strings.Contains(logs.String(), "level=WARN") {
-		t.Errorf("expected no warnings, got %q", logs.String())
-	}
-	if !strings.Contains(logs.String(), `msg="result problems found" count=0`) {
-		t.Errorf("expected a summary line reporting count=0 (AC4) even for a clean file, got %q", logs.String())
-	}
+	assertLogSilenceAndZeroProblems(t, &logs, "a well-formed file")
 }
 
 // TestOpenStoreShouldWarnAboutAToleratedShapeErrorFromResultProblems proves
@@ -284,13 +297,16 @@ func TestOpenStoreShouldReturnAnOperatorLegibleErrorForANonexistentParentDirecto
 }
 
 // TestOpenStoreShouldBootstrapAFreshSeasonWhenTheResolvedPathDoesNotExist
-// proves the season-rollover entry point end-to-end through main's actual
-// startup path: repointing DATA_FILE/--data-file at a path that doesn't
-// exist yet must bootstrap a clean season skeleton, not fail or inherit
-// anything from elsewhere (I/O matrix row 1).
+// proves openStore's season-rollover behavior for I/O matrix row 1: an
+// already-resolved path that doesn't exist yet must bootstrap a clean
+// season skeleton, not fail or inherit anything from elsewhere. It calls
+// openStore directly with a constructed path - DATA_FILE/--data-file's own
+// resolution into that path is TestResolveConfigShould*'s job, not this
+// test's, and run() (which wires the two together) is exercised by neither.
 func TestOpenStoreShouldBootstrapAFreshSeasonWhenTheResolvedPathDoesNotExist(t *testing.T) {
 	path := filepath.Join(t.TempDir(), store.DataFileName)
-	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
 
 	st, err := openStore(path, logger)
 
@@ -306,14 +322,19 @@ func TestOpenStoreShouldBootstrapAFreshSeasonWhenTheResolvedPathDoesNotExist(t *
 	if got := st.Players(); len(got) != 0 {
 		t.Errorf("expected an empty players list, got %v", got)
 	}
+	assertLogSilenceAndZeroProblems(t, &logs, "a freshly bootstrapped file")
 }
 
 // TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath proves the
-// second half of a season rollover: once a human archives the prior
-// season's file and repoints the app at a fresh path, the archived file is
-// never read from or written to (I/O matrix row 2).
+// second half of a season rollover through openStore directly (same scope
+// note as TestOpenStoreShouldBootstrapAFreshSeasonWhenTheResolvedPathDoesNotExist
+// above - resolveConfig/run() are not exercised here): given an archived
+// prior-season file and a fresh path colocated in the same directory - a
+// realistic rollover topology - openStore never reads from or writes to the
+// archived file (I/O matrix row 2).
 func TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath(t *testing.T) {
-	archivedPath := filepath.Join(t.TempDir(), "fantasy-hockey-2025-26.yml")
+	dir := t.TempDir()
+	archivedPath := filepath.Join(dir, "fantasy-hockey-2025-26.yml")
 	archivedSeed := "season: \"2025-26\"\nplayers:\n    - id: basti\n      name: Basti\n      email: basti@example.com\nresults:\n    presidents_trophy: FLA\n    stanley_cup_winner: FLA\n"
 	if err := os.WriteFile(archivedPath, []byte(archivedSeed), 0o600); err != nil {
 		t.Fatalf("seed archived file: %v", err)
@@ -323,8 +344,9 @@ func TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath(t *testing.T) {
 		t.Fatalf("read archived file before openStore: %v", err)
 	}
 
-	freshPath := filepath.Join(t.TempDir(), store.DataFileName)
-	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	freshPath := filepath.Join(dir, store.DataFileName)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
 
 	st, err := openStore(freshPath, logger)
 	if err != nil {
@@ -336,6 +358,7 @@ func TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath(t *testing.T) {
 	if got := st.Players(); len(got) != 0 {
 		t.Errorf("expected an empty players list, got %v", got)
 	}
+	assertLogSilenceAndZeroProblems(t, &logs, "the freshly bootstrapped file alongside an archived one")
 
 	after, err := os.ReadFile(archivedPath)
 	if err != nil {
