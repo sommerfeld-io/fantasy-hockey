@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-29-2026 20:06
+last_updated: 09-29-2026 20:16
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -368,7 +368,7 @@ action_items:
       findPredictionSetByID (sheet.go) and share selectableCompareSets's phase/deadline
       validity predicate instead of re-deriving both independently in compare.go"
     owner: "next dev touching internal/web/compare.go"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-5-retro-2026-09-25.md"
   - id: "epic-5-retro-item-38-fix-the-simultaneous-nothing-to-compare"
     epic: 5
