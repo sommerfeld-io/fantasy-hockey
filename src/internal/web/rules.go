@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"strings"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -51,10 +52,27 @@ var gameRulesFS embed.FS
 // gameRulesRenderer without re-reviewing this invariant.
 var rulesHTML = template.HTML(mustRenderGameRules())
 
+// gameRulesRenderedBlank reports whether rendered - gameRulesRenderer's
+// output - has nothing in it once surrounding whitespace is trimmed.
+// Confirmed empirically (epic-8 retrospective, item 64) that goldmark's
+// output for whitespace-only/empty input is always the exact empty string,
+// never non-empty whitespace, so TrimSpace is defense-in-depth here, not a
+// case this package's own tests exercise a real difference for. Split out
+// from mustRenderGameRules so TestGameRulesRendererShouldRenderWhitespace...
+// (rules_test.go) tests the exact condition the panic below acts on, not a
+// duplicated copy of it.
+func gameRulesRenderedBlank(rendered string) bool {
+	return strings.TrimSpace(rendered) == ""
+}
+
 // mustRenderGameRules reads and renders the embedded game rules markdown.
-// Both failure modes here (a missing embed, a writer error from goldmark)
-// can only be programmer errors caught at build/startup time, never runtime
-// input - the embedded file is fixed at compile time.
+// All three failure modes here (a missing embed, a writer error from
+// goldmark, or an emptied/whitespace-only game-rules.md rendering to
+// nothing - epic-8 retrospective, item 64: without this check, the Rules
+// tab would render as a silently blank page, with the nav still showing it
+// active and no error anywhere) can only be programmer errors caught at
+// build/startup time, never runtime input - the embedded file is fixed at
+// compile time.
 func mustRenderGameRules() string {
 	source, err := gameRulesFS.ReadFile("rules/game-rules.md")
 	if err != nil {
@@ -64,5 +82,9 @@ func mustRenderGameRules() string {
 	if err := gameRulesRenderer.Convert(source, &buf); err != nil {
 		panic(fmt.Sprintf("web: render game rules markdown: %v", err))
 	}
-	return buf.String()
+	rendered := buf.String()
+	if gameRulesRenderedBlank(rendered) {
+		panic("web: embedded game rules rendered empty - fix docs/game-rules.md (the canonical source), then re-run `task docs:embed-game-rules` (or `task lint`) to regenerate rules/game-rules.md")
+	}
+	return rendered
 }

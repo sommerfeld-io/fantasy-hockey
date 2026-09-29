@@ -125,6 +125,45 @@ func TestGameRulesRendererShouldNeutralizeRawHTMLAndDangerousLinks(t *testing.T)
 	}
 }
 
+// TestGameRulesRendererShouldRenderWhitespaceOnlyMarkdownAsEmpty covers a
+// review finding (epic-8 retrospective, item 64): mustRenderGameRules
+// panics when gameRulesRenderedBlank(rendered) is true, guarding against
+// an emptied/whitespace-only game-rules.md silently rendering a blank
+// Rules tab (the nav would still show it active, with no error anywhere).
+// This calls gameRulesRenderedBlank directly - the exact function the
+// panic acts on, not a duplicated copy of its check - so a future change
+// that weakens or removes that condition fails this test, not just a
+// same-shaped assertion beside it. mustRenderGameRules itself can't be
+// exercised directly here, since it always reads the real, non-empty
+// embedded file (confirmed end-to-end, see this spec's Implementation
+// Notes: the panic was manually triggered once by emptying the real
+// embedded file and rebuilding).
+func TestGameRulesRendererShouldRenderWhitespaceOnlyMarkdownAsEmpty(t *testing.T) {
+	for _, markdown := range []string{"", "   \n\n  \n", "\t\n \n"} {
+		var buf bytes.Buffer
+		if err := gameRulesRenderer.Convert([]byte(markdown), &buf); err != nil {
+			t.Fatalf("gameRulesRenderer.Convert(%q): %v", markdown, err)
+		}
+		if !gameRulesRenderedBlank(buf.String()) {
+			t.Errorf("gameRulesRenderedBlank(gameRulesRenderer.Convert(%q)) = false, want true", markdown)
+		}
+	}
+}
+
+// TestGameRulesRendererShouldNotFlagOrdinaryMarkdownAsBlank is the
+// should-not counterpart: ordinary, non-blank markdown must not trip
+// gameRulesRenderedBlank, so the new guard never false-positives on real
+// content.
+func TestGameRulesRendererShouldNotFlagOrdinaryMarkdownAsBlank(t *testing.T) {
+	var buf bytes.Buffer
+	if err := gameRulesRenderer.Convert([]byte("# Game Rules\n\nSome real content.\n"), &buf); err != nil {
+		t.Fatalf("gameRulesRenderer.Convert: %v", err)
+	}
+	if gameRulesRenderedBlank(buf.String()) {
+		t.Errorf("gameRulesRenderedBlank(%q) = true, want false", buf.String())
+	}
+}
+
 // repoRootForRulesTest resolves the repository root from this file's own
 // path (three ".." up from src/internal/web/, mirroring
 // internal/store/yamllint_test.go's own repoRootForYamllintTest), so this
