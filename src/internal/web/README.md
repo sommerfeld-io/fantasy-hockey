@@ -39,27 +39,30 @@ An unknown id and an id whose set is marked `upcoming: true` get the same generi
 
 ## File layout
 
-| File                 | Contents                                                                                                         |
-|----------------------|------------------------------------------------------------------------------------------------------------------|
-| `web.go`             | Embeds and templates, shared constants, `NewServer` and routing, `requireSession`, static files, render helpers. |
-| `shell.go`           | Bottom-nav tabs, shell view data, `handleShell`.                                                                 |
-| `predict.go`         | The Predict list view model: row status, pill, accent, and phase grouping.                                       |
-| `leaderboard.go`     | The Leaderboard view model: `internal/standings` rows with precomputed rank-badge and Total classes.             |
-| `compare.go`         | The Compare view model: set chips, default selection, and per-category rows of every player's values.            |
-| `rules.go`           | Embeds `rules/game-rules.md` and pre-renders it to HTML (via `goldmark`, GFM tables enabled) once at package init. |
-| `options.go`         | The shared `{id, label}` autocomplete embed shape.                                                               |
-| `roster.go`          | `roster[T]`, the one id-keyed membership lookup behind every server-side team and NHL Player check.              |
-| `sheet.go`           | Sheet-kind registry, `sheetData`, `handleSheet`, `handleSheetSubmit`, and the cup/presidents sheet.              |
-| `sheet_divisions.go` | Divisions sheet view model, validation, and submit.                                                              |
-| `sheet_awards.go`    | Award tables, awards sheet view model, validation, and submit.                                                   |
-| `login.go`           | Login, login-code and logout handlers.                                                                           |
+| File                   | Contents                                                                                                                  |
+|------------------------|---------------------------------------------------------------------------------------------------------------------------|
+| `web.go`               | Embeds and templates, shared constants, `NewServer` and routing, `requireSession`, static files, render helpers.          |
+| `shell.go`             | Bottom-nav tabs, shell view data, `handleShell`.                                                                          |
+| `predict.go`           | The Predict list view model: row status, pill, accent, and phase grouping.                                                |
+| `leaderboard.go`       | The Leaderboard view model: `internal/standings` rows with precomputed rank-badge and Total classes.                      |
+| `compare.go`           | The Compare view model: shared types, the render pipeline, gating/deadline logic, dispatch, and the single-team category. |
+| `compare_divisions.go` | Divisions category: one playoff-teams row and one winner row per division.                                                |
+| `compare_awards.go`    | Awards category: one stacked row per award.                                                                               |
+| `compare_series.go`    | Series category: one row per recorded matchup, tagged winner plus plain games-count.                                      |
+| `rules.go`             | Embeds `rules/game-rules.md` and pre-renders it to HTML (via `goldmark`, GFM tables enabled) once at package init.        |
+| `options.go`           | The shared `{id, label}` autocomplete embed shape.                                                                        |
+| `roster.go`            | `roster[T]`, the one id-keyed membership lookup behind every server-side team and NHL Player check.                       |
+| `sheet.go`             | Sheet-kind registry, `sheetData`, `handleSheet`, `handleSheetSubmit`, and the cup/presidents sheet.                       |
+| `sheet_divisions.go`   | Divisions sheet view model, validation, and submit.                                                                       |
+| `sheet_awards.go`      | Award tables, awards sheet view model, validation, and submit.                                                            |
+| `login.go`             | Login, login-code and logout handlers.                                                                                    |
 
 Each file has a matching `*_test.go`. General test helpers (base store fixtures, the cup/presidents seeds) live in `web_test.go`. Kind-specific helpers (e.g. `newTestStoreWithAwardsRoster`, `postSheet`, `markUpcoming`) live beside their kind's tests and are shared package-wide.
 
 ## Design notes
 
 - `requireSession` guards every authenticated route. A valid, unexpired cookie (`auth.ValidateSession`) is re-issued with a fresh `issued_at` before the request proceeds, sliding the idle timeout forward. Anything else redirects (302) to `/login` with no distinguishing message. Every response it lets through also carries `Cache-Control: no-store`, since a shared cache in front of the app could otherwise serve one player's page to another.
-- Compare is display-only: it reads picks through the store's `Find…` methods, maps ids to team names, abbreviations and NHL Player display names only at render time, and never imports `internal/scoring` or `internal/standings` (guarded by `TestCompareShouldNotImportScoringOrStandings`). A set that is effectively Upcoming, or whose deadline fails to parse, gets no chip. An unknown or unselectable `?set=`, or no `?set=` at all, falls back to the earliest-deadline Before the season set (the first listed on a tie), or to the first selectable Playoffs set when none is selectable there; when nothing at all is selectable, both selector rows render a "Nothing to compare yet." note and no table is shown. The one exception is a hand-typed `?set=` naming a round-gated id (`r2`, the conference finals, or the Final) whose matchups aren't recorded yet: it shows a dashed "Matchups not set." note in place of the table instead of falling back, since a gated round never gets a rendered chip to begin with. Every other Upcoming id - a Before the season set, or `r1`'s own hand-maintained flag - still falls back normally. Team-abbreviation values (playoff teams, division winners, series winners) render as a small tag; full team names, award finalist names, and a series row's "in N" suffix stay plain text; an unfilled value renders as a faint em dash.
+- Compare is display-only: it reads picks through the store's `Find…` methods, maps ids to team names, abbreviations and NHL Player display names only at render time, and never imports `internal/scoring` or `internal/standings` (enforced by `.golangci.yml`'s `compare` depguard rule, not a hand-written test - see AD-21). A set that is effectively Upcoming, or whose deadline fails to parse, gets no chip. An unknown or unselectable `?set=`, or no `?set=` at all, falls back to the earliest-deadline Before the season set (the first listed on a tie), or to the first selectable Playoffs set when none is selectable there; when nothing at all is selectable, both selector rows render a "Nothing to compare yet." note and no table is shown. The one exception is a hand-typed `?set=` naming a round-gated id (`r2`, the conference finals, or the Final) whose matchups aren't recorded yet: it shows a dashed "Matchups not set." note in place of the table instead of falling back, since a gated round never gets a rendered chip to begin with. Every other Upcoming id - a Before the season set, or `r1`'s own hand-maintained flag - still falls back normally. Team-abbreviation values (playoff teams, division winners, series winners) render as a small tag; full team names, award finalist names, and a series row's "in N" suffix stay plain text; an unfilled value renders as a faint em dash.
 - The Leaderboard computes no points or ranks. It renders `internal/standings.Rows` and never imports `internal/scoring` (guarded by `TestWebShouldNotImportScoring`).
 - Every submitted team id or NHL Player slug is revalidated against the store's canonical lists through `roster` (AD-10), whatever the client allowed.
 - `docs/game-rules.md` (repo root) is the canonical source for the game rules; `rules/game-rules.md` here is a generated copy kept in sync via `task docs:embed-game-rules`, needed only because `go:embed` can't reach outside this package's own directory tree. The copy is committed, so neither the Dockerfile nor `task go:build` needs `docs/` present to build the binary. See the root `docs/architecture.md`.

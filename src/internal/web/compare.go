@@ -21,15 +21,10 @@ const (
 // its category, so a cell is never blank.
 const emptyCellValue = "—"
 
-// Compare row labels and label fragments (click-dummy wording).
+// Compare row labels for the single-team category (click-dummy wording).
 const (
-	compareCupLabel             = "Stanley Cup winner"
-	comparePresidentsLabel      = "Presidents' Trophy"
-	compareDivisionPlayoffLabel = "%s — playoff teams"
-	compareDivisionWinnerLabel  = "%s — winner"
-	compareSeriesLabel          = "%s · %s vs %s"
-	compareSeriesNoConfLabel    = "%s vs %s"
-	compareSeriesGamesSuffix    = "in %s"
+	compareCupLabel        = "Stanley Cup winner"
+	comparePresidentsLabel = "Presidents' Trophy"
 )
 
 // compareGatedRoundNote replaces the table when a hand-typed ?set= names a
@@ -409,95 +404,4 @@ func singleTeamCategory(st *store.Store, kind string) compareCategory {
 			return []compareValueView{plainValue(teamName(teams, p.TeamID))}
 		},
 	}
-}
-
-// divisionCategories is a playoff-teams row then a winner row per division,
-// in store.Divisions() order, with team abbreviations tagged.
-func divisionCategories(st *store.Store) []compareCategory {
-	var categories []compareCategory
-	for _, division := range store.Divisions() {
-		categories = append(categories,
-			compareCategory{
-				label: fmt.Sprintf(compareDivisionPlayoffLabel, division),
-				values: func(playerID string) []compareValueView {
-					p, ok := st.FindDivisionPlayoffTeams(playerID, division)
-					if !ok || len(p.TeamIDs) == 0 {
-						return nil
-					}
-					return tagValues(p.TeamIDs)
-				},
-			},
-			compareCategory{
-				label: fmt.Sprintf(compareDivisionWinnerLabel, division),
-				values: func(playerID string) []compareValueView {
-					p, ok := st.FindDivisionWinner(playerID, division)
-					if !ok || p.TeamID == "" {
-						return nil
-					}
-					return []compareValueView{tagValue(p.TeamID)}
-				},
-			},
-		)
-	}
-	return categories
-}
-
-// awardCategories is one stacked row per award, in awardOrder, with each
-// finalist's display name, plain.
-func awardCategories(st *store.Store) []compareCategory {
-	categories := make([]compareCategory, 0, len(awardOrder))
-	for _, award := range awardOrder {
-		categories = append(categories, compareCategory{
-			label:   awardTitle[award],
-			stacked: true,
-			values: func(playerID string) []compareValueView {
-				p, ok := st.FindAwardFinalists(playerID, award)
-				if !ok {
-					return nil
-				}
-				values := make([]compareValueView, 0, len(p.FinalistSlugs))
-				for _, slug := range p.FinalistSlugs {
-					values = append(values, plainValue(displayNameForSlug(st, slug)))
-				}
-				return values
-			},
-		})
-	}
-	return categories
-}
-
-// seriesCategories is one row per recorded matchup of setID, showing each
-// player's winner tagged plus a plain " in <games>" suffix (Boundaries:
-// series rows render the winner as a tag plus plain text, not one opaque
-// string).
-func seriesCategories(st *store.Store, setID string) []compareCategory {
-	matchups := st.PlayoffMatchups(setID)
-	categories := make([]compareCategory, 0, len(matchups))
-	for _, m := range matchups {
-		seriesKey := store.JoinSeriesKey(setID, m.Key)
-		categories = append(categories, compareCategory{
-			label: seriesLabel(st, setID, m),
-			values: func(playerID string) []compareValueView {
-				p, ok := st.FindSeriesPick(playerID, seriesKey)
-				if !ok || p.TeamID == "" {
-					return nil
-				}
-				return []compareValueView{tagValue(p.TeamID), plainValue(fmt.Sprintf(compareSeriesGamesSuffix, p.Games))}
-			},
-		})
-	}
-	return categories
-}
-
-// seriesLabel is "<Conference> · A vs B", with the Final's own label in
-// place of a conference and no prefix when the conference is unknown.
-func seriesLabel(st *store.Store, setID string, m store.PlayoffMatchup) string {
-	conference := stanleyCupFinalLabel
-	if setID != store.StanleyCupFinalSetID {
-		conference = conferenceForMatchup(st, m)
-	}
-	if conference == "" {
-		return fmt.Sprintf(compareSeriesNoConfLabel, m.TeamA, m.TeamB)
-	}
-	return fmt.Sprintf(compareSeriesLabel, conference, m.TeamA, m.TeamB)
 }
