@@ -2,6 +2,8 @@ package store
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -86,6 +88,41 @@ func TestNewShouldBootstrapCreateAMissingFile(t *testing.T) {
 	}
 	if st == nil {
 		t.Fatal("expected a non-nil Store")
+	}
+}
+
+// TestNewShouldReturnAnOperatorLegibleErrorForANonexistentParentDirectory
+// covers a real, plausible operator mistake - DATA_FILE/--data-file pointed
+// at a path whose parent directory doesn't exist yet (a typo, a wrong
+// volume mount) - proving New neither panics nor silently succeeds, and
+// that the resulting error can actually be diagnosed (epic-6 retrospective,
+// item 46). A single missing level is representative of the general case: a
+// deeper missing chain (a/b/c/<file>) fails identically, since it's always
+// writeLocked's os.CreateTemp(dir, ...) - which requires only its own
+// immediate dir argument to exist, never creating it - that produces the
+// ENOENT this test checks for, regardless of how many levels are missing
+// above that.
+func TestNewShouldReturnAnOperatorLegibleErrorForANonexistentParentDirectory(t *testing.T) {
+	dir := t.TempDir()
+	subdir := filepath.Join(dir, "nonexistent-subdir")
+	path := filepath.Join(subdir, DataFileName)
+
+	st, err := New(path)
+
+	if err == nil {
+		t.Fatal("expected an error for a nonexistent parent directory, got nil")
+	}
+	if st != nil {
+		t.Errorf("expected a nil Store on error, got %+v", st)
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("expected the error to satisfy errors.Is(err, fs.ErrNotExist), got %v", err)
+	}
+	if !strings.Contains(err.Error(), path) {
+		t.Errorf("expected the error to name the attempted path %q for an operator to diagnose, got %v", path, err)
+	}
+	if _, statErr := os.Stat(subdir); !errors.Is(statErr, fs.ErrNotExist) {
+		t.Errorf("expected the failed attempt to leave no stray directory behind, got stat err %v", statErr)
 	}
 }
 

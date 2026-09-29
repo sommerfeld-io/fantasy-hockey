@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -254,6 +256,30 @@ func TestOpenStoreShouldReturnAnErrorForAnUnreadableFile(t *testing.T) {
 
 	if _, err := openStore(path, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))); err == nil {
 		t.Fatal("expected an error for invalid YAML, got nil")
+	}
+}
+
+// TestOpenStoreShouldReturnAnOperatorLegibleErrorForANonexistentParentDirectory
+// proves store.New's own nonexistent-parent-directory error (see
+// internal/store's own TestNewShouldReturnAnOperatorLegibleErrorForA...)
+// survives openStore's error wrapping still naming the attempted path
+// (epic-6 retrospective, item 46).
+func TestOpenStoreShouldReturnAnOperatorLegibleErrorForANonexistentParentDirectory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nonexistent-subdir", store.DataFileName)
+
+	st, err := openStore(path, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
+
+	if err == nil {
+		t.Fatal("expected an error for a nonexistent parent directory, got nil")
+	}
+	if st != nil {
+		t.Errorf("expected a nil Store on error, got %v", st)
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("expected the error to satisfy errors.Is(err, fs.ErrNotExist), got %v", err)
+	}
+	if !strings.Contains(err.Error(), path) {
+		t.Errorf("expected the error to name the attempted path %q for an operator to diagnose, got %v", path, err)
 	}
 }
 
