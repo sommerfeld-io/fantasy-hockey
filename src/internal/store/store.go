@@ -319,7 +319,9 @@ type Store struct {
 
 // New loads path into memory. If path doesn't exist, it bootstraps a new
 // file there with an empty players list and the current default season,
-// per AD-25/AD-26.
+// per AD-25/AD-26 - logging one distinct slog.Info line naming path and
+// season (writeLocked's own doc comment; epic-6-retro-item-43,
+// epic-7-retro-item-56), unlike every other write, which logs only reason.
 //
 // A shape error confined to results:/award_finalists: (e.g. a scalar where
 // a list belongs) no longer aborts startup: New keeps going with those
@@ -337,7 +339,7 @@ func New(path string) (*Store, error) {
 		if err := st.raw.Encode(st.doc); err != nil {
 			return nil, fmt.Errorf("store: bootstrap %s: %w", path, err)
 		}
-		if err := st.writeLocked("bootstrap data file", time.Now().UTC()); err != nil {
+		if err := st.writeLocked("bootstrap data file", time.Now().UTC(), "path", path, "season", st.doc.Season); err != nil {
 			return nil, fmt.Errorf("store: bootstrap %s: %w", path, err)
 		}
 		return st, nil
@@ -974,9 +976,15 @@ func cleanupLoginCodes(rows []LoginCode, now time.Time) []LoginCode {
 // any Store write is logged, so every mutating method's call site stays a
 // one-line addition instead of duplicating a log call at every site
 // (spec-7-1's Design Notes). reason is always a fixed, non-identifying
-// literal, never a login code or player email. Callers must hold s.mu for
-// writing.
-func (s *Store) writeLocked(reason string, now time.Time) error {
+// literal, never a login code or player email. extra is appended to the
+// logged fields as-is, key-value pairs same as slog.Info's own variadic
+// args - only New's bootstrap branch passes any (path, season -
+// epic-6-retro-item-43, epic-7-retro-item-56), every other call site
+// passes none, keeping their log line exactly as before. Like reason,
+// nothing passed through extra may be a raw login code, player email, or
+// other identifying/secret value - the same hash-code-never-logged rule
+// applies. Callers must hold s.mu for writing.
+func (s *Store) writeLocked(reason string, now time.Time, extra ...any) error {
 	cleaned := cleanupLoginCodes(s.doc.LoginCodes, now)
 
 	var loginCodesNode, predictionsNode yaml.Node
@@ -1045,7 +1053,7 @@ func (s *Store) writeLocked(reason string, now time.Time) error {
 	}
 
 	s.doc.LoginCodes = cleaned
-	slog.Info("store write", "reason", reason)
+	slog.Info("store write", append([]any{"reason", reason}, extra...)...)
 	return nil
 }
 

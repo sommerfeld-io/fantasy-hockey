@@ -119,6 +119,11 @@ func TestNewShouldFailWhenTheFileIsNotValidYAML(t *testing.T) {
 	}
 }
 
+// TestNewShouldLogTheBootstrapWrite covers a review finding (epic-7
+// retrospective, item 56): the bootstrap log line originally logged only
+// reason, leaving epic-6-retro-item-43's own path/season ask unclosed -
+// this now asserts both fields are present too, alongside the existing
+// distinct-reason check.
 func TestNewShouldLogTheBootstrapWrite(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, DataFileName)
@@ -129,8 +134,20 @@ func TestNewShouldLogTheBootstrapWrite(t *testing.T) {
 	}
 
 	assertExactlyOneInfoLine(t, logs)
-	if !strings.Contains(logs.String(), `reason="bootstrap data file"`) {
-		t.Errorf("expected the bootstrap write's log line to read distinctly from every other mutating call's line, got %q", logs.String())
+	line := logs.String()
+	if !strings.Contains(line, `reason="bootstrap data file"`) {
+		t.Errorf("expected the bootstrap write's log line to read distinctly from every other mutating call's line, got %q", line)
+	}
+	// Checks the raw path/season values appear, not "path="+path/
+	// "season="+DefaultSeason concatenated - slog's TextHandler quotes a
+	// value containing a space (e.g. a temp dir under a profile path with
+	// one), which a bare concatenation check would miss (review finding,
+	// verified empirically against the real TextHandler).
+	if !strings.Contains(line, "path=") || !strings.Contains(line, path) {
+		t.Errorf("expected the bootstrap write's log line to name the resolved path %q, got %q", path, line)
+	}
+	if !strings.Contains(line, "season=") || !strings.Contains(line, DefaultSeason) {
+		t.Errorf("expected the bootstrap write's log line to name the bootstrapped season %q, got %q", DefaultSeason, line)
 	}
 }
 
@@ -672,6 +689,13 @@ func TestCreateLoginCodeShouldLogOnASuccessfulWrite(t *testing.T) {
 	}
 	if strings.Contains(logs.String(), "hash-1") {
 		t.Errorf("expected no raw code hash in the log line, got %q", logs.String())
+	}
+	// Should-not counterpart (review finding, epic-7-retro-item-56): only
+	// New's bootstrap branch passes writeLocked's optional path/season
+	// fields - every other call site, this one included, must stay exactly
+	// as it was before that parameter existed.
+	if strings.Contains(logs.String(), "path=") || strings.Contains(logs.String(), "season=") {
+		t.Errorf("expected no path/season fields on a non-bootstrap write, got %q", logs.String())
 	}
 }
 
