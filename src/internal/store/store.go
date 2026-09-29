@@ -38,6 +38,17 @@ const loginCodeValidity = 10 * time.Minute
 // against a genuinely new season's fresh path, or the bootstrap silently
 // labels that file with a stale season (epic-6 retrospective, item 42;
 // docs/operator-guide.md carries the operator-facing warning).
+//
+// Separately: application code outside internal/store must never branch on
+// this constant - e.g. if season == store.DefaultSeason - to build
+// season-aware behavior. Store.Season() is the one supported way to read a
+// loaded store's current season; comparing it against DefaultSeason (or any
+// other season) starts building the cross-season-aware logic epic-6
+// explicitly forbids in v1: no in-app season-selector, cross-season query,
+// or history/Hall-of-Fame view (epic-6 retrospective, item 47). Test code
+// comparing st.Season()/doc.Season against DefaultSeason to verify bootstrap
+// behavior (e.g. main_test.go, store_test.go) is the sanctioned exception -
+// this rule targets production/application logic, not test assertions.
 const DefaultSeason = "2026-27"
 
 // Player is a person taking part in the pool. The player list is
