@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-29-2026 15:35
+last_updated: 09-29-2026 15:43
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -528,7 +528,7 @@ action_items:
       serializes the whole in-memory document -- writeLocked now splices only login_codes:/predictions:
       into s.raw and encodes that."
     owner: "next dev touching internal/store/README.md"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
   - id: "epic-7-retro-item-56-add-path-season-fields-to-the-bootstrap"
     epic: 7
