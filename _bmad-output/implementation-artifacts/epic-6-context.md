@@ -4,7 +4,7 @@
 
 ## Goal
 
-The pool must be able to restart cleanly for a new NHL season without losing any prior season's data. A human running the pool archives the current data file and repoints the app at a fresh path; the app then bootstraps a brand-new season from scratch there, while old seasons' files remain untouched on disk as read-only history. This is the mechanism that finally lets the app fully replace the old "one Excel file per season" workflow, since a season boundary was never something a single, ever-growing data file could represent on its own.
+The pool must be able to restart cleanly for a new NHL season without losing any prior season's data. A human running the pool archives the current data file and repoints the app at a fresh path; the app then bootstraps a brand-new season from scratch there, while old seasons' files remain untouched on disk as history — procedurally, not because anything enforces it at the OS level (no permission change, no lock). This guarantee holds only as long as a human never repoints the app back at an archived file's path. If one ever is, that file becomes the app's writable current state again, by design: `internal/store`'s load/bootstrap path (`store.New`) has no concept of "archived" vs "current," only whichever single path it's told to open — see Requirements & Constraints and Technical Decisions below for the operational guarantee and rollover procedure this relies on. This is the mechanism that finally lets the app fully replace the old "one Excel file per season" workflow, since a season boundary was never something a single, ever-growing data file could represent on its own.
 
 ## Stories
 
@@ -16,7 +16,7 @@ The pool must be able to restart cleanly for a new NHL season without losing any
 - Prior seasons' data must be retained, never deleted or overwritten by a rollover.
 - There is no in-app season-selector, cross-season query, or history/Hall-of-Fame view in v1 — rollover is a filesystem-level, out-of-band operation performed by a human, not an in-app action or admin screen.
 - On startup against a data file path that does not exist yet, the app must bootstrap a fresh skeleton (current season, empty player list) rather than failing or trying to inherit anything from an old file; the real player list is sourced out-of-band, hand-edited into the file afterward (AD-23) — the same model Epic 1's own first run uses.
-- Once a season's file exists, the running app must only ever read and write that one file — no code path reads from or writes to an archived/previous season's file.
+- Once a season's file exists, the running app must only ever read and write that one file — no code path reads from or writes to an archived/previous season's file. This holds only while the human respects the archive-and-repoint convention (Goal, above); nothing at the OS level stops `DATA_FILE`/`--data-file` from pointing at an old file, which the app would then treat as current, not archived.
 - Every screen (Predict, Leaderboard, Compare) must show only the current season's data throughout; nothing carries over visibly or silently from a prior season.
 - Whether the manual archive-and-repoint process is an acceptable long-term operator workflow is an open question the team should keep validating, not something to over-engineer around in this epic.
 
