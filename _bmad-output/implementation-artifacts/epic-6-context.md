@@ -19,6 +19,7 @@ The pool must be able to restart cleanly for a new NHL season without losing any
 - Once a season's file exists, the running app must only ever read and write that one file — no code path reads from or writes to an archived/previous season's file. This holds only while the human respects the archive-and-repoint convention (Goal, above); nothing at the OS level stops `DATA_FILE`/`--data-file` from pointing at an old file, which the app would then treat as current, not archived.
 - Every screen (Predict, Leaderboard, Compare) must show only the current season's data throughout; nothing carries over visibly or silently from a prior season.
 - Whether the manual archive-and-repoint process is an acceptable long-term operator workflow is an open question the team should keep validating, not something to over-engineer around in this epic.
+- `store.DefaultSeason` is baked into the binary at build time; bootstrapping a genuinely new season requires bumping it in Go source and rebuilding/redeploying, with the corrected binary running *before* the app is ever started against the fresh, not-yet-existing path - repointing `DATA_FILE`/`--data-file` itself doesn't trigger anything, but starting up against that path with a stale binary silently labels the new file with a stale season, and `store.New` has no way to detect this on its own. `docs/operator-guide.md`'s checklist carries the operator-facing warning for this.
 
 ## Technical Decisions
 

@@ -33,7 +33,11 @@ const loginCodeValidity = 10 * time.Minute
 
 // DefaultSeason seeds a brand-new data file. It names the current season
 // only; no player data is ever invented here (AD-23) - a human hand-edits
-// the file afterward to add real players.
+// the file afterward to add real players. It's baked into the binary at
+// build time: bump it and rebuild/redeploy before the app is ever started
+// against a genuinely new season's fresh path, or the bootstrap silently
+// labels that file with a stale season (epic-6 retrospective, item 42;
+// docs/operator-guide.md carries the operator-facing warning).
 const DefaultSeason = "2026-27"
 
 // Player is a person taking part in the pool. The player list is

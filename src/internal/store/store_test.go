@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -15,6 +16,15 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 )
+
+// seasonFormat is the YYYY-YY shape DefaultSeason is expected to follow -
+// defined here, not in store.go, since nothing at runtime validates it. This
+// is a format-only backstop for the Go constant alone, not a validation rule
+// for a hand-edited season: field: spec-1-5's Design Notes already rejected
+// adding format/fuzz validation for that value specifically, since it's a
+// hand-maintained operator config value, not user input, and no other
+// config value gets this kind of coverage - that decision stands unchanged.
+var seasonFormat = regexp.MustCompile(`^\d{4}-\d{2}$`)
 
 // captureLogs swaps slog's default logger for one writing to a buffer this
 // test can inspect, restoring the original default when the test ends.
@@ -54,6 +64,33 @@ func assertNoLogOutput(t *testing.T, logs *bytes.Buffer) {
 	t.Helper()
 	if logs.Len() != 0 {
 		t.Errorf("expected no log output, got %q", logs.String())
+	}
+}
+
+// TestDefaultSeasonShouldMatchTheExpectedFormat is a format-only regression
+// test, deliberately not a value-equality check against DefaultSeason's own
+// literal value (which would be tautological, proving nothing - epic-6
+// retrospective, item 42). It's a partial backstop only: it can't detect a
+// season that's merely stale (e.g. still "2026-27" a year later), since a
+// stale value is just as well-formed as a current one - only a human
+// bumping the constant closes that gap (docs/operator-guide.md's own
+// warning row covers the operator side of it).
+func TestDefaultSeasonShouldMatchTheExpectedFormat(t *testing.T) {
+	if !seasonFormat.MatchString(DefaultSeason) {
+		t.Errorf("expected DefaultSeason %q to match the YYYY-YY season format", DefaultSeason)
+	}
+}
+
+// TestSeasonFormatShouldRejectMalformedValues is the should-not counterpart
+// to TestDefaultSeasonShouldMatchTheExpectedFormat: proves seasonFormat
+// itself still rejects an obviously wrong shape, so an accidental future
+// loosening of the pattern (e.g. widening \d{2} to \d+) has regression
+// coverage, not just a one-off manual check.
+func TestSeasonFormatShouldRejectMalformedValues(t *testing.T) {
+	for _, bad := range []string{"2026-2027", "26-27", "2026/27", "2026-27 ", ""} {
+		if seasonFormat.MatchString(bad) {
+			t.Errorf("expected seasonFormat to reject %q, but it matched", bad)
+		}
 	}
 }
 
