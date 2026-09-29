@@ -351,8 +351,42 @@ func TestIsGatedRoundShouldReportTrueOnlyForARealStillUpcomingSet(t *testing.T) 
 	if !isGatedRound(st, "r2") {
 		t.Errorf("expected r2 (no matchups recorded yet) to report gated")
 	}
+	if isGatedRound(st, "scf") {
+		t.Errorf("expected scf (matchups already recorded per compareDefaultMatchups) not to report gated")
+	}
 	if isGatedRound(st, "cup") {
 		t.Errorf("expected a selectable set not to report gated")
+	}
+}
+
+// TestIsGatedRoundShouldAlsoReportTrueForConferenceFinalsAndStanleyCupFinal
+// closes an epic-5 retrospective gap (item 40): the test above only ever
+// drove isGatedRound's "true" path through store.Round2SetID -
+// store.ConferenceFinalsSetID/store.StanleyCupFinalSetID, the other two
+// roundGatedSetIDs members, were never driven through the function at all.
+func TestIsGatedRoundShouldAlsoReportTrueForConferenceFinalsAndStanleyCupFinal(t *testing.T) {
+	cf := newCompareStore(t, compareSetSeed("cf", "Conference finals", phasePlayoffs, "2027-05-10T16:00:00Z", false), "")
+	if !isGatedRound(cf, "cf") {
+		t.Error("expected cf (no matchups recorded yet) to report gated")
+	}
+
+	scf := newCompareStore(t, compareSetSeed("scf", "Stanley Cup final", phasePlayoffs, "2027-05-28T16:00:00Z", false), "")
+	if !isGatedRound(scf, "scf") {
+		t.Error("expected scf (no matchups recorded yet) to report gated")
+	}
+}
+
+// TestIsGatedRoundShouldReportFalseForConferenceFinalsOnceMatchupsAreRecorded
+// is the "unlocked" counterpart above: the pre-existing test only proved
+// scf's unlocked branch (by reusing compareDefaultMatchups's already-
+// recorded scf matchup) - cf's own unlocked branch was never exercised.
+func TestIsGatedRoundShouldReportFalseForConferenceFinalsOnceMatchupsAreRecorded(t *testing.T) {
+	sets := compareSetSeed("cf", "Conference finals", phasePlayoffs, "2027-05-10T16:00:00Z", false)
+	matchups := "playoff_matchups:\n    cf:\n        - {key: s1, a: FLA, b: COL}\n"
+	cf := newCompareStore(t, sets, matchups)
+
+	if isGatedRound(cf, "cf") {
+		t.Error("expected cf with matchups already recorded not to report gated")
 	}
 }
 
@@ -382,6 +416,26 @@ func TestIsGatedRoundShouldReportFalseForARoundGatedIDWithABadDeadlineUnknownPha
 	missingEntry := newCompareStore(t, compareSetSeed("cup", "Cup champion", phaseBeforeSeason, "2026-10-06T17:00:00Z", false), "")
 	if isGatedRound(missingEntry, "r2") {
 		t.Error("expected r2 absent from PredictionSets not to report gated")
+	}
+}
+
+// TestRoundGatedSetIDsShouldBeASubsetOfSeriesSetIDs closes an epic-5
+// retrospective gap (item 40): roundGatedSetIDs (predict.go) and
+// seriesSetIDs (sheet.go) are two independently maintained maps with no
+// structural link between them. A future round-gated id added to one
+// without the other would silently break Story 3.3's series sheet for that
+// round - isGatedRound would report it correctly, but it would never get
+// the series pick-entry form seriesSetIDs drives.
+func TestRoundGatedSetIDsShouldBeASubsetOfSeriesSetIDs(t *testing.T) {
+	// A subset check alone would pass vacuously if roundGatedSetIDs were
+	// ever accidentally emptied - guard against that too.
+	if len(roundGatedSetIDs) == 0 {
+		t.Fatal("expected roundGatedSetIDs to be non-empty")
+	}
+	for id := range roundGatedSetIDs {
+		if !seriesSetIDs[id] {
+			t.Errorf("roundGatedSetIDs contains %q, which seriesSetIDs doesn't - every round-gated set must also get the series sheet", id)
+		}
 	}
 }
 
@@ -597,6 +651,46 @@ func TestBuildCompareShouldTagDivisionPlayoffTeamsAndWinner(t *testing.T) {
 	winner := cellValueViews(t, v.Table, "Atlantic — winner")[0]
 	if want := []string{compareValueTagCSS}; !slices.Equal(valueCSS(winner), want) {
 		t.Errorf("expected the division winner tagged (%v), got %v", want, valueCSS(winner))
+	}
+}
+
+// TestBuildCompareShouldTagTheOwnColumnsValueAndKeepOwnStyling closes an
+// epic-5 retrospective gap (item 40): every existing tag test above reads a
+// non-signed-in player's pick into a non-own column - nothing proved the
+// signed-in player's own column/cell still renders a tagged value correctly
+// alongside its own own-styling.
+func TestBuildCompareShouldTagTheOwnColumnsValueAndKeepOwnStyling(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
+		comparePick("basti", "kind: division_playoff_teams, division: Atlantic, team_ids: [FLA, TOR]"),
+	)
+
+	v := buildCompare(st, "basti", "divisions", compareNow)
+
+	if !v.Table.Columns[1].Own || v.Table.Columns[1].Name != "Basti" {
+		t.Fatalf("expected column 1 to be Basti's own column, got %+v", v.Table.Columns[1])
+	}
+	if v.Table.Columns[1].CSS != comparePlayerOwnCSS {
+		t.Errorf("expected the own column's CSS to be %q, got %q", comparePlayerOwnCSS, v.Table.Columns[1].CSS)
+	}
+
+	var ownCell *compareCellView
+	for _, r := range v.Table.Rows {
+		if r.Label == "Atlantic — playoff teams" {
+			ownCell = &r.Cells[1]
+			break
+		}
+	}
+	if ownCell == nil {
+		t.Fatal("no \"Atlantic — playoff teams\" row found")
+	}
+	if !ownCell.Own {
+		t.Error("expected the signed-in player's own cell to be marked own")
+	}
+	if ownCell.CSS != compareCellOwnCSS {
+		t.Errorf("expected the own cell's CSS to be %q, got %q", compareCellOwnCSS, ownCell.CSS)
+	}
+	if want := []string{compareValueTagCSS, compareValueTagCSS}; !slices.Equal(valueCSS(ownCell.Values), want) {
+		t.Errorf("expected the signed-in player's own playoff-teams pick tagged (%v), got %v", want, valueCSS(ownCell.Values))
 	}
 }
 
