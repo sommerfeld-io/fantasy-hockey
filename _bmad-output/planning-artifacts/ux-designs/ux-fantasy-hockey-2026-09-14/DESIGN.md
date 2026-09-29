@@ -149,6 +149,8 @@ No shadows, no gradients, anywhere. Elevation is entirely a matter of surface-co
 - **Primary button (Submit / Update predictions)** — full-width, `green-btn` fill with `green-btn-border` border, semibold label. The only saturated-fill component in the system.
 - **Rank badge** — full-circle, leader's badge in `gold`, others neutral.
 - **Table (Leaderboard, Compare)** — `raised` heading row, `border-soft` row dividers, no shadows; the Total column is visually set apart with a left `border` and a `raised` background tint.
+- **Rules screen headings** — the only screen with real `h1`/`h2`/`h3` elements (server-rendered markdown via goldmark, not a hand-built component). `h1` 18px, no top rule. `h2` 15px, a `border-soft` top divider before each (the first `h2` gets none, sitting flush under the `h1`). `h3` 13px, no divider. All three in `text` color, 1.3 line-height. See `src/internal/web/static/styles.css`'s `.rules h1`/`.rules h2`/`.rules h3` rules for the exact values this describes.
+- **Rules screen tables** — cells never wrap; a row too wide for the phone viewport scrolls horizontally in place (the table itself is the scroll container, no wrapper element) rather than cramming its columns unreadable. Unlike the Leaderboard/Compare table above, the heading row has no `raised` fill - just `muted`, semibold text over the same `border-soft` divider every row gets, at the screen's own 12px scale. See `.rules table`/`.rules th`/`.rules td` in `styles.css`.
 
 ## Do's and Don'ts
 

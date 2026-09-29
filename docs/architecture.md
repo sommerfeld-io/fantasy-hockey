@@ -63,15 +63,15 @@ The app itself serves plain HTTP; TLS termination is a reverse proxy's job, set 
 
 Common commands (see the [README's Usage section](../README.md#usage) for `docker run` details):
 
-| Command                   | What it does                                                                              |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| `task go:run`             | Build and run the binary locally against a local data file                                |
-| `task go:test`            | Unit tests with a coverage report (`coverage.out`)                                        |
-| `task go:test:acceptance` | GoDog acceptance tests with end-to-end internal-package coverage                          |
-| `task go:build`           | Full pipeline: lint, vet, test, acceptance test, complexity, licenses, vulncheck, compile |
-| `task lint`               | Project-wide linters: YAML, GitHub workflows, filenames, folders, Gherkin, Markdown links |
-| `task docker:build`       | Lint, test and build the actual container image (the authoritative pre-merge check)       |
-| `task docker:run`         | Build and run the app in Docker, alongside `mailpit`                                      |
+| Command                   | What it does                                                                                                                                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `task go:run`             | Build and run the binary locally against a local data file                                                                                                                                              |
+| `task go:test`            | Unit tests with a coverage report (`coverage.out`)                                                                                                                                                      |
+| `task go:test:acceptance` | GoDog acceptance tests with end-to-end internal-package coverage                                                                                                                                        |
+| `task go:build`           | Full pipeline: lint, vet, test, acceptance test, complexity, licenses, vulncheck, compile                                                                                                               |
+| `task lint`               | Project-wide linters: YAML, GitHub workflows, filenames, folders, Gherkin, Markdown links - also regenerates `README.md` and the embedded Rules copy, see [below](#keeping-the-docs-and-readme-in-sync) |
+| `task docker:build`       | Lint, test and build the actual container image (the authoritative pre-merge check)                                                                                                                     |
+| `task docker:run`         | Build and run the app in Docker, alongside `mailpit`                                                                                                                                                    |
 
 A non-zero exit from `task go:run` caused solely by a `govulncheck` finding is acceptable (with a fix attempted first when one exists) — everything else must be green before a change is considered done.
 

@@ -248,8 +248,9 @@ button {
 
 /*
   Rules screen: server-rendered markdown (rules/game-rules.md via goldmark).
-  No component spec exists for this in DESIGN.md - styled to match the
-  app's existing typography tokens and reads directly against .shell-content.
+  Styled to match the app's existing typography tokens and reads directly
+  against .shell-content. DESIGN.md's Components section ("Rules screen
+  headings") documents the h1/h2/h3 values below - keep the two in sync.
 */
 
 .rules h1,
@@ -308,7 +309,22 @@ button {
   background: var(--surface);
 }
 
+/*
+  display: block + overflow-x: auto turns the table itself into a scroll
+  container with no wrapper element needed - but that alone does nothing
+  without white-space: nowrap on the cells below: with normal wrapping,
+  auto table-layout just shrinks long text to fit width: 100% instead of
+  ever growing wider than it, so overflow-x would have nothing to scroll.
+  nowrap forces each cell to its natural single-line width, so a row like
+  game-rules.md's 3-column scoring table (one cell: "5 per name found
+  anywhere in the real top 3 (ties expand the set)") makes the table wider
+  than the phone viewport, and overflow-x: auto scrolls it horizontally
+  instead of cramming it unreadable or overflowing .shell-content.
+*/
 .rules table {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   width: 100%;
   border-collapse: collapse;
   margin: 8px 0 16px;
@@ -320,6 +336,7 @@ button {
   text-align: left;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
 }
 
 .rules th {
