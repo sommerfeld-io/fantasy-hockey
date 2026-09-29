@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-29-2026 15:56
+last_updated: 09-29-2026 16:04
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -608,7 +608,7 @@ action_items:
       error anywhere; cheap fix consistent with mustRenderGameRules's existing fail-fast
       philosophy for its other two branches."
     owner: "next dev touching internal/web/rules.go"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-28.md"
   - id: "epic-8-retro-item-65-lower-priority-ux-doc-polish-give-the-ru"
     epic: 8
