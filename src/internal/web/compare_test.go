@@ -387,6 +387,38 @@ func TestIsGatedRoundShouldReportFalseForARoundGatedIDWithABadDeadlineUnknownPha
 	}
 }
 
+// TestCompareSetDeadline directly pins compareSetDeadline's own three-branch
+// contract (unknown phase, bad deadline, success), independent of either
+// caller's own indirect coverage through isGatedRound/selectableCompareSets.
+func TestCompareSetDeadline(t *testing.T) {
+	tests := []struct {
+		name    string
+		set     store.PredictionSet
+		wantErr bool
+	}{
+		{"known phase, parseable deadline", store.PredictionSet{Phase: phaseBeforeSeason, DeadlineUTC: "2026-10-06T17:00:00Z"}, false},
+		{"unknown phase", store.PredictionSet{Phase: "midseason", DeadlineUTC: "2026-10-06T17:00:00Z"}, true},
+		{"unparseable deadline", store.PredictionSet{Phase: phasePlayoffs, DeadlineUTC: "not-a-date"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deadline, err := compareSetDeadline(tt.set)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("compareSetDeadline(%+v) error = %v, wantErr %v", tt.set, err, tt.wantErr)
+			}
+			if tt.wantErr && !deadline.IsZero() {
+				t.Errorf("expected a zero deadline on error, got %v", deadline)
+			}
+			if !tt.wantErr {
+				want, _ := time.Parse(time.RFC3339, tt.set.DeadlineUTC)
+				if !deadline.Equal(want) {
+					t.Errorf("compareSetDeadline(%+v) deadline = %v, want %v", tt.set, deadline, want)
+				}
+			}
+		})
+	}
+}
+
 func TestBuildCompareShouldShowTheSelectedSetsDeadline(t *testing.T) {
 	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups)
 

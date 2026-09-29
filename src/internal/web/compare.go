@@ -209,6 +209,26 @@ func buildCompare(st *store.Store, playerID, selectedID string, now time.Time) c
 	return v
 }
 
+// compareSetDeadline validates set's phase (before_season or playoffs, the
+// two isGatedRound/selectableCompareSets recognize) and parses its
+// deadline_utc, returning the parsed deadline and a nil error when both are
+// valid, or a zero time and a description of what's wrong - the one
+// validity check both functions independently re-derived before this
+// consolidation (epic-5 retrospective, item 37). predict.go's
+// buildPredictPhases has its own, still-independent "unknown prediction set
+// phase" check (out of this item's scope) - a future consolidation pass
+// touching that file should know this one exists.
+func compareSetDeadline(set store.PredictionSet) (time.Time, error) {
+	if set.Phase != phaseBeforeSeason && set.Phase != phasePlayoffs {
+		return time.Time{}, fmt.Errorf("unknown prediction set phase %q", set.Phase)
+	}
+	deadline, err := time.Parse(time.RFC3339, set.DeadlineUTC)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse deadline_utc %q: %w", set.DeadlineUTC, err)
+	}
+	return deadline, nil
+}
+
 // isGatedRound reports whether id is a roundGatedSetIDs id, with a known
 // phase and a parseable deadline like selectableCompareSets requires, whose
 // matchups aren't recorded yet - the one roundGatedSetIDs case
@@ -225,19 +245,14 @@ func isGatedRound(st *store.Store, id string) bool {
 	if !roundGatedSetIDs[id] {
 		return false
 	}
-	for _, set := range st.PredictionSets() {
-		if set.ID != id {
-			continue
-		}
-		if set.Phase != phaseBeforeSeason && set.Phase != phasePlayoffs {
-			return false
-		}
-		if _, err := time.Parse(time.RFC3339, set.DeadlineUTC); err != nil {
-			return false
-		}
-		return len(st.PlayoffMatchups(id)) == 0
+	set, ok := findPredictionSetByID(st, id)
+	if !ok {
+		return false
 	}
-	return false
+	if _, err := compareSetDeadline(set); err != nil {
+		return false
+	}
+	return len(st.PlayoffMatchups(id)) == 0
 }
 
 // selectableCompareSets is every Prediction Set that gets a chip, in file
@@ -246,13 +261,9 @@ func isGatedRound(st *store.Store, id string) bool {
 func selectableCompareSets(st *store.Store) []compareSet {
 	var sets []compareSet
 	for _, set := range st.PredictionSets() {
-		if set.Phase != phaseBeforeSeason && set.Phase != phasePlayoffs {
-			slog.Error("unknown prediction set phase", "prediction_set_id", set.ID, "phase", set.Phase)
-			continue
-		}
-		deadline, err := time.Parse(time.RFC3339, set.DeadlineUTC)
+		deadline, err := compareSetDeadline(set)
 		if err != nil {
-			slog.Error("build compare chip", "prediction_set_id", set.ID, "error", fmt.Errorf("parse deadline_utc %q: %w", set.DeadlineUTC, err))
+			slog.Error("build compare chip", "prediction_set_id", set.ID, "error", err)
 			continue
 		}
 		if effectiveUpcoming(st, set) {
