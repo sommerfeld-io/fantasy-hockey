@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-29-2026 16:04
+last_updated: 09-29-2026 16:15
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -425,7 +425,7 @@ action_items:
       at info level when it creates a fresh file (path + season), so a mistyped rollover
       path doesn't silently produce an empty pool with no diagnostic trail"
     owner: "next dev touching main.go/internal/store"
-    status: in-progress
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
   - id: "epic-6-retro-item-44-correct-epic-6-context-md-s-read-only-hi"
     epic: 6
@@ -535,7 +535,7 @@ action_items:
     action: "Add path/season fields to the bootstrap log line to fully close epic-6-retro-item-43
       (currently logs only reason)."
     owner: "next dev touching internal/store/store.go New"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
   - id: "epic-7-retro-item-57-consider-splitting-internal-store-store"
     epic: 7
