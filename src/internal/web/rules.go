@@ -34,7 +34,21 @@ var gameRulesFS embed.FS
 
 // rulesHTML is rules/game-rules.md rendered to HTML once at package init -
 // like templates in web.go, so a broken embed fails fast at startup rather
-// than on the first request to the Rules tab.
+// than on the first request to the Rules tab. template.HTML disables
+// html/template's usual auto-escaping, so this is safe only because
+// gameRulesRenderer's default Unsafe: false rendering (goldmark v1.8.6,
+// go.mod) strips raw HTML - block and inline alike - down to the literal
+// comment "<!-- raw HTML omitted -->", and neutralizes a dangerous URL
+// scheme (javascript:, vbscript:, file:, most data: - IsDangerousURL,
+// goldmark's renderer/html package) wherever a URL can appear (link,
+// image, autolink) down to an empty href/src - confirmed empirically
+// (epic-8 retrospective, item 63) and locked in by
+// TestGameRulesRendererShouldNeutralizeRawHTMLAndDangerousLinks
+// (rules_test.go). The threat this guards is a hand-edit to
+// docs/game-rules.md landing through a PR and a rebuild, not live runtime
+// input (mustRenderGameRules's own comment below). Never call
+// html.WithUnsafe() or enable any raw-HTML-permitting goldmark option on
+// gameRulesRenderer without re-reviewing this invariant.
 var rulesHTML = template.HTML(mustRenderGameRules())
 
 // mustRenderGameRules reads and renders the embedded game rules markdown.

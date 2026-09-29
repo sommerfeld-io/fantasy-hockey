@@ -104,6 +104,12 @@
   summary: Epic 4 retro A9, which hoists the duplicated YAML-seed store helpers, prediction-row renderers, acceptance seed builders and the submitted_at literal into shared test support before Epic 5.
   evidence: The user split it out of the Epic 4 retro hardening spec on 2026-09-25. It rewrites the same step files that A6 extends, so it should ship as its own change.
 
+## Deferred from: code review of spec-epic-8-retro-item-63-rules-xss-safety-doc-and-test.md (2026-09-29)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-8-retro-item-63-rules-xss-safety-doc-and-test.md`
+  summary: This change documents and tests the `template.HTML(...)` XSS-safety invariant at one call site (`rulesHTML` in `internal/web/rules.go`), but adds no automated guardrail against a second, less-careful `template.HTML(...)` conversion being added elsewhere later — `gosec` (rule G203 flags exactly this pattern) is confirmed absent from `src/.golangci.yml`'s enabled linters.
+  evidence: Verified real (blind-hunter): confirmed `gosec` is not in `linters.enable`. Pre-existing repo-wide linter-config gap, not introduced by this change; enabling `gosec` repo-wide is a larger, separate decision (could surface findings across the whole codebase) than this item's narrow scope (one call site's doc comment and test).
+
 ## Deferred from: code review of spec-epic-7-retro-item-55-correct-store-readme-stale-write-claim.md (2026-09-29)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-epic-7-retro-item-55-correct-store-readme-stale-write-claim.md`

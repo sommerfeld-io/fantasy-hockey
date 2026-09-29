@@ -72,6 +72,59 @@ func TestRulesHTMLShouldRenderLists(t *testing.T) {
 	}
 }
 
+// TestGameRulesRendererShouldNeutralizeRawHTMLAndDangerousLinks covers a
+// review finding (epic-8 retrospective, item 63): rulesHTML is wrapped in
+// template.HTML, which disables html/template's usual auto-escaping, so
+// its safety rests entirely on gameRulesRenderer's default Unsafe: false
+// behavior - raw HTML (block and inline) gets stripped to the literal
+// "<!-- raw HTML omitted -->" rather than passed through, and a dangerous
+// URL scheme (goldmark's IsDangerousURL: javascript:, vbscript:, file:,
+// most data:) gets neutralized to an empty href/src wherever a URL can
+// appear - a link, an image, or an autolink - rather than rendered live.
+// No live vulnerability exists today (docs/game-rules.md contains none of
+// these), but nothing previously locked this invariant in, so a future
+// goldmark option change (e.g. html.WithUnsafe()) could silently turn this
+// into a stored-XSS sink with no test catching it. Every case here was
+// confirmed against the real renderer before being asserted.
+func TestGameRulesRendererShouldNeutralizeRawHTMLAndDangerousLinks(t *testing.T) {
+	tests := []struct {
+		name           string
+		markdown       string
+		mustNotContain string
+		mustContain    string
+	}{
+		{"block-level raw HTML", "<script>alert('xss')</script>\n", "<script>", "<!-- raw HTML omitted -->"},
+		{"inline raw HTML", "before <script>alert('xss')</script> after\n", "<script>", "<!-- raw HTML omitted -->"},
+		{"javascript: link", "[click](javascript:alert(1))\n", "javascript:", `href=""`},
+		{"vbscript: link", "[click](vbscript:alert(1))\n", "vbscript:", `href=""`},
+		{"file: link", "[click](file:///etc/passwd)\n", "file:", `href=""`},
+		{"data: link", "[click](data:text/html,evil)\n", "data:text/html", `href=""`},
+		{"javascript: image src", "![x](javascript:alert(1))\n", "javascript:", `src=""`},
+		// The autolink's own text renders as the literal string
+		// "javascript:alert(1)" (safe, unclickable) - a bare "javascript:"
+		// check would wrongly fail on that safe text, so this checks the
+		// href attribute specifically.
+		{"javascript: autolink", "<javascript:alert(1)>\n", `href="javascript`, `href=""`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := gameRulesRenderer.Convert([]byte(tt.markdown), &buf); err != nil {
+				t.Fatalf("gameRulesRenderer.Convert: %v", err)
+			}
+			got := buf.String()
+
+			if strings.Contains(got, tt.mustNotContain) {
+				t.Errorf("expected output to not contain %q, got %q", tt.mustNotContain, got)
+			}
+			if !strings.Contains(got, tt.mustContain) {
+				t.Errorf("expected output to contain %q, got %q", tt.mustContain, got)
+			}
+		})
+	}
+}
+
 // repoRootForRulesTest resolves the repository root from this file's own
 // path (three ".." up from src/internal/web/, mirroring
 // internal/store/yamllint_test.go's own repoRootForYamllintTest), so this
