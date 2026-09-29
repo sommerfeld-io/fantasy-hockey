@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-29-2026 18:53
+last_updated: 09-29-2026 19:24
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -417,7 +417,7 @@ action_items:
       pattern check) as a partial backstop, since a value-equality test is inherently
       tautological against its own source constant"
     owner: "whoever picks up the next season-rollover-adjacent story"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
   - id: "epic-6-retro-item-43-add-a-bootstrap-log-line-openstore-s-mis"
     epic: 6
