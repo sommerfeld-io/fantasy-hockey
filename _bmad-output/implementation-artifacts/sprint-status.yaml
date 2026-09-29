@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-29-2026 19:24
+last_updated: 09-29-2026 19:32
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -458,7 +458,7 @@ action_items:
       outside store/test code, to close the door on future cross-season-aware logic
       the epic explicitly forbids"
     owner: "next dev touching internal/store/store.go"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-6-retro-2026-09-25.md"
   - id: "epic-7-retro-item-48-fix-or-explicitly-scope-the-duplicate-ke"
     epic: 7
