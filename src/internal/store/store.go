@@ -1043,6 +1043,21 @@ func (s *Store) writeLocked(reason string, now time.Time, extra ...any) error {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.CompactSeqIndent()
+	// Encode/Close only fail if the emitter's own write handler errors
+	// (impossible: &buf is a *bytes.Buffer, whose Write always returns a
+	// nil error), if the emitter's internal event-ordering invariants are
+	// violated (impossible: Encode always drives it through its own single,
+	// correctly-ordered document-start/content/document-end sequence, never
+	// a hand-built or externally-driven event stream), or - Encode only,
+	// since Close never re-traverses content - if s.raw itself holds a
+	// value the emitter can't serialize: invalid UTF-8 scalar data, a
+	// Node.Kind it doesn't recognize, or badly-tagged !!binary data. s.raw
+	// is always one of three things here: freshly parsed from valid YAML
+	// (loadExisting), built by Node.Encode(st.doc) at bootstrap (New), or
+	// has just had the two splices above written into it - in every case
+	// already proven encodable by an earlier successful Encode() call. Both
+	// branches are defensive and intentionally untested, like the two
+	// typed-slice Encode calls above (spec-7-3's I/O matrix).
 	if err := enc.Encode(s.raw); err != nil {
 		restoreSplices()
 		return fmt.Errorf("marshal: %w", err)
