@@ -275,7 +275,29 @@ type PlayoffMatchup struct {
 	TeamB string `yaml:"b"`
 }
 
-// document mirrors fantasy-hockey.yml's on-disk shape.
+// document mirrors fantasy-hockey.yml's on-disk shape (see also
+// writeLocked's own doc comment and README.md's "Design notes" - all three
+// describe the same splice list; a third spliced field needs updating
+// wherever this list is written down). Only LoginCodes and Predictions are
+// ever re-derived from s.doc on a write - writeLocked splices a cleaned
+// copy of LoginCodes (cleanupLoginCodes' pruned subset, not a verbatim
+// echo) and s.doc.Predictions into s.raw's own parsed node tree and
+// encodes that (store_splice.go's spliceNamedValueLocked, spec-7-4). Every
+// other field here is read once at load (or, for a brand-new file, never
+// read at all - simply zero-valued before the first encode) and, from
+// then on, exists in s.doc only as a read-side convenience: mutating it
+// has no effect on disk.
+//
+// A future app-writable field follows the existing SavePrediction pattern
+// (mutate s.doc, call writeLocked), but that alone silently fails to
+// persist: it also needs (1) its own spliceNamedValueLocked call inside
+// writeLocked, and (2) that call's restore closure wired into
+// restoreSplices in the correct position, or a write failure for the new
+// field leaves s.raw mutated instead of rolled back. Skipping either one
+// compiles, mutates s.doc, and reports success while the change never
+// reaches the file (epic-7 retrospective, item 51). Add test coverage for
+// both the splice and its rollback, mirroring store_splice_test.go's
+// existing coverage of the two current splices.
 type document struct {
 	Season          string                      `yaml:"season"`
 	Players         []Player                    `yaml:"players"`
@@ -967,7 +989,9 @@ func cleanupLoginCodes(rows []LoginCode, now time.Time) []LoginCode {
 // s.raw itself - every other hand-maintained section (players,
 // prediction_sets, teams, nhl_players, playoff_matchups, results,
 // award_finalists) round-trips through the exact node objects it was parsed
-// into, never reconstructed from doc's typed fields (spec-7-4, AD-23). Only
+// into, never reconstructed from doc's typed fields (spec-7-4, AD-23) -
+// document's own doc comment states what a new app-writable field needs
+// beyond a struct tag to actually reach disk. Only
 // once the rename succeeds are s.doc.LoginCodes and the two spliced nodes
 // committed permanently; on any failure both splices are undone first, so
 // s.raw is left exactly as it was before this call. On success it also logs
