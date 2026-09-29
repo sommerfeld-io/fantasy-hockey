@@ -50,7 +50,7 @@ type leaderboardRow struct {
 // requests /leaderboard over HTTP as one of those players.
 type leaderboardScenarioState struct {
 	lazyFixture
-	poolNames     []string
+	poolFixture
 	picks         []seedPrediction
 	cupWinner     string
 	presidents    string
@@ -74,30 +74,11 @@ func requireNoResultProblems(st *store.Store) error {
 	return nil
 }
 
-// leaderboardPlayerID derives a pool player's id from their display name.
-func leaderboardPlayerID(name string) string {
-	return strings.ToLower(name)
-}
-
-// requirePoolPlayer fails unless name is one of the seeded pool players.
-func (s *leaderboardScenarioState) requirePoolPlayer(name string) error {
-	if !slices.Contains(s.poolNames, name) {
-		return fmt.Errorf("no pool player %q; seeded players are %v", name, s.poolNames)
-	}
-	return nil
-}
-
 // seedBody writes every pool player other than the signed-in one (whom
 // seedHeader already declares), then the teams, picks and results.
 func (s *leaderboardScenarioState) seedBody() (string, error) {
 	var b strings.Builder
-	for _, name := range s.poolNames {
-		id := leaderboardPlayerID(name)
-		if id == s.playerID {
-			continue
-		}
-		fmt.Fprintf(&b, "    - id: %s\n      name: %s\n      email: %s@pool.example\n", id, name, id)
-	}
+	writeSeedPoolPlayers(&b, s.poolNames, s.playerID)
 	writeSeedTeams(&b, leaderboardTeams)
 	writeSeedNHLPlayers(&b, leaderboardNHLPlayers)
 	writeSeedMatchups(&b, s.matchups())
@@ -174,7 +155,7 @@ func (s *leaderboardScenarioState) addPick(name, fields string) error {
 	if err := s.requirePoolPlayer(name); err != nil {
 		return err
 	}
-	s.picks = append(s.picks, seedPrediction{playerID: leaderboardPlayerID(name), fields: fields})
+	s.picks = append(s.picks, seedPrediction{playerID: poolPlayerID(name), fields: fields})
 	return nil
 }
 
@@ -192,11 +173,6 @@ func (s *leaderboardScenarioState) pickedFinalists(name, list, award string) err
 
 func (s *leaderboardScenarioState) pickedRound1Series(name, team string, games int, key string) error {
 	return s.addPick(name, fmt.Sprintf("kind: %s, series_key: %s, team_id: %s, games: \"%d\"", store.KindSeries, store.JoinSeriesKey(leaderboardRound1.setID, key), team, games))
-}
-
-func (s *leaderboardScenarioState) thePoolPlayersAre(first, second, third string) error {
-	s.poolNames = []string{first, second, third}
-	return nil
 }
 
 func (s *leaderboardScenarioState) theRecordedStanleyCupWinnerIs(team string) error {
@@ -220,7 +196,7 @@ func (s *leaderboardScenarioState) opensTheLeaderboard(name string) error {
 	if err := s.requirePoolPlayer(name); err != nil {
 		return err
 	}
-	s.playerID, s.playerName = leaderboardPlayerID(name), name
+	s.playerID, s.playerName = poolPlayerID(name), name
 	if err := s.do(http.MethodGet, "/leaderboard", ""); err != nil {
 		return err
 	}
@@ -250,7 +226,7 @@ func (s *leaderboardScenarioState) savesWhileTheAppRuns(name, team, kind string)
 	if err := s.ensureReady(); err != nil {
 		return err
 	}
-	return s.st.SavePrediction(leaderboardPlayerID(name), kind, team, time.Now())
+	return s.st.SavePrediction(poolPlayerID(name), kind, team, time.Now())
 }
 
 // renderedRows parses every Leaderboard row in the last response, in order.
@@ -321,7 +297,7 @@ func (s *leaderboardScenarioState) noLeaderboardRowIsMarked(marker string) error
 // rowMarkupFor returns name's rendered row with its id and name replaced by
 // placeholders, so two rows can be compared for identical markup.
 func (s *leaderboardScenarioState) rowMarkupFor(name string) (string, error) {
-	id := leaderboardPlayerID(name)
+	id := poolPlayerID(name)
 	for _, m := range leaderboardRowPattern.FindAllStringSubmatch(s.lastBody, -1) {
 		if m[1] == id {
 			return strings.ReplaceAll(m[0], id, "ID"), nil

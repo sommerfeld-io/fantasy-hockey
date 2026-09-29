@@ -84,7 +84,7 @@ type compareCell struct {
 // and picks, and requests /compare over HTTP as one of those players.
 type compareScenarioState struct {
 	lazyFixture
-	poolNames []string
+	poolFixture
 	sets      []compareSeedSet
 	deadlines map[string]time.Time
 	matchups  map[string][]seedMatchup
@@ -97,30 +97,12 @@ func newCompareScenarioState() *compareScenarioState {
 	return s
 }
 
-// comparePlayerID derives a pool player's id from their display name.
-func comparePlayerID(name string) string {
-	return strings.ToLower(name)
-}
-
-func (s *compareScenarioState) requirePoolPlayer(name string) error {
-	if !slices.Contains(s.poolNames, name) {
-		return fmt.Errorf("no compare pool player %q; seeded players are %v", name, s.poolNames)
-	}
-	return nil
-}
-
 // seedBody writes every pool player other than the signed-in one (whom
 // seedHeader already declares), then the sets, teams, players, matchups and
 // picks.
 func (s *compareScenarioState) seedBody() (string, error) {
 	var b strings.Builder
-	for _, name := range s.poolNames {
-		id := comparePlayerID(name)
-		if id == s.playerID {
-			continue
-		}
-		fmt.Fprintf(&b, "    - id: %s\n      name: %s\n      email: %s@pool.example\n", id, name, id)
-	}
+	writeSeedPoolPlayers(&b, s.poolNames, s.playerID)
 	b.WriteString("prediction_sets:\n")
 	for _, set := range s.sets {
 		fmt.Fprintf(&b, "    - {id: %s, title: %q, subtitle: \"\", deadline_utc: %q, phase: %s, upcoming: %t}\n",
@@ -131,11 +113,6 @@ func (s *compareScenarioState) seedBody() (string, error) {
 	writeSeedMatchups(&b, s.matchups)
 	writeSeedPredictions(&b, s.picks)
 	return b.String(), nil
-}
-
-func (s *compareScenarioState) thePoolPlayersAre(first, second, third string) error {
-	s.poolNames = []string{first, second, third}
-	return nil
 }
 
 func (s *compareScenarioState) addSet(id, title, phase, phrase string, upcoming bool) error {
@@ -181,7 +158,7 @@ func (s *compareScenarioState) addPick(name, fields string) error {
 	if err := s.requirePoolPlayer(name); err != nil {
 		return err
 	}
-	s.picks = append(s.picks, seedPrediction{playerID: comparePlayerID(name), fields: fields})
+	s.picks = append(s.picks, seedPrediction{playerID: poolPlayerID(name), fields: fields})
 	return nil
 }
 
@@ -211,7 +188,7 @@ func (s *compareScenarioState) open(name, path string) error {
 	if err := s.requirePoolPlayer(name); err != nil {
 		return err
 	}
-	s.playerID, s.playerName = comparePlayerID(name), name
+	s.playerID, s.playerName = poolPlayerID(name), name
 	return s.get(path)
 }
 

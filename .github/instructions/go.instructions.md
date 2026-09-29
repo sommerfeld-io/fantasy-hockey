@@ -116,6 +116,12 @@ tests still make sense? If yes, the tests are coupled to behaviour. If not, they
 - `.feature` files define GoDog acceptance tests. They are **not** used to derive unit tests.
 - Step definitions live in `src/acceptance-tests/*_steps_test.go`.
 - Wire the GoDog suite in `src/acceptance-tests/suite_test.go`.
+- Before writing a new fixture helper (seeding pool players, writing a YAML section, embeddable
+  scenario state), check `src/acceptance-tests/fixture_support_test.go` first - a near-identical
+  pool-player fixture helper was independently duplicated across step files and flagged in 4
+  epics in a row before it was finally hoisted (epic-2 item 12, epic-3 item 22, epic-4 item 34,
+  epic-5 item 39) - and a hoisted helper isn't guaranteed to already generalize to a new scenario's
+  exact shape (e.g. `poolFixture.thePoolPlayersAre` only ever sets exactly three players).
 - Acceptance test Go code follows the same TDD discipline as production code. Any non-trivial
   helper extracted into a non-test file must have its own `*_test.go` unit tests.
 - Unit test coverage is measured with `go test ./internal/...` and written to `coverage.out`.

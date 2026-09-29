@@ -188,6 +188,22 @@ func writeSeedPredictions(b *strings.Builder, predictions []seedPrediction) {
 	}
 }
 
+// writeSeedPoolPlayers writes one players: row per name in poolNames, other
+// than signedInPlayerID (whom seedHeader already declares) - the row set
+// every pool-player-aware scenario's seedBody needs before its own
+// feature-specific sections (epic-5 retrospective, item 39 - hoisted out of
+// a 4-epic-long duplication between compare_predictions_steps_test.go and
+// leaderboard_steps_test.go).
+func writeSeedPoolPlayers(b *strings.Builder, poolNames []string, signedInPlayerID string) {
+	for _, name := range poolNames {
+		id := poolPlayerID(name)
+		if id == signedInPlayerID {
+			continue
+		}
+		fmt.Fprintf(b, "    - id: %s\n      name: %s\n      email: %s@pool.example\n", id, name, id)
+	}
+}
+
 // writeSeedResults writes results: (team_marks, trophies, series), or
 // nothing when r records nothing.
 func writeSeedResults(b *strings.Builder, r seedResults) {
@@ -455,6 +471,72 @@ func (f *lazyFixture) setRowFragment(id string) (string, error) {
 		return "", fmt.Errorf("could not find the end of the set row for %q", id)
 	}
 	return rest[:end], nil
+}
+
+// poolFixture is the embeddable pool-player state shared by every scenario
+// that seeds "other" pool players besides the signed-in one - separate from
+// lazyFixture since most lazyFixture-embedding scenarios have no pool-player
+// concept at all (epic-5 retrospective, item 39 - hoisted out of a 4-epic-
+// long duplication between compare_predictions_steps_test.go and
+// leaderboard_steps_test.go).
+type poolFixture struct {
+	poolNames []string
+}
+
+// poolPlayerID derives a pool player's id from their display name.
+func poolPlayerID(name string) string {
+	return strings.ToLower(name)
+}
+
+// requirePoolPlayer fails unless name is one of the seeded pool players.
+func (f *poolFixture) requirePoolPlayer(name string) error {
+	if !slices.Contains(f.poolNames, name) {
+		return fmt.Errorf("no pool player %q; seeded players are %v", name, f.poolNames)
+	}
+	return nil
+}
+
+// thePoolPlayersAre always sets exactly three pool players - the fixed
+// roster shape both compare_predictions_steps_test.go and
+// leaderboard_steps_test.go fed it before this hoist. Order carries no
+// significance of its own to poolFixture; a scenario needing a different
+// count needs its own step, not an assumption that this one already
+// generalizes to it.
+func (f *poolFixture) thePoolPlayersAre(first, second, third string) error {
+	f.poolNames = []string{first, second, third}
+	return nil
+}
+
+func TestPoolPlayerIDShouldLowercaseTheName(t *testing.T) {
+	if got := poolPlayerID("Basti"); got != "basti" {
+		t.Errorf("poolPlayerID(%q) = %q, want %q", "Basti", got, "basti")
+	}
+}
+
+func TestPoolFixtureRequirePoolPlayerShouldAcceptASeededName(t *testing.T) {
+	f := &poolFixture{poolNames: []string{"Basti", "Sadl", "Tobbi"}}
+	if err := f.requirePoolPlayer("Sadl"); err != nil {
+		t.Errorf("requirePoolPlayer(%q) = %v, want nil", "Sadl", err)
+	}
+}
+
+func TestPoolFixtureRequirePoolPlayerShouldRejectAnUnseededName(t *testing.T) {
+	f := &poolFixture{poolNames: []string{"Basti", "Sadl", "Tobbi"}}
+	if err := f.requirePoolPlayer("Kim"); err == nil {
+		t.Error("requirePoolPlayer(\"Kim\") = nil, want an error naming the unseeded player")
+	}
+}
+
+func TestWriteSeedPoolPlayersShouldSkipTheSignedInPlayer(t *testing.T) {
+	var b strings.Builder
+	writeSeedPoolPlayers(&b, []string{"Basti", "Sadl"}, "basti")
+	got := b.String()
+	if strings.Contains(got, "id: basti") {
+		t.Errorf("expected the signed-in player to be skipped, got %q", got)
+	}
+	if !strings.Contains(got, "id: sadl") {
+		t.Errorf("expected the other pool player to be written, got %q", got)
+	}
 }
 
 func TestRequireSeededPlayerShouldAcceptTheExactName(t *testing.T) {
