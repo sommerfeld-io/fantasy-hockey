@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-29-2026 20:51
+last_updated: 09-29-2026 21:05
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -618,5 +618,5 @@ action_items:
       doc/README-regeneration side effect from architecture.md's quick-reference table;
       add horizontal-overflow handling to .rules table for narrow viewports."
     owner: "whoever next touches the Rules page UX"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-28.md"
