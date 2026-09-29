@@ -9,6 +9,7 @@ run:
 linters:
   default: none
   enable:
+    - depguard
     - errcheck
     - errorlint
     - gocritic
@@ -24,6 +25,84 @@ linters:
       rules:
         - name: exported
           disabled: false
+    # AD-8's import-boundary rules (docs/architecture.md): presentation
+    # (internal/web) depends on domain packages (internal/auth,
+    # internal/scoring, internal/standings), domain depends on infrastructure
+    # (internal/store, internal/mailer, internal/clock, which depend on
+    # nothing above them), and internal/standings -> internal/scoring is the
+    # one sanctioned domain-to-domain exception. Replaces the hand-written
+    # go/parser-based guard tests removed alongside this config (epic-4
+    # retrospective, item 33) - a violation now fails task go:lint (AD-5's
+    # build gate) directly, not just go test.
+    #
+    # scoring/standings/auth/infrastructure below use allow-lists, which -
+    # unlike the go/parser tests they replace (which only ever flagged
+    # internal/-prefixed imports, silently allowing any third-party module) -
+    # also rejects a *new* third-party dependency these packages don't
+    # already use. That's intentional, not an oversight: add the new
+    # dependency's import path to the relevant rule's allow list alongside
+    # $gostd when one is genuinely needed.
+    depguard:
+      rules:
+        scoring:
+          files:
+            - "**/internal/scoring/*.go"
+            - "!**/internal/scoring/*_test.go"
+          allow:
+            - $gostd
+            - github.com/sommerfeld-io/fantasy-hockey/internal/store
+        standings:
+          files:
+            - "**/internal/standings/*.go"
+            - "!**/internal/standings/*_test.go"
+          allow:
+            - $gostd
+            - github.com/sommerfeld-io/fantasy-hockey/internal/scoring
+            - github.com/sommerfeld-io/fantasy-hockey/internal/store
+        auth:
+          files:
+            - "**/internal/auth/*.go"
+            - "!**/internal/auth/*_test.go"
+          allow:
+            - $gostd
+            - github.com/sommerfeld-io/fantasy-hockey/internal/clock
+            - github.com/sommerfeld-io/fantasy-hockey/internal/mailer
+            - github.com/sommerfeld-io/fantasy-hockey/internal/store
+        # internal/store, internal/mailer and internal/clock are the
+        # infrastructure layer: AD-8 says they depend on nothing above them,
+        # so this rule allows no internal/ package at all - only $gostd and
+        # the specific third-party modules these three already use.
+        infrastructure:
+          files:
+            - "**/internal/store/*.go"
+            - "**/internal/mailer/*.go"
+            - "**/internal/clock/*.go"
+            - "!**/internal/store/*_test.go"
+            - "!**/internal/mailer/*_test.go"
+            - "!**/internal/clock/*_test.go"
+          allow:
+            - $gostd
+            - github.com/google/uuid
+            - go.yaml.in/yaml/v3
+        # web's own file is excluded from the package-wide rule below: it
+        # gets the more specific compare rule instead, so a violation there
+        # reports once with compare's own reason, not twice.
+        web:
+          files:
+            - "**/internal/web/*.go"
+            - "!**/internal/web/*_test.go"
+            - "!**/internal/web/compare.go"
+          deny:
+            - pkg: github.com/sommerfeld-io/fantasy-hockey/internal/scoring
+              desc: "web may read points only through standings.Row"
+        compare:
+          files:
+            - "**/internal/web/compare.go"
+          deny:
+            - pkg: github.com/sommerfeld-io/fantasy-hockey/internal/scoring
+              desc: "compare.go is display-only over the store"
+            - pkg: github.com/sommerfeld-io/fantasy-hockey/internal/standings
+              desc: "compare.go is display-only over the store"
   exclusions:
     presets:
       - common-false-positives

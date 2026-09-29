@@ -1,12 +1,8 @@
 package web
 
 import (
-	"go/parser"
-	"go/token"
 	"net/http/httptest"
-	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -204,32 +200,5 @@ func TestLeaderboardShouldNotRenderOnAnyOtherTab(t *testing.T) {
 
 	if body := rec.Body.String(); strings.Contains(body, "leaderboard-row-") || strings.Contains(body, "Ranked by total points.") {
 		t.Errorf("expected Predict to render no Leaderboard content, got %q", body)
-	}
-}
-
-func TestWebShouldNotImportScoring(t *testing.T) {
-	files, err := filepath.Glob("*.go")
-	if err != nil {
-		t.Fatalf("list package files: %v", err)
-	}
-	const scoringPath = "github.com/sommerfeld-io/fantasy-hockey/internal/scoring"
-
-	for _, file := range files {
-		if strings.HasSuffix(file, "_test.go") {
-			continue
-		}
-		parsed, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatalf("parse %s: %v", file, err)
-		}
-		for _, imp := range parsed.Imports {
-			path, err := strconv.Unquote(imp.Path.Value)
-			if err != nil {
-				t.Fatalf("unquote import %s in %s: %v", imp.Path.Value, file, err)
-			}
-			if path == scoringPath {
-				t.Errorf("%s imports internal/scoring; web may read points only through standings.Row", file)
-			}
-		}
 	}
 }

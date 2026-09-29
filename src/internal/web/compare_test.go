@@ -1,8 +1,6 @@
 package web
 
 import (
-	"go/parser"
-	"go/token"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -713,26 +711,6 @@ func TestBuildCompareShouldLabelASeriesWithAnUnknownTeamWithoutAConference(t *te
 
 	if got := rowLabels(v.Table); !slices.Equal(got, []string{"XXX vs TOR"}) {
 		t.Errorf("expected a conference-less label, got %v", got)
-	}
-}
-
-func TestCompareShouldNotImportScoringOrStandings(t *testing.T) {
-	parsed, err := parser.ParseFile(token.NewFileSet(), "compare.go", nil, parser.ImportsOnly)
-	if err != nil {
-		t.Fatalf("parse compare.go: %v", err)
-	}
-	forbidden := []string{
-		"github.com/sommerfeld-io/fantasy-hockey/internal/scoring",
-		"github.com/sommerfeld-io/fantasy-hockey/internal/standings",
-	}
-	for _, imp := range parsed.Imports {
-		path, err := strconv.Unquote(imp.Path.Value)
-		if err != nil {
-			t.Fatalf("unquote import %s: %v", imp.Path.Value, err)
-		}
-		if slices.Contains(forbidden, path) {
-			t.Errorf("compare.go imports %s; Compare is display-only over the store", path)
-		}
 	}
 }
 

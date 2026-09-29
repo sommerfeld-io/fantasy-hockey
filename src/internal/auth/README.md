@@ -18,4 +18,4 @@ Login and session logic: matches a submitted email against a `Player`, issues an
 - The plaintext login code exists only in memory and in the outgoing email - it is never persisted or logged.
 - The session cookie's value is `base64url(player_id) + "|" + issued_at_RFC3339 + "." + hex(HMAC-SHA256(secret, payload))`; `player_id` is base64url-encoded on its own (not jointly with `issued_at`) so a hand-typed player id containing a literal `"|"` can never be misread as the segment separator.
 - Sessions are entirely stateless (AD-11): nothing in this package writes to `internal/store`, and there is no revocation list - `ClearSessionCookie` and the 30-minute idle timeout are the only ways a session ever ends.
-- Depends on `internal/store` and `internal/mailer` only, per the layered dependency direction (AD-8).
+- Depends on `internal/store`, `internal/mailer` and `internal/clock` only, per the layered dependency direction (AD-8) - enforced by `.golangci.yml`'s `depguard` rule, not just this sentence.

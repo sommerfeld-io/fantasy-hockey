@@ -14,10 +14,6 @@ import (
 // packages.
 const internalPrefix = "github.com/sommerfeld-io/fantasy-hockey/internal/"
 
-// allowedInternalImports is the one feature-to-feature import the
-// architecture allows (standings -> scoring) plus the shared store.
-var allowedInternalImports = []string{internalPrefix + "scoring", internalPrefix + "store"}
-
 // internalImports lists every internal/ package this package's non-test
 // files import.
 func internalImports(t *testing.T) []string {
@@ -47,14 +43,6 @@ func internalImports(t *testing.T) []string {
 		}
 	}
 	return imports
-}
-
-func TestStandingsShouldImportNoInternalPackageButScoringAndStore(t *testing.T) {
-	for _, path := range internalImports(t) {
-		if !slices.Contains(allowedInternalImports, path) {
-			t.Errorf("standings imports %s; it may import only internal/scoring and internal/store", path)
-		}
-	}
 }
 
 func TestStandingsShouldImportScoringForEveryPointValue(t *testing.T) {
