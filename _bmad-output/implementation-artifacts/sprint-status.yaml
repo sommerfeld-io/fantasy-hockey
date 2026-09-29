@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-29-2026 16:15
+last_updated: 09-29-2026 16:25
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -496,7 +496,7 @@ action_items:
       also adding it to the splice list fails silently (compiles, reports success,
       never persists)."
     owner: "next dev touching internal/store/store.go writeLocked"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
   - id: "epic-7-retro-item-52-add-coverage-proving-resultproblems-two"
     epic: 7
