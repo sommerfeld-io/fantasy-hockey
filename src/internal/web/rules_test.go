@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -20,6 +21,53 @@ func TestRulesHTMLShouldNotContainRawMarkdownSyntax(t *testing.T) {
 	for _, unwanted := range []string{"## ", "**"} {
 		if strings.Contains(string(rulesHTML), unwanted) {
 			t.Errorf("expected rulesHTML to contain no raw markdown syntax %q, got %q", unwanted, rulesHTML)
+		}
+	}
+}
+
+// TestRulesHTMLShouldNotContainLinks covers a review finding (epic-8
+// retrospective, item 61): docs/game-rules.md's own header comment
+// documents a "no links" convention, but extension.GFM (which
+// gameRulesRenderer used to enable wholesale) bundles extension.Linkify,
+// which auto-converts a bare URL or email in prose into a real <a> tag -
+// no markdown link syntax required. Nothing previously caught that gap.
+// This proves only that Linkify specifically stays out of
+// gameRulesRenderer: explicit [text](url) markdown links and
+// <https://...> autolinks are CommonMark core and would still render
+// regardless of which goldmark extensions are enabled - this test says
+// nothing about those.
+//
+// The first case asserts against the rendering of the real, canonical
+// docs/game-rules.md (via the embedded rulesHTML), which only demonstrates
+// the fix holds for today's file content - that file happens to contain no
+// bare URL or email, so by itself it would still pass even if Linkify were
+// reintroduced. The second case pins the fix independent of
+// docs/game-rules.md's content by rendering a literal string containing a
+// bare URL and email directly through gameRulesRenderer.Convert.
+func TestRulesHTMLShouldNotContainLinks(t *testing.T) {
+	if strings.Contains(string(rulesHTML), "<a ") {
+		t.Errorf(`expected rulesHTML to contain no "<a " tags, got %q`, rulesHTML)
+	}
+
+	var buf bytes.Buffer
+	if err := gameRulesRenderer.Convert([]byte("See https://example.com or foo@example.com."), &buf); err != nil {
+		t.Fatalf("gameRulesRenderer.Convert: %v", err)
+	}
+	if strings.Contains(buf.String(), "<a ") {
+		t.Errorf(`expected rendering a bare URL/email to contain no "<a " tags, got %q`, buf.String())
+	}
+}
+
+// TestRulesHTMLShouldRenderLists covers the "Before the season"/"Playoffs"
+// bullet list under "## The two phases" in docs/game-rules.md. Bullet-list
+// parsing is CommonMark core, unaffected by any of gameRulesRenderer's
+// Table/Strikethrough/TaskList/Linkify extensions, so this is a plain
+// regression-safety check on the real embedded rulesHTML, not evidence
+// tied to the Linkify removal (epic-8 retrospective, item 61).
+func TestRulesHTMLShouldRenderLists(t *testing.T) {
+	for _, want := range []string{"<ul>", "<li>"} {
+		if !strings.Contains(string(rulesHTML), want) {
+			t.Errorf("expected rulesHTML to contain %q, got %q", want, rulesHTML)
 		}
 	}
 }

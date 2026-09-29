@@ -10,10 +10,17 @@ import (
 	"github.com/yuin/goldmark/extension"
 )
 
-// gameRulesRenderer renders GFM (tables included) - game-rules.md's scoring
-// table needs the table extension, which goldmark's CommonMark core alone
-// doesn't provide.
-var gameRulesRenderer = goldmark.New(goldmark.WithExtensions(extension.GFM))
+// gameRulesRenderer renders GFM tables, strikethrough, and task lists -
+// game-rules.md's scoring table needs the table extension, which goldmark's
+// CommonMark core alone doesn't provide. Linkify, one of extension.GFM's
+// four components, is deliberately left out: it would auto-convert a bare
+// URL or email in prose into a real <a>/mailto: link, violating this page's
+// documented "no links" convention (docs/game-rules.md's own header
+// comment; epic-8 retrospective, item 61). This closes only that "bare
+// URL/email in prose" vector - CommonMark core still supports explicit
+// [text](url) link syntax and <https://...> autolinks regardless of which
+// goldmark extensions are enabled; nothing here prevents those.
+var gameRulesRenderer = goldmark.New(goldmark.WithExtensions(extension.Table, extension.Strikethrough, extension.TaskList))
 
 // gameRulesFS embeds a generated copy of the game rules. docs/game-rules.md
 // is the canonical source (edit it there); rules/game-rules.md is copied
