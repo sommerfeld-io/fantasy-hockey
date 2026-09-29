@@ -1047,9 +1047,30 @@ func TestSavePredictionShouldPruneAStaleLoginCodeRowOnItsNextWrite(t *testing.T)
 	}
 
 	st.mu.RLock()
-	defer st.mu.RUnlock()
 	if len(st.doc.LoginCodes) != 0 {
 		t.Errorf("expected the stale login code row to be pruned by an unrelated write, got %+v", st.doc.LoginCodes)
+	}
+	path := st.path
+	st.mu.RUnlock()
+
+	// st.doc.LoginCodes above is the in-memory field, only ever assigned
+	// after a successful rename (writeLocked's own doc comment) - it can't
+	// by itself prove the persisted file was actually updated. Re-reading
+	// through a fresh New() does. Only login_codes and predictions are safe
+	// to verify this way (writeLocked splices both on every write); every
+	// other section round-trips through st.raw's parsed nodes rather than
+	// st.doc, so an in-memory-only seed (like newTestStore's Players append)
+	// never reaches disk and a reread of it would always come back empty
+	// regardless of what was actually written.
+	reread, err := New(path)
+	if err != nil {
+		t.Fatalf("re-read New(%q) returned error: %v", path, err)
+	}
+	if len(reread.doc.LoginCodes) != 0 {
+		t.Errorf("expected the pruned state to be persisted to disk, re-read got %+v", reread.doc.LoginCodes)
+	}
+	if len(reread.doc.Predictions) != 1 {
+		t.Errorf("expected the SavePrediction write itself to be persisted to disk too, re-read got %+v", reread.doc.Predictions)
 	}
 }
 
