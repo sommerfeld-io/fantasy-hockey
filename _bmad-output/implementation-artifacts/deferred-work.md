@@ -104,6 +104,12 @@
   summary: Epic 4 retro A9, which hoists the duplicated YAML-seed store helpers, prediction-row renderers, acceptance seed builders and the submitted_at literal into shared test support before Epic 5.
   evidence: The user split it out of the Epic 4 retro hardening spec on 2026-09-25. It rewrites the same step files that A6 extends, so it should ship as its own change.
 
+## Deferred from: code review of spec-epic-7-retro-item-55-correct-store-readme-stale-write-claim.md (2026-09-29)
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-7-retro-item-55-correct-store-readme-stale-write-claim.md`
+  summary: `internal/store/README.md`'s `ResultProblems()` bullet (in "Results (read-only)") is stale relative to the current implementation — it lists only the original malformed-value categories (unknown team/slug/division/award/round, bad series key, games out of range, mismatched winner, wrong-division team) and omits the two categories Story 7.4 added: a misspelled/unknown field name (`unknownKeyProblemsLocked`) and a tolerated shape error (`s.toleratedShapeErrors`).
+  evidence: Verified real (blind-hunter), found while fact-checking this build's own correction pass. Pre-existing since Story 7.4 shipped — not caused by this build, which corrected a different, specifically-named bullet (epic-7-retro-item-55's stated scope: the write-path claim, not `ResultProblems()`'s category list). Kept out of scope to avoid drift from the retro item's own narrow ask.
+
 ## Deferred from: code review of spec-epic-7-retro-item-57-split-store-go-by-concern.md (2026-09-28)
 
 - source_spec: `_bmad-output/implementation-artifacts/spec-epic-7-retro-item-57-split-store-go-by-concern.md`

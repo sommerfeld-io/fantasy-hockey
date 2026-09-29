@@ -10,7 +10,7 @@ The data-access layer: owns all reads and writes to the single `fantasy-hockey.y
 
 ## Results (read-only)
 
-The hand-maintained `results` and `award_finalists` sections record real-world outcomes for `internal/scoring`. No code path changes them, but every save re-marshals the whole document: their values are preserved, while comments, flow style and quoting are not. A file without them loads fine and never gains them. The store reads them only at startup: stop the app before editing them by hand and start it again afterwards. An edit made while the app runs is not seen, and the next prediction save overwrites it with the values loaded at startup.
+The hand-maintained `results` and `award_finalists` sections record real-world outcomes for `internal/scoring`. No code path changes them: every save splices only `login_codes`/`predictions` into the originally-parsed raw node tree, leaving every other section's own nodes untouched, so comments, flow style, quoting and key order all survive a save unchanged (spec-7-4) - only a hand-maintained block-style sequence's own indentation isn't guaranteed to match what was typed (`CompactSeqIndent`, see Design notes below). A file without them loads fine and never gains them. The store reads them only at startup: stop the app before editing them by hand and start it again afterwards. An edit made while the app runs is not seen, and the next write still leaves the file holding whatever was parsed at startup, not the mid-run edit.
 
 ```yaml
 results:
@@ -50,7 +50,7 @@ Each file has a matching `*_test.go`. General test fixtures shared package-wide 
 ## Design notes
 
 - `Store`'s in-memory document and mutex stay unexported; every access goes through an exported method (AD-29).
-- Every write serializes the whole in-memory document and atomically replaces the file on disk via write-to-temp-file-then-rename (AD-27).
+- Every write splices only `login_codes`/`predictions` into the originally-parsed raw node tree and atomically replaces the file on disk via write-to-temp-file-then-rename (AD-27) - every other hand-maintained section (`players`, `prediction_sets`, `teams`, `nhl_players`, `playoff_matchups`, `results`, `award_finalists`) round-trips through the exact node objects it was parsed into, never reconstructed from typed fields (spec-7-4, AD-23) - except a block-style sequence's own indentation, which the `CompactSeqIndent` bullet below re-derives from the encoder's own settings.
 - `Player`/`LoginCode` are the canonical structs for these entities; other packages import and use them as-is (AD-24).
 - The store owns the persisted series-key format (`JoinSeriesKey`/`SplitSeriesKey`, `"<setID>.<matchupKey>"`), the playoff round-set ids (`Round1SetID`, `Round2SetID`, `ConferenceFinalsSetID`, `StanleyCupFinalSetID`) and the division vocabulary (`Divisions()`), so feature packages never redefine them (AD-24).
 - Every write encodes with `yaml.NewEncoder(...).CompactSeqIndent()`, not plain `yaml.Marshal`, so a sequence nested inside a mapping-inside-a-list (e.g. `Prediction.TeamIDs`/`FinalistSlugs`) gets the same relative indent as a top-level sequence - a plain marshal's inconsistent indent otherwise fails the repo's yamllint gate. `yamllint_test.go` proves this against the real `yamllint` binary/config (skips without a reachable Docker daemon; CI always runs it for real).
