@@ -9,6 +9,9 @@
     ".task/**",
     ".vscode",
 
+    "configs",
+    "configs/nginx",
+
     "docs",
 
     "_bmad/**",
