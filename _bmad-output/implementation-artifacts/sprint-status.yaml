@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-29-2026 21:29
+last_updated: 09-30-2026 13:22
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -84,7 +84,15 @@ development_status:
   8-2-in-app-game-rules-page: done
   epic-8-retrospective: done
 
-# Action items committed during retrospectives (section created by the retrospective workflow)
+  epic-9: backlog
+  9-1-reverse-proxy-in-the-dev-compose: backlog
+  9-2-anonymous-metrics-endpoint-with-runtime-and-http-metrics: backlog
+  9-3-login-and-action-counters: backlog
+  9-4-audit-log-lines-for-logins-and-prediction-saves: backlog
+  9-5-the-proxy-hides-metrics: backlog
+  9-6-example-production-compose: backlog
+  epic-9-retrospective: optional
+
 action_items:
   - id: "epic-1-retro-item-1-add-a-regression-test-asserting-the-sess"
     epic: 1
@@ -548,10 +556,10 @@ action_items:
   - id: "epic-7-retro-item-58-once-the-playoff_matchups-results-yamlli"
     epic: 7
     action: "WON'T DO (closed 2026-09-30): the playoff_matchups/results yamllint mismatch
-      was accepted as a known limitation on 2026-09-28, so no decision is left to implement
-      and no regression test will be added. Original ask: add a regression test in yamllint_test.go
-      that seeds a hand-maintained section and exercises it through the real write
-      path against real yamllint."
+      was accepted as a known limitation on 2026-09-28, so no decision is left to
+      implement and no regression test will be added. Original ask: add a regression
+      test in yamllint_test.go that seeds a hand-maintained section and exercises
+      it through the real write path against real yamllint."
     owner: "whoever implements the playoff_matchups/results yamllint decision"
     status: done
     ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
