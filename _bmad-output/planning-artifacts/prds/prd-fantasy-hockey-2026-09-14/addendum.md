@@ -39,3 +39,15 @@ For `bmad-architecture` and build; not requirements in themselves.
 - **Known consequences accepted by the user:** `latest` floats (a `pull` can change the running version, including across a season rollover — see the operator guide's rollover check); with Mailpit as SMTP, login codes are only visible in Mailpit's UI, so real mail delivery needs real SMTP in an actual deployment; a dummy secret must never be used on a public host.
 - **No HTTPS/443.** Plain HTTP only, by decision. Login codes and session cookies are sent in cleartext and the app sets no `Secure` flag (`internal/auth/session.go`). Adding TLS later means terminating it at the proxy and setting the cookie's `Secure` flag.
 - **Build notes.** Infra/config work: per the repo's `CLAUDE.md`, ask the human whether an acceptance test applies before skipping one. The Dockerfile and `.github/workflows/**` are protected and untouched.
+
+## Observability (added 2026-09-30 → PRD §4.11, FR-37–FR-42, §5)
+
+For `bmad-architecture` and build; not requirements in themselves.
+
+- **Logs vs metrics (AI opinion, accepted).** "Who did what when" is an event record, so it goes to structured logs (Loki in Grafana Cloud can query and count them per Player over time); metrics carry rates and health only. With three Players a per-Player label would not blow up cardinality, but identity in metrics still leaks who is active to anyone who can scrape and adds nothing the log line lacks. Counters are therefore unlabeled by Player.
+- **Reuse.** The app already emits `slog` lines for every data-changing write (epic 7, story 7-1) carrying ids and hashes only, never emails or raw login codes; audit events extend that convention. Player id, not email.
+- **Metrics.** The standard Prometheus Go client's Go-runtime and process collectors, plus HTTP request count/duration by route pattern.
+- **Exposure model.** `/metrics` is anonymous on the app's own port 8080. Alloy runs on the same host but *not* on the compose network, so it scrapes `localhost:8080/metrics`. Port 80 (public, via router forward) must never serve it: nginx returns 404 for `/metrics`. In the example compose, 8080 is published on loopback only.
+- **Proxy access logs.** nginx default "combined" format to stdout (the official image symlinks `access.log` to `/dev/stdout` by default).
+- **Out of scope, separate repo:** Alloy config to Grafana Cloud, the metrics dashboard, a proxy-access-log panel. **Future:** OpenTelemetry.
+- **Build notes.** Behavior change in the app (endpoint, counters, log lines): per the repo's BDD rule this needs a Gherkin feature (e.g. `/metrics` returns 200 anonymously; a wrong code increments only the failure counter). The nginx/compose parts are infra: ask the human whether an acceptance test applies. Dockerfile and `.github/workflows/**` stay untouched.

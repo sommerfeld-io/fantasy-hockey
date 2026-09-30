@@ -339,7 +339,7 @@ Each NHL season gets a new pool while past seasons' data is retained.
 The app is reachable on port 80 through a reverse proxy that forwards to the app's own listener on port 8080. This applies to the project's own compose config (local development) and to the example production compose file (FR-36).
 
 **Consequences (testable):**
-- A request to port 80 reaches the app and returns its normal responses (login page, static assets, session cookies) unchanged.
+- A request to port 80 reaches the app and returns its normal responses (login page, static assets, session cookies) unchanged, except `/metrics`, which the proxy answers with 404 (FR-41).
 - The proxy talks to the app over the compose network by service name, not via the host's published port.
 
 #### FR-36: Example production compose file
@@ -347,11 +347,62 @@ The app is reachable on port 80 through a reverse proxy that forwards to the app
 
 **Consequences (testable):**
 - It uses the published image at the `latest` tag, a mounted `fantasy-hockey.yml` data file, Mailpit as the SMTP target, and a dummy `SESSION_SECRET`. All of these are deliberate for an example, not defects.
-- The proxy's port 80 is the only port published to the host that is meant to be internet-reachable; the app's 8080 is not published.
+- The proxy's port 80 is the only port meant to be internet-reachable. The app's 8080 is also published, but bound to the host's loopback interface only (`127.0.0.1:8080`), so a scraper on the same host (outside this compose network, see FR-37) reaches `/metrics` at `localhost:8080/metrics` while the network and router cannot.
 - It must not be used as-is on a public host: the dummy secret and Mailpit are placeholders (see §5).
 
 **Out of Scope:**
 - TLS/HTTPS, port 443, certificates, HTTP→HTTPS redirect (see §5).
+
+### 4.11 Observability
+**Description:** Added 2026-09-30. The operator wants to watch the app from Grafana Cloud. This section covers only what the app and its proxy must *emit*; collecting, shipping and visualizing it happens elsewhere (see §5). Technology and design detail live in `addendum.md`.
+
+**Functional Requirements:**
+
+#### FR-37: Anonymous Prometheus metrics endpoint
+The app exposes Prometheus-format metrics at `GET /metrics` on its own listener (port 8080), with no authentication and no login session.
+
+**Consequences (testable):**
+- An unauthenticated request to `localhost:8080/metrics` returns 200 in the Prometheus text exposition format.
+- The endpoint is reachable from a scraper running on the same host but *not* on the app's compose network, via `localhost:8080`.
+- No response from `/metrics` contains a Player's email address or a login code.
+
+#### FR-38: Runtime, process and HTTP metrics
+`/metrics` includes the traditional process and Go runtime metrics (goroutines, memory, GC, CPU, open file descriptors) plus HTTP request count and duration by route and status.
+
+**Consequences (testable):**
+- After serving a request, the request-count and duration series for that route and status are present and non-zero.
+- Route labels use the route pattern, not the raw path, so their cardinality stays bounded.
+
+#### FR-39: Login and action counters
+`/metrics` includes low-cardinality counters for login outcomes (e.g. code requested, login succeeded, login failed) and for Player actions (e.g. a prediction saved, by kind of action).
+
+**Consequences (testable):**
+- A successful login increments the login-success counter by exactly one; a wrong code increments only the failure counter.
+- No counter carries a Player, email, or code as a label. Who did what is answered by FR-40, not by metrics.
+
+#### FR-40: Audit log events for who did what and when
+The app logs one structured line per login event (code requested, login succeeded, login failed, logout) and per Player action (each prediction save), naming the Player by their stable id and the action. The line's timestamp answers "when".
+
+**Consequences (testable):**
+- A successful login and a saved prediction each produce exactly one line identifying the Player id and the action.
+- No line contains a Player's email address or a raw login code, matching the existing convention for write logging.
+- A failed or rejected action (e.g. an edit after the deadline) does not log as a successful action.
+
+#### FR-41: The proxy hides `/metrics`
+The reverse proxy answers requests for `/metrics` on port 80 with 404 and does not forward them to the app. This applies to the dev compose and to the example production compose.
+
+**Consequences (testable):**
+- `GET http://<host>:80/metrics` returns 404 with the app never receiving the request.
+- `GET http://<host>:80/` and every other path still reach the app.
+
+#### FR-42: Proxy access logs on stdout
+The reverse proxy writes its access log to stdout in a standard, widely parseable format, so any log collector can ship it from the container's output.
+
+**Consequences (testable):**
+- Each proxied request produces one access-log line on the proxy container's stdout in the standard format (nginx's default "combined" format).
+
+**Out of Scope:**
+- Shipping metrics/logs, dashboards, OpenTelemetry (see §5).
 
 ## 5. Non-Goals (Explicit)
 
@@ -363,6 +414,9 @@ The app is reachable on port 80 through a reverse proxy that forwards to the app
 - **No native mobile apps** — mobile web only.
 - **No season-selector, multi-season views, or Hall-of-Fame-style history page** for v1 (see FR-34's Out of Scope note).
 - **No light theme.**
+- **Collection, shipping and visualization of telemetry are out of scope here** and will be implemented in another repo: the Alloy configuration that sends data to Grafana Cloud, a Grafana dashboard for the metrics, and a view of the reverse proxy's access logs. This PRD only requires that the app and proxy emit what those need (FR-37–FR-42).
+- **No OpenTelemetry (traces or OTLP) for now.** Named as a further follow-up, not part of this scope.
+- **No authentication on `/metrics`.** Protection is by network exposure only (loopback publish plus the proxy's 404, FR-36/FR-41), an accepted trade-off.
 - **No HTTPS/TLS in this PRD pass.** The app is served over plain HTTP on port 80 only (FR-35, FR-36). Login codes and session cookies therefore cross the network unencrypted, and the app sets no `Secure` cookie flag. Accepted as a known trade-off for a private three-friend pool; TLS can be added later behind the same proxy.
 
 ## 6. MVP Scope
@@ -371,7 +425,7 @@ The app is reachable on port 80 through a reverse proxy that forwards to the app
 
 [ASSUMPTION: `assets/requirements.md` is explicitly framed as "the requirements baseline to build the app from scratch," with no separate MVP-vs-later split beyond what it already marks out of scope — so this PRD treats all of §4 as the MVP, except FR-22, carved out during the UX pass (see below).]
 
-- Everything in §4 except FR-22 (and including FR-35–FR-36, added 2026-09-30): authentication and session handling, all Prediction sets across both phases (before-the-season and Playoffs) with deadline enforcement, automatic scoring and the Leaderboard, Compare, the app shell, and persistent shared storage for a single season with prior-season history retained, and a reverse proxy plus an example production compose file.
+- Everything in §4 except FR-22 (and including FR-35–FR-42, added 2026-09-30): authentication and session handling, all Prediction sets across both phases (before-the-season and Playoffs) with deadline enforcement, automatic scoring and the Leaderboard, Compare, the app shell, and persistent shared storage for a single season with prior-season history retained, a reverse proxy plus an example production compose file, and app/proxy observability output.
 
 ### 6.2 Out of Scope for MVP
 
@@ -405,7 +459,9 @@ The app is reachable on port 80 through a reverse proxy that forwards to the app
 
 ## 9. Assumptions Index
 
-- §6.1 — MVP scope is all of §4 except FR-22 (FR-1–FR-21, FR-23–FR-36) as documented, since the source requirements doc frames itself as the from-scratch baseline with no separate MVP cut beyond what it already marks out of scope; FR-22 was subsequently carved out during the UX pass (see §8's UX-pass resolution note).
+- §6.1 — MVP scope is all of §4 except FR-22 (FR-1–FR-21, FR-23–FR-42) as documented, since the source requirements doc frames itself as the from-scratch baseline with no separate MVP cut beyond what it already marks out of scope; FR-22 was subsequently carved out during the UX pass (see §8's UX-pass resolution note).
 - §4.6, FR-24 — The scoring point-value table is the PM's own initial calibration for season 1, not a value carried forward with established rationale; may be revisited after a season's real results are in.
 - §4.10, FR-36 — The example production compose file deliberately uses `latest`, Mailpit and a dummy `SESSION_SECRET`, because real deployments are rolled out from another repo via Ansible with secrets in an Ansible Vault. The example's Mailpit web UI (8025) and SMTP (1025) ports are assumed not to be published to the host `[ASSUMPTION]`.
+- §4.10, FR-36 — The example publishes the app's 8080 on the host's loopback only (`127.0.0.1:8080:8080`) so an external scraper on the same host can reach `/metrics`; the user said Alloy will use `localhost:8080/metrics` but did not say whether the bind is loopback-only or all interfaces `[ASSUMPTION]`.
+- §4.11, FR-39/FR-40 — Exact counter names, label sets, and which Player actions count as "actions" (assumed: login events plus each prediction save) are inferred from the user's "who logged in when / who made what action when" and left to architecture `[ASSUMPTION]`.
 - §7 — Success Metrics kept to one primary + one leading secondary + one counter-metric, scaled to hobby/internal stakes for a 3-person private pool.
