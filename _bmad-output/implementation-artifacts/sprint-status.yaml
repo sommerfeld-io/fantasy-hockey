@@ -547,11 +547,13 @@ action_items:
     ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
   - id: "epic-7-retro-item-58-once-the-playoff_matchups-results-yamlli"
     epic: 7
-    action: "Once the playoff_matchups/results yamllint decision is re-resolved, add
-      a regression test in yamllint_test.go that seeds a hand-maintained section and
-      exercises it through the real write path against real yamllint."
+    action: "WON'T DO (closed 2026-09-30): the playoff_matchups/results yamllint mismatch
+      was accepted as a known limitation on 2026-09-28, so no decision is left to implement
+      and no regression test will be added. Original ask: add a regression test in yamllint_test.go
+      that seeds a hand-maintained section and exercises it through the real write
+      path against real yamllint."
     owner: "whoever implements the playoff_matchups/results yamllint decision"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-7-retro-2026-09-28.md"
   - id: "epic-8-retro-item-59-fix-docs-architecture-md-s-factually-wro"
     epic: 8
