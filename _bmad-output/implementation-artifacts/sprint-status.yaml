@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 09-30-2026 14:36
+last_updated: 09-30-2026 14:43
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -85,7 +85,7 @@ development_status:
   epic-8-retrospective: done
 
   epic-9: in-progress
-  9-1-reverse-proxy-in-the-dev-compose: review
+  9-1-reverse-proxy-in-the-dev-compose: done
   9-2-anonymous-metrics-endpoint-with-runtime-and-http-metrics: backlog
   9-3-login-and-action-counters: backlog
   9-4-audit-log-lines-for-logins-and-prediction-saves: backlog
