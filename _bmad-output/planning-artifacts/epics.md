@@ -56,6 +56,14 @@ FR-31: The app is a single-column, phone-width, dark-theme-only layout; no light
 FR-32: A Player's picks are saved and everyone's picks are visible to everyone under the same rules, shared across devices.
 FR-33: The current season's canonical team list and NHL Player candidate list (for award-finalist autocomplete) are available everywhere they're used.
 FR-34: A new pool starts each season while prior seasons' data is retained; no in-app season-selector or history view for v1.
+FR-35: The app is reachable on port 80 through a reverse proxy that forwards to the app's own listener on port 8080, in the project's own (dev) compose config and in the example production compose file; the proxy reaches the app over the compose network by service name.
+FR-36: `docs/examples/docker-compose.yml` is a ready-to-adapt example production compose file: image at the `latest` tag, a mounted fantasy-hockey.yml, Mailpit as SMTP target, a dummy SESSION_SECRET (all deliberate for an example), the proxy's port 80 as the only internet-facing port, and the app's 8080 published on the host's loopback only.
+FR-37: The app exposes Prometheus-format metrics at an anonymous `GET /metrics` on its own listener (8080), reachable at localhost:8080/metrics from a scraper on the same host; no response contains an email or login code.
+FR-38: `/metrics` includes the process and Go runtime metrics plus HTTP request count and duration by route pattern and status.
+FR-39: `/metrics` includes low-cardinality counters for login outcomes and Player actions, with no Player, email or code as a label.
+FR-40: The app logs one structured line per login event (code requested, succeeded, failed, logout) and per prediction save, naming the Player by stable id and the action; never an email or raw login code; a rejected action does not log as a successful one.
+FR-41: The reverse proxy answers `/metrics` on port 80 with 404 and does not forward it to the app, in the dev compose and the example compose; every other path still reaches the app.
+FR-42: The reverse proxy writes its access log to stdout in nginx's standard "combined" format.
 ```
 
 ### NonFunctional Requirements
@@ -84,6 +92,9 @@ NFR-11: Every identity a Player picks by name (Team, NHL Player) is referenced e
 - Data-file location resolves via DATA_FILE env var or --data-file CLI flag, flag wins; first-run bootstrap creates the file with an initial skeleton (current season + fixed player list) if it doesn't exist (Architecture AD-25, AD-26).
 - Season rollover: at season start, a human archives the current fantasy-hockey.yml and repoints DATA_FILE at a fresh file; first-run bootstrap creates the new season's skeleton there (Architecture AD-30) -- flagged as an open question in SPEC.md whether this manual process is acceptable long-term.
 - Image build/publish already exists (.github/workflows/release.yml, protected file, pushes to Docker Hub); the Raspberry Pi host's own image-pull/update mechanism is not yet decided (Architecture Deferred).
+- Collection, shipping and visualization of telemetry are out of scope for this repo (another repo): the Alloy config to Grafana Cloud, a metrics dashboard, a proxy-access-log view. OpenTelemetry is a named follow-up, not in scope (PRD §5).
+- The reverse proxy is nginx (PRD addendum.md); it serves plain HTTP on port 80 only -- no TLS/443 by decision (PRD §5), so NFR-1's Secure cookie flag stays off. `/metrics` has no authentication; protection is network exposure only (loopback publish + the proxy's 404).
+- The Dockerfile and `.github/workflows/**` are protected files; no story in this scope may modify them. New-behavior stories (FR-37 to FR-40) need Gherkin features under src/acceptance-tests/features/; for infra stories (FR-35, FR-36, FR-41, FR-42) the human decides per story whether an acceptance test applies.
 - depguard import-boundary linting (Architecture AD-21) is specified but not yet configured in .golangci.yml -- a near-term build task, not yet real enforcement.
 - Prediction row granularity: one store.Prediction row per independently-saveable pick, with the Series winner+game-count pair as the sole multi-field exception (Architecture AD-28).
 - AwardFinalist is a real Go struct ({slug, display_name}), not a bare string list; NHL Player identity uses a human-readable slug generated once and reused everywhere it's referenced (Architecture AD-17, AD-24).
@@ -148,6 +159,14 @@ FR-31: Epic 1 - Mobile-first, dark theme
 FR-32: Epic 1 & 2 - Persistent, shared storage (session/login persistence in Epic 1; prediction persistence in Epic 2)
 FR-33: Epic 2 - Season's canonical team and NHL Player lists
 FR-34: Epic 6 - New pool each season, history kept
+FR-35: Epic 9 - Reverse proxy on port 80 forwarding to the app on 8080
+FR-36: Epic 9 - Example production compose in docs/examples/
+FR-37: Epic 9 - Anonymous Prometheus /metrics on 8080
+FR-38: Epic 9 - Go runtime, process and HTTP metrics
+FR-39: Epic 9 - Login and action counters, no Player labels
+FR-40: Epic 9 - Audit log lines for logins and prediction saves
+FR-41: Epic 9 - Proxy answers /metrics on port 80 with 404
+FR-42: Epic 9 - Proxy access logs to stdout in combined format
 ```
 
 ## Epic List
@@ -183,6 +202,10 @@ The app's single hand-maintained data file stays observable, lean, and lint-clea
 ### Epic 8: Documentation & In-App Rules
 A prospective or current player can learn how the game works without asking the person running the pool, the person running the pool has a single checklist for every hand-edit task and when to do it, and anyone touching the codebase can find the architecture, tooling and release process explained in one place.
 **FRs covered:** None — documentation and operator-enablement work, not a PRD requirement.
+
+### Epic 9: Public Access & Observability
+The person running the pool can put the app on a homelab host behind an nginx reverse proxy on port 80, using either the dev compose or a ready-to-adapt production example, and can see how the app behaves: metrics scrapable from the host only, an audit log of who logged in and who did what and when, and proxy access logs on stdout.
+**FRs covered:** FR-35, FR-36, FR-37, FR-38, FR-39, FR-40, FR-41, FR-42
 
 *(FR-22, deadline reminder emails, is explicitly deferred out of MVP per the PRD/UX/SPEC and has no epic.)*
 
@@ -742,3 +765,200 @@ So that I don't have to leave it or ask someone else to understand how predictio
 **Then** the in-app Rules page reflects the new content without any other Go code change — content-only edits stay in markdown
 
 *References: FR-29/UX-DR5 (bottom nav, reused not modified — Rules is a 4th tab alongside Predict/Leaderboard/Compare); no PRD FR, new since v1 shipped. `docs/game-rules.md` is the canonical source (edit it there); `src/internal/web/rules/game-rules.md` is a committed, generated copy kept in sync via `task docs:embed-game-rules`, needed only because `go:embed` can't reach outside its own package's directory tree — the copy being committed means neither the Dockerfile nor `task go:build` needs `docs/` present to build the binary. Gherkin acceptance test: extends the existing `app-shell.feature` (Story 1.5's persistent-shell feature) with a Rules-tab scenario, since Rules is one more destination in that same shell rather than a separate feature.*
+
+## Epic 9: Public Access & Observability
+
+The person running the pool can put the app on a homelab host behind an nginx reverse proxy on port 80, using either the dev compose or a ready-to-adapt production example, and can see how the app behaves: metrics scrapable from the host only, an audit log of who logged in and who did what and when, and proxy access logs on stdout.
+
+### Story 9.1: Reverse Proxy in the Dev Compose
+
+As the person running the pool,
+I want an nginx service in the dev compose that serves port 80 and forwards to the app on 8080,
+So that I reach the app through the same proxy setup I'll use on the Raspberry Pi, and can see its access logs on stdout.
+
+**Acceptance Criteria:**
+
+**Given** the dev compose is up
+**When** I request `http://localhost/login` on port 80
+**Then** I get the login page, and the request reached the app by its compose service name over the compose network, not via the host's published port
+
+**Given** the proxy handles a request
+**When** I read the proxy container's stdout
+**Then** I see exactly one access-log line for that request, in nginx's standard "combined" format
+
+**Given** the app's existing direct `8080` publish in the dev compose
+**When** the proxy is added
+**Then** the app stays reachable on 8080 and its behavior there is unchanged
+
+**Given** the app container is recreated while the proxy keeps running
+**When** I request `http://localhost/login` on port 80 again
+**Then** I get the login page, not a 502 (the proxy re-resolves the app's service name)
+
+*References: PRD FR-35, FR-42; PRD addendum.md "Deployment & reverse proxy"; Architecture AD-14, AD-34 (nginx official image, `resolver 127.0.0.11` with the upstream held in a variable, `access_log /dev/stdout combined;` set explicitly, config mounted read-only from the repo). Infra story: ask the human whether an acceptance test applies. Dockerfile and `.github/workflows/**` are protected and untouched.*
+
+### Story 9.2: Anonymous Metrics Endpoint With Runtime and HTTP Metrics
+
+As the person running the pool,
+I want `GET /metrics` on the app's own port to return Prometheus metrics,
+So that a scraper on the host can watch the app's health.
+
+**Acceptance Criteria:**
+
+**Given** the app is running
+**When** an unauthenticated client requests `/metrics` on port 8080
+**Then** it gets 200 in the Prometheus text exposition format, without a login session
+
+**Given** the app is running
+**When** I read the `/metrics` output
+**Then** it includes the Go runtime and process metrics (goroutines, memory, GC, CPU, open file descriptors)
+
+**Given** the app has served a request
+**When** I read the `/metrics` output
+**Then** request-count and duration series exist for that route and status
+**And** route labels are route patterns, never raw paths, so their cardinality stays bounded
+
+**Given** any `/metrics` response
+**When** I inspect it
+**Then** it contains no Player email address and no login code
+
+**Given** the codebase after this story
+**When** `task go:lint` runs
+**Then** `internal/observe` has its depguard rule and `internal/web` is denied a direct `github.com/prometheus/client_golang` import, so Prometheus is reachable only through `internal/observe`
+
+**Given** the codebase after this story
+**When** I read `internal/auth`
+**Then** its `send login code` and `validate login code` info lines are gone (failure `slog.Error` lines stay), and `internal/observe` exposes the single audit-event API that Stories 9.3 and 9.4 add call sites to
+
+*References: PRD FR-37, FR-38; NFR-7 (the new Prometheus client dependency, v1.24.1, must pass the `go-licenses` gate); Architecture AD-8, AD-21 (depguard), AD-31 (`internal/observe`, dedicated registry constructed in `main.go`), AD-32, AD-33 (this story owns the `observe` audit API and removes the superseded auth lines), AD-36 (metric names, labels, route read from the original request, `NewServer` takes an `*observe.Observer` — every call site, including acceptance tests, is updated). New behavior: needs a Gherkin feature in `src/acceptance-tests/features/` written before the implementation.*
+
+### Story 9.3: Login and Action Counters
+
+As the person running the pool,
+I want counters for login outcomes and Player actions on `/metrics`,
+So that I can see how often people log in and make predictions without any per-Player label.
+
+**Acceptance Criteria:**
+
+**Given** a wrong login code is submitted
+**When** I read `/metrics`
+**Then** the login-failure counter rose by exactly one and the login-success counter did not
+
+**Given** a correct login code is submitted
+**When** I read `/metrics`
+**Then** the login-success counter rose by exactly one and the login-failure counter did not
+
+**Given** a prediction is saved successfully
+**When** I read `/metrics`
+**Then** the matching action counter rose by exactly one
+
+**Given** a prediction save is rejected (for example after the deadline)
+**When** I read `/metrics`
+**Then** no action counter rose
+
+**Given** any counter series
+**When** I inspect its labels
+**Then** none carries a Player, email or code
+
+**Given** a save that persists several Prediction rows, or a partial failure after some rows were persisted
+**When** I read `/metrics`
+**Then** the action counter rose by exactly the number of rows the store reports as persisted, and an all-blank submission raises nothing
+
+*References: PRD FR-39; PRD addendum.md "Observability" (who/when belongs to logs, not metrics); Architecture AD-33 (call sites only, no second emitter), AD-35 (`store.Save*` return the rows they persisted; this story makes that signature change), AD-36 (`login_events_total` by `event`, `prediction_saves_total` by `store.Kind`, both pre-registered at zero). New behavior: needs a Gherkin feature written before the implementation. Depends on Story 9.2.*
+
+### Story 9.4: Audit Log Lines for Logins and Prediction Saves
+
+As the person running the pool,
+I want one structured log line per login event and per prediction save,
+So that I can answer "who did what and when" from the logs.
+
+**Acceptance Criteria:**
+
+**Given** a login code is requested, a login succeeds, a login fails, or a Player logs out
+**When** I read the app's log output
+**Then** exactly one line records that event and names the Player by stable id (where a Player is known), and its timestamp is the "when"
+
+**Given** a prediction is saved successfully
+**When** I read the app's log output
+**Then** one line names the Player id and the kind of action
+
+**Given** a prediction save is rejected
+**When** I read the app's log output
+**Then** it does not appear as a successful action
+
+**Given** any of these lines
+**When** I inspect it
+**Then** it contains no email address and no raw login code
+
+**Given** a login code is requested for an email that matches no Player
+**When** I read the app's log output
+**Then** no audit line appears
+
+**Given** a logout with no valid session cookie
+**When** I read the app's log output
+**Then** no audit line appears
+
+**Given** a save that persists several Prediction rows
+**When** I read the app's log output
+**Then** one audit line per persisted row names the Player id, the `kind` and the Prediction set id
+
+*References: PRD FR-40; Architecture AD-33 (fixed event vocabulary and triggers; each line is written by the same `observe` call that increments the counter — the auth `send login code` / `validate login code` lines were removed in Story 9.2, so this story adds call sites only), AD-35 (one `prediction_saved` per row `store.Save*` returns). The store's separate `store write` line (Epic 7 Story 7.1) is unchanged. Errors logged from the send path must not contain the recipient address (`internal/mailer` strips it). Test approach (unit-level as in Story 7.1, or a Gherkin feature) to be decided with the human at build time. Depends on Story 9.2.*
+
+### Story 9.5: The Proxy Hides `/metrics`
+
+As the person running the pool,
+I want the port-80 proxy to answer `/metrics` with 404,
+So that visitors from the internet can't read the app's metrics.
+
+**Acceptance Criteria:**
+
+**Given** the dev compose is up
+**When** I request `http://localhost/metrics` on port 80
+**Then** I get 404 and the app never receives the request
+
+**Given** the dev compose is up
+**When** I request any other path on port 80, such as `/login`
+**Then** it still reaches the app
+
+**Given** the dev compose is up
+**When** I request `/metrics` on port 8080
+**Then** I still get 200
+
+**Given** the dev compose is up
+**When** I request `/metrics/` or `/METRICS` on port 80
+**Then** I get 404 and the app never receives the request
+
+*References: PRD FR-41; PRD §5 (no authentication on `/metrics`; protection is network exposure only); Architecture AD-32, AD-34 (`location ~* ^/metrics/?$` returns 404 without forwarding). Depends on Stories 9.1 and 9.2. Infra story: ask the human whether an acceptance test applies.*
+
+### Story 9.6: Example Production Compose
+
+As the person running the pool,
+I want a `docs/examples/docker-compose.yml`,
+So that I have a ready-to-adapt file for running the app on the Raspberry Pi.
+
+**Acceptance Criteria:**
+
+**Given** `docs/examples/docker-compose.yml`
+**When** I read it
+**Then** it defines the app (image at the `latest` tag, a mounted data directory containing `fantasy-hockey.yml`, a dummy `SESSION_SECRET`), Mailpit as the SMTP target, and the nginx proxy on port 80 with `/metrics` answered by 404 as in Story 9.5
+
+**Given** the file
+**When** I check which ports it publishes
+**Then** port 80 is the only one meant for the internet, and the app's 8080 is published on the host's loopback only (`127.0.0.1:8080`) so a scraper outside the compose network can reach `localhost:8080/metrics`
+
+**Given** the file
+**When** `task lint` runs
+**Then** it passes the repo's linters
+
+**Given** the file's comments and the operator docs
+**When** I read them
+**Then** they say the file is an example (placeholders such as the dummy secret and Mailpit are deliberate) and must be adapted, not used as-is on a public host
+
+**Given** the example compose is copied out of this repo on its own
+**When** I read it and the files beside it
+**Then** it is self-contained: its proxy config sits next to it, and a test asserts its proxy rules are identical to the dev compose's
+
+**Given** the example compose's data volume
+**When** I read how the data is mounted
+**Then** it is a directory, not the single file (the store's atomic rename cannot replace a bind-mount point), and the example states the UID the non-root image runs as
+
+*References: PRD FR-36, §5 (no HTTPS/443 by decision); Architecture AD-14, AD-27, AD-32, AD-34 (same nginx behaviour as the dev compose, self-contained copy guarded by a drift test, directory mount); `docs/operator-guide.md` gets a pointer to the example. Infra and docs story: ask the human whether an acceptance test applies. Whether the loopback-only bind is the right choice is an `[ASSUMPTION]` in PRD §9.*
