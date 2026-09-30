@@ -3,7 +3,8 @@
 .task
 .vscode
 
-docs
+docs/*
+!docs/game-rules.md
 tests/inspec
 
 src/go/fantasy-hockey
