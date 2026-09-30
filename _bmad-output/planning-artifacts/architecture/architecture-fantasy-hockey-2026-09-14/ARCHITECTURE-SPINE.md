@@ -7,8 +7,8 @@ paradigm: 'layered architecture, one dependency direction'
 scope: 'Full rebuild of the Fantasy Hockey app -- all epics (1-9) of the finalized PRD'
 status: final
 created: '2026-09-14'
-updated: '2026-09-14'
-binds: ['FR-1..FR-34 (prd-fantasy-hockey-2026-09-14)']
+updated: '2026-09-30'
+binds: ['FR-1..FR-42 (prd-fantasy-hockey-2026-09-14)']
 sources:
   - '_bmad-output/planning-artifacts/prds/prd-fantasy-hockey-2026-09-14/prd.md'
   - '_bmad-output/planning-artifacts/prds/prd-fantasy-hockey-2026-09-14/addendum.md'
@@ -22,7 +22,7 @@ companions: []
 
 ## Design Paradigm
 
-Layered architecture, three domain layers plus two support roles, one dependency direction.
+Layered architecture, three domain layers plus three support roles, one dependency direction.
 
 | Layer | Namespace |
 | --- | --- |
@@ -30,6 +30,7 @@ Layered architecture, three domain layers plus two support roles, one dependency
 | Feature / domain | `internal/auth`, `internal/predictions`, `internal/scoring`, `internal/standings` |
 | Data access | `internal/store` (owns all reads/writes to the single `fantasy-hockey.yml` file) |
 | External gateway | `internal/mailer` (SMTP; consumed by `internal/auth` and, once un-deferred, `internal/predictions`) |
+| Observability | `internal/observe` (Prometheus registry, HTTP metrics middleware, `/metrics` handler, audit-event emitter; consumed only by `internal/web`, AD-31) |
 | Orchestration | `main.go` + `internal/server` (wiring, HTTP bootstrap; no business logic) |
 
 Dependency direction: presentation depends on feature/domain packages; feature/domain packages depend on `internal/store`; `internal/store` depends on nothing above it. Feature packages never import each other or `internal/web`, **except one sanctioned edge**: `internal/standings` imports `internal/scoring` (one-directional) to consume its computed point values for the Leaderboard's Total column, rather than re-deriving the scoring rules independently (see AD-8).
@@ -42,6 +43,7 @@ graph TD
     web --> predictions["internal/predictions"]
     web --> scoring["internal/scoring"]
     web --> standings["internal/standings"]
+    web --> observe["internal/observe"]
     auth --> store["internal/store"]
     auth --> mailer["internal/mailer"]
     predictions --> store
@@ -64,7 +66,7 @@ graph TD
 
 - **Binds:** all
 - **Prevents:** business logic leaking into the orchestration entrypoint or the HTTP bootstrap layer; cross-cutting request logic (e.g. session-cookie renewal) landing in two different places because its owner was never named.
-- **Rule:** all application logic lives in `internal/auth`, `internal/predictions`, `internal/scoring`, `internal/standings`, `internal/store`, or `internal/mailer`. `main.go` only resolves config, opens the data file, and wires dependencies together — no mode dispatch. `internal/server` only bootstraps the HTTP server around whatever `http.Handler` `internal/web.NewServer()` returns — port resolution, graceful shutdown — and never itself examines a request, adds middleware, or imports `internal/auth`/`internal/predictions`/etc. **Session-cookie renewal (AD-11) lives inside `internal/web`**, as middleware wrapping only the authenticated routes on its own `ServeMux` — never in `internal/server`, which has no routing knowledge to distinguish authenticated from public routes. [ADOPTED — `internal/server` named explicitly at spine review to close Finding 6; previously only implied by the Design Paradigm table.]
+- **Rule:** all application logic lives in `internal/auth`, `internal/predictions`, `internal/scoring`, `internal/standings`, `internal/store`, `internal/mailer`, or `internal/observe`. `main.go` only resolves config, opens the data file, constructs the `internal/observe` registry, and wires dependencies together — no mode dispatch. `internal/server` only bootstraps the HTTP server around whatever `http.Handler` `internal/web.NewServer()` returns — port resolution, graceful shutdown — and never itself examines a request, adds middleware, or imports `internal/auth`/`internal/predictions`/etc. **Session-cookie renewal (AD-11) lives inside `internal/web`**, as middleware wrapping only the authenticated routes on its own `ServeMux` — never in `internal/server`, which has no routing knowledge to distinguish authenticated from public routes. [ADOPTED — `internal/server` named explicitly at spine review to close Finding 6; previously only implied by the Design Paradigm table.]
 
 ### AD-3 — Dependency injection via function parameters
 
@@ -100,7 +102,7 @@ graph TD
 
 - **Binds:** all
 - **Prevents:** feature packages depending on `internal/web`, feature packages depending on each other in ways that bypass `internal/store`, circular dependencies between layers, and — the one case that actually needs a name — `internal/standings` re-deriving `internal/scoring`'s point-calculation logic independently instead of consuming it directly.
-- **Rule:** presentation depends on feature/domain packages; feature/domain depends on `internal/store`; `internal/store` depends on nothing above it. `internal/mailer` is depended on only by `internal/auth` and `internal/predictions`. **One sanctioned exception:** `internal/standings` may import `internal/scoring` (one-directional only — `scoring` never imports `standings`) to compute the Leaderboard's Total column from `scoring`'s exported point-calculation functions; this is the only feature-package-to-feature-package import permitted anywhere in the system. [ADOPTED, exception added at spine review]
+- **Rule:** presentation depends on feature/domain packages; feature/domain depends on `internal/store`; `internal/store` depends on nothing above it. `internal/mailer` is depended on only by `internal/auth` and `internal/predictions`; `internal/observe` is depended on only by `internal/web` and `main.go` (AD-31). **One sanctioned exception:** `internal/standings` may import `internal/scoring` (one-directional only — `scoring` never imports `standings`) to compute the Leaderboard's Total column from `scoring`'s exported point-calculation functions; this is the only feature-package-to-feature-package import permitted anywhere in the system. [ADOPTED, exception added at spine review]
 
 ### AD-9 — A single YAML file as the sole datastore, no database engine
 
@@ -118,7 +120,7 @@ graph TD
 
 - **Binds:** FR-3 (session timeout), FR-4 (logout), FR-5 (single-player context)
 - **Prevents:** a server-side session table/store, any built-in revocation mechanism.
-- **Rule:** a session is an HMAC-signed cookie carrying the player's identity + issued-at; every authenticated request re-issues the cookie, implementing the 30-minute sliding idle timeout; logging out clears/stops re-issuing the cookie. The cookie is always `HttpOnly` and `SameSite=Lax`. `Secure` is set only once the app is told it's behind a TLS-terminating proxy (an env var or trusted-proxy header, decided when AD-14's reverse-proxy work lands) — omitted for now since AD-14 pins the app to plain HTTP today, and setting `Secure` prematurely would silently break login over plain HTTP. No session data is ever written to `fantasy-hockey.yml`. [ADOPTED — matches PRD FR-3/FR-4 and the UX Login flow (full-screen, pre-shell) exactly; cookie attribute policy added at spine review to close Medium finding M-1.]
+- **Rule:** a session is an HMAC-signed cookie carrying the player's identity + issued-at; every authenticated request re-issues the cookie, implementing the 30-minute sliding idle timeout; logging out clears/stops re-issuing the cookie. The cookie is always `HttpOnly` and `SameSite=Lax`. `Secure` is **not set**, by decision: the deployment is plain HTTP end to end (AD-14, PRD §5), and setting `Secure` would silently break login. Revisit only when TLS is added at the proxy — then via an env var, not a trusted-proxy header the app parses. No session data is ever written to `fantasy-hockey.yml`. [ADOPTED — matches PRD FR-3/FR-4 and the UX Login flow (full-screen, pre-shell) exactly; cookie attribute policy added at spine review to close Medium finding M-1.]
 
 ### AD-12 — Configurable SMTP for all outbound email
 
@@ -132,11 +134,11 @@ graph TD
 - **Prevents:** hardcoding the sending account's credentials or assuming plain password auth.
 - **Rule:** in production, the sending Gmail account has 2-Step Verification enabled and an App Password generated manually, outside the app; the App Password is supplied only as a runtime secret/env var (`SMTP_APP_PASSWORD`), never committed. [ADOPTED]
 
-### AD-14 — Plain HTTP behind a reverse proxy added later; arm64 target
+### AD-14 — Plain HTTP behind an nginx reverse proxy; arm64 target
 
-- **Binds:** deployment
-- **Prevents:** the app terminating TLS itself, or assuming an x86 runtime.
-- **Rule:** the app serves plain HTTP (no TLS); TLS/exposure is a reverse proxy's job, set up outside this architecture. The Dockerfile targets arm64 (Raspberry Pi deployment). [ADOPTED]
+- **Binds:** deployment, FR-35, FR-36, FR-41, FR-42
+- **Prevents:** the app terminating TLS itself, or assuming an x86 runtime; the dev compose and the example production compose fronting the app with differently behaving proxies.
+- **Rule:** the app serves plain HTTP on 8080 and never terminates TLS. nginx (AD-34) is the reverse proxy: port 80 in, forwarding to the app by compose service name over the compose network. No TLS/443 by decision (PRD §5); adding it later means terminating at the proxy (AD-11). The Dockerfile targets arm64 (Raspberry Pi deployment). [ADOPTED — amended 2026-09-30: the proxy moved from "set up outside this architecture" to in scope, per PRD FR-35/FR-36.]
 
 ### AD-15 — Leaderboard and scores computed live, never cached or persisted
 
@@ -178,7 +180,7 @@ graph TD
 
 - **Binds:** AD-8
 - **Prevents:** the dependency-direction rule existing only as prose a build can silently violate.
-- **Rule:** `.golangci.yml` enables `depguard` with rules encoding AD-8's forbidden import edges (including that only `internal/standings` may import `internal/scoring`, never the reverse); a violation fails `task go:lint` (AD-5's build gate), not just code review. [**NOT YET ADOPTED** — corrected at spine review: verified against the actual repo, `.golangci.yml` does not currently enable `depguard` at all. This is a build-time task, not something this architecture pass modifies directly — until it's added, AD-8's dependency-direction rule has no automated enforcement and relies on code review alone. Flagged as a near-term build task, not a Deferred item, given AD-21 exists specifically to prevent that gap.]
+- **Rule:** `.golangci.yml` enables `depguard` with rules encoding AD-8's forbidden import edges (including that only `internal/standings` may import `internal/scoring`, never the reverse); a violation fails `task go:lint` (AD-5's build gate), not just code review. [ADOPTED — corrected 2026-09-30: `depguard` is configured in `src/.golangci.yml` (Epic 4 retro item 33), with per-package allow-lists that also reject a new third-party import. A new package or third-party dependency therefore needs its rule added in the same change (see AD-31).]
 
 ### AD-22 — Session-signing secret is a required runtime env var
 
@@ -234,6 +236,49 @@ graph TD
 - **Prevents:** two resolutions to "how does a second season's data coexist with the first's" — rotate-the-file vs. grow-one-file-forever — being built independently and incompatibly; FR-34 shipping with no decided data model at all.
 - **Rule:** each NHL season gets its own `fantasy-hockey.yml`-shaped file (e.g. `fantasy-hockey-2026-27.yml`). At season rollover, the human running the pool archives the current file and repoints `DATA_FILE` / `--data-file` at a fresh path; AD-26's first-run bootstrap then creates the new season's skeleton in that fresh file. Prior seasons' files are retained on disk/volume as read-only history — there is no in-app cross-season query, no season-selector, and no code path that reads more than one season's file at a time (matches the PRD's explicit v1 scope cut). The `season:` field inside a given file stays a single scalar, not a list — multi-season-ness lives at the filesystem level, not inside the YAML shape. [ADOPTED at spine review, closing Critical finding C-1]
 
+### AD-31 — Observability lives in `internal/observe`; only `internal/web` and `main.go` import it
+
+- **Binds:** FR-37, FR-38, FR-39, FR-40, AD-2, AD-3, AD-8, AD-21
+- **Prevents:** domain packages each growing their own metrics or log shapes; a Prometheus import leaking into `internal/auth`/`predictions`/`scoring`/`standings`/`store` or into `internal/web` directly; a process-global registry that panics when in-process acceptance tests build several servers.
+- **Rule:** `internal/observe` is an infrastructure-layer package (same tier as `store`/`mailer`/`clock`; it may import `internal/clock` and nothing else internal). It owns a dedicated `prometheus.NewRegistry()` with the Go runtime and process collectors, the HTTP middleware, the `/metrics` handler and the audit emitter (AD-33), behind one `*observe.Observer`. `main.go` constructs it once and passes it to `web.NewServer`; tests construct their own — never `prometheus.DefaultRegisterer`. `internal/auth` and the other domain packages report outcomes to `internal/web` through return values and never import it. `.golangci.yml` gets an `observe` depguard rule allowing `$gostd`, `internal/clock` and `github.com/prometheus/client_golang`, and `internal/web` gets a deny for `github.com/prometheus/client_golang` so it can only reach Prometheus through `observe`. [ASSUMPTION — chosen over per-package instrumentation to keep `internal/auth`'s allow-list and the layering unchanged.]
+
+### AD-32 — `/metrics` is served by `internal/web` on the app's own listener; exposure is network placement only
+
+- **Binds:** FR-37, FR-38, FR-41, Stories 9.2, 9.5, 9.6
+- **Prevents:** `/metrics` behind the session middleware; a second listener or port; an unbounded route label; each compose file deciding its own exposure story.
+- **Rule:** `internal/web.NewServer` registers `GET /metrics` on the outer `ServeMux` (public, never inside `requireSession`) and wraps that mux with the `internal/observe` middleware. `internal/server` is untouched (AD-2). The app has no authentication or allow-list for `/metrics`: exposure is controlled only by where it is reachable — the proxy answers `/metrics` on port 80 with 404 (AD-34), and the example production compose publishes 8080 on `127.0.0.1` only. No metric label or value ever carries a Player, email or login code. Metric names, labels and the middleware contract are AD-36. [ASSUMPTION — `/metrics` is itself instrumented under its own pattern.]
+
+### AD-33 — One audit-event call emits both the log line and the counter
+
+- **Binds:** FR-39, FR-40, Stories 9.2, 9.3, 9.4
+- **Prevents:** the audit log and the counters disagreeing about what happened; two stories adding two call sites and double-counting; a rejected action counted or logged as a success; an email or raw login code reaching a log line or label; each handler inventing its own attribute names or trigger.
+- **Rule:** the event vocabulary is fixed: `login_code_requested`, `login_succeeded`, `login_failed`, `logout`, `prediction_saved`. One `observe.Audit(event, playerID, attrs…)` call per event writes exactly one `slog.Info("audit", "event", …, "player_id", …)` line and increments the matching counter (AD-36). **Story 9.2 owns the `observe` API and adds it together with the removal of `internal/auth`'s `send login code` and `validate login code` info lines** (they are superseded; failure `slog.Error` lines stay); Stories 9.3 and 9.4 only add call sites and tests, never a second emitter. Triggers, called from `internal/web`, only when the outcome succeeded:
+    - `login_code_requested` — `POST /login` for an email that matches a Player, once the code row is persisted (SMTP success is not required; an SMTP failure stays a `slog.Error`). An unknown email emits nothing. `internal/auth.RequestLoginCode` returns the Player id for this.
+    - `login_succeeded` — a submitted code was consumed and the session cookie was issued for a non-empty Player id.
+    - `login_failed` — a submitted code was rejected (`ok == false`); no `player_id`. An error or an empty-id result is a `slog.Error`, not an event.
+    - `logout` — `POST /logout` carrying a valid session cookie, with that cookie's Player id. A logout with no valid session emits nothing.
+    - `prediction_saved` — AD-35.
+
+  `player_id` is the stable slug (AD-17). Email and code are never passed in, and errors from the send path are logged without the recipient address (`internal/mailer` strips it from returned errors, since `net/smtp` server replies can echo it). Save events add `kind` (`store.Kind`, AD-24) and `set` (the Prediction set id). Timestamps come from `slog`'s own time; AD-16 governs persisted timestamps only. [ASSUMPTION — triggers are the ones above, chosen to avoid account enumeration and unauthenticated-logout noise.]
+
+### AD-34 — One nginx proxy definition, kept in step between the dev and example compose files
+
+- **Binds:** FR-35, FR-36, FR-41, FR-42, Stories 9.1, 9.5, 9.6
+- **Prevents:** the dev and example production compose files fronting the app with proxies that behave differently (one hiding `/metrics`, one not); 502s after the app container is recreated; a single-file bind mount that breaks the store's atomic rename; an example that only works inside this repo.
+- **Rule:** the proxy is the official `nginx` image, on port 80, with this behaviour in both compose files: `location ~* ^/metrics/?$` returns 404 without forwarding; every other path is proxied to `http://fantasy-hockey:8080`, with `resolver 127.0.0.11 valid=10s` and the upstream held in a variable so a recreated app container is re-resolved; `access_log /dev/stdout combined;` set explicitly (the image's default format is `main`). The dev compose mounts the repo's config file read-only; the example is self-contained and ships its own copy next to it, and a test asserts the two copies' proxy rules are identical (same precedent as the embedded game-rules drift test). The app's data is mounted as a **directory**, never a single file (AD-27's rename cannot replace a bind-mount point), and the example states which UID the non-root image runs as. The app's direct 8080 publish stays in the dev compose and is `127.0.0.1:8080` in the example. The Dockerfile and `.github/workflows/**` stay untouched. [ASSUMPTION — `stable-alpine` (verified: arm64 image exists), config file locations settled in Story 9.1.]
+
+### AD-35 — `store.Save*` return the rows they persisted; `prediction_saved` is one event per returned row
+
+- **Binds:** FR-39, FR-40, AD-28, Story 9.3, Story 9.4
+- **Prevents:** each save handler counting differently — a division save that always upserts eight rows, an awards save that skips incomplete awards, a series save that stops partway — so metrics and audit lines disagree with what was actually stored.
+- **Rule:** every `internal/store` method that persists Prediction rows returns the `[]store.Prediction` it actually persisted, alongside its error, and includes rows persisted before a partial failure. A row is returned only if it carries a pick: an empty upsert or a skipped incomplete award is not returned. `internal/web` emits one `prediction_saved` per returned row (AD-33), whether or not the call also returned an error, and nothing for rows not returned; an all-blank submission therefore emits nothing. [ASSUMPTION — a signature change on the `Save*` methods, made in Story 9.3.]
+
+### AD-36 — Metrics contract and `NewServer` wiring
+
+- **Binds:** FR-38, FR-39, AD-31, AD-32
+- **Prevents:** two stories naming or labelling the same series differently; a route label read from the wrong request; series that only appear after their first event; `NewServer` callers breaking silently.
+- **Rule:** fixed series names, all prefixed `fantasy_hockey_`: `http_requests_total{route,status}` (counter), `http_request_duration_seconds{route,status}` (histogram, `prometheus.DefBuckets`), `login_events_total` labeled by `event` (counter, the four login events of AD-33) and `prediction_saves_total` labeled by `kind` (counter, one series per `store.Kind`). The login and save series are pre-registered at zero. `status` is the response code as a string, recorded by a wrapper around the `ResponseWriter` that defaults to 200. `route` is `r.Pattern` read from the **original** request after `next` returns — `requireSession` hands its handlers a `WithContext` copy, so the copy's pattern is not the one to read — and an empty pattern (unmatched path or 405) is the constant `unmatched`; a raw path is never a label. `web.NewServer` takes the `*observe.Observer` as an added parameter (`main.go` and every acceptance-test call site pass one). [ASSUMPTION — names and buckets are defaults a builder may not change without amending this AD.]
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -241,6 +286,7 @@ graph TD
 | Naming | Package names short, lowercase, singular, no underscores: `auth`, `predictions`, `scoring`, `standings`, `mailer`, `store`, `web`, `clock`, `server`. No generic names (`util`, `common`). |
 | Data & formats | IDs per AD-17; shared structs/enums exported once from `internal/store`, never redefined per feature (AD-24); RFC3339 dates via `internal/clock.NowTime().UTC().Format(time.RFC3339)` (AD-16); errors via `fmt.Errorf("context: %w", err)` (AD-18). |
 | State & secrets | Session: stateless HMAC-signed cookie, sliding 30-minute idle timeout, no server-side session table (AD-11), signing key from required `SESSION_SECRET` (AD-22). Data-file location: `DATA_FILE` env var or `--data-file` flag, flag wins, auto-created if missing (AD-25, AD-26). SMTP: `SMTP_HOST`/`SMTP_PORT`/`SMTP_USERNAME`/`SMTP_APP_PASSWORD` env-only, no secrets committed (AD-12, AD-13). No in-app alerting — failures surface only through externally exported logs, never in-app UI. |
+| Observability | Metrics and audit lines only through `internal/observe` (AD-31, AD-33, AD-36); `/metrics` on 8080, proxy 404s it on 80 (AD-32, AD-34); no Player, email or code in any metric label; no email or code in any log field. `player_id` (the stable slug) is the only Player identifier that may appear, in audit lines. |
 
 ## Stack
 
@@ -257,6 +303,8 @@ graph TD
 | `html/template` | stdlib | server-rendered views |
 | `net/smtp` | stdlib | outbound email |
 | `flag` | stdlib | `--data-file` CLI flag (AD-25) |
+| `prometheus/client_golang` | v1.24.1 | Go runtime, process and HTTP metrics; `/metrics` handler (AD-31; verified 2026-09-30, Apache-2.0) |
+| nginx (official image) | `stable-alpine` (floating; arm64 image verified 2026-09-30) | reverse proxy on port 80 (AD-34) |
 | mailpit (`axllent/mailpit`) | latest — verify current tag before use | local-dev-only SMTP capture with a web UI; not shipped to production |
 
 No database driver, migration tool, or ORM — by design (AD-9).
@@ -265,15 +313,17 @@ No database driver, migration tool, or ORM — by design (AD-9).
 
 ### Deployment topology
 
-Target host: Raspberry Pi (arm64). Reverse proxy is out of this architecture's scope (AD-14). v1 is one container — no database container, no separate storage container. Image build and publish already exist as a working pipeline (`.github/workflows/release.yml`, protected file — not modified by this spine): on release, the image is built and pushed to Docker Hub (`docker.io`). The Pi host's own update mechanism (pulling a new image) is not yet decided — see Deferred.
+Target host: Raspberry Pi (arm64). An nginx reverse proxy fronts the app (AD-14, AD-34). v1 is one app container — no database container, no separate storage container. Image build and publish already exist as a working pipeline (`.github/workflows/release.yml`, protected file — not modified by this spine): on release, the image is built and pushed to Docker Hub (`docker.io`). The Pi host's own update mechanism (pulling a new image) is not yet decided — see Deferred.
 
 ```mermaid
 graph LR
     ci["GitHub Actions release workflow"] -- "docker push" --> hub[("Docker Hub<br/>(docker.io)")]
     hub -. "image pull<br/>(mechanism: see Deferred)" .-> web
-    proxy["Reverse proxy<br/>(not yet set up)"] -. "HTTP, no TLS" .-> web
+    internet(("Internet<br/>router forwards :80")) -- "HTTP, no TLS" --> proxy
+    scraper["Metrics scraper<br/>(other repo)"] -. "localhost:8080/metrics" .-> web
 
     subgraph host["Raspberry Pi (arm64) host"]
+        proxy["nginx proxy<br/>:80, /metrics -> 404"] -- "compose network, :8080" --> web
         web["fantasy-hockey container"]
         vol[("fantasy-hockey.yml<br/>(bind-mounted or on a volume)")]
     end
@@ -301,6 +351,15 @@ services:
     depends_on:
       - mailpit
 
+  proxy:
+    image: nginx:stable-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro   # rules kept identical to the example's copy (AD-34)
+    depends_on:
+      - fantasy-hockey
+
   mailpit:
     image: axllent/mailpit:latest   # verify current tag before use
     ports:
@@ -310,7 +369,7 @@ volumes:
   fantasy-hockey-data:
 ```
 
-No `postgres` service, no `pgdata` volume. Production deployment (outside this compose file) overrides `SMTP_HOST`/`SMTP_PORT`/`SMTP_USERNAME`/`SMTP_APP_PASSWORD` to a real Gmail account (AD-12, AD-13).
+No `postgres` service, no `pgdata` volume. The dev compose keeps the app's own `8080` publish; `docs/examples/docker-compose.yml` publishes it on `127.0.0.1:8080` only (AD-32). Production deployment (outside this compose file) overrides `SMTP_HOST`/`SMTP_PORT`/`SMTP_USERNAME`/`SMTP_APP_PASSWORD` to a real Gmail account (AD-12, AD-13).
 
 ### Source tree
 
@@ -326,6 +385,7 @@ src/
     scoring/                 # scoring engine: awards, team marks, series, cup picks
     standings/                # live Leaderboard computation
     mailer/                    # SMTP delivery (stdlib net/smtp); used by auth (+ predictions once FR-22 ships)
+    observe/                    # metrics registry, HTTP middleware, /metrics handler, audit events; used by web only (AD-31)
     store/                      # fantasy-hockey.yml data access; writes predictions + login codes, reads everything else
     clock/                       # current time, RFC3339 (existing)
   acceptance-tests/
@@ -400,6 +460,8 @@ login_codes:
 | Scoring & Leaderboard (FR-23..FR-24) | `internal/scoring`, `internal/standings` | AD-8, AD-15, AD-18, AD-24 |
 | Compare predictions (FR-25..FR-28) | `internal/predictions`, `internal/web` | AD-8, AD-20 |
 | App shell & navigation (FR-29..FR-31) | `internal/web` | AD-10 |
+| Reverse proxy & example compose (FR-35..FR-36, FR-41..FR-42) | `docker-compose.yml`, `docs/examples/`, proxy config | AD-14, AD-32, AD-34 |
+| Metrics & audit log (FR-37..FR-40) | `internal/observe`, `internal/web` | AD-3, AD-8, AD-21, AD-31, AD-32, AD-33, AD-35, AD-36 |
 | Persistence & season data (FR-32..FR-34) | `internal/store` | AD-9, AD-17, AD-23, AD-25, AD-26, AD-27, AD-28, AD-29, AD-30 |
 
 ## Deferred
@@ -407,6 +469,8 @@ login_codes:
 - **Deadline reminder emails (FR-22, UJ-4) — the whole feature, not just its scheduling.** Deferred out of MVP during the UX pass (no trigger surface designed). When it's built: send stays synchronous and request-triggered — no ticker, no dedupe log, no goroutine/queue — since sending is an explicit, unlimited-repeat human action, not a repeating automatic tick. A future scheduled/automatic variant would need its own dedupe tracking; not needed at this scale.
 - **Backup/restore of `fantasy-hockey.yml`.** With no database, this file *is* the entire season's data. No backup/restore story exists yet; worth solving before real season data that would be painful to lose accumulates.
 - **Multiple writer processes.** The whole file-based design assumes a single writer (AD-9, AD-27) — cross-referenced with the PRD addendum's independently-logged "write-queuing mechanism" future consideration, same underlying constraint. Revisit the persistence approach entirely (locking, or a real datastore) only if that assumption is ever broken.
-- **Reverse proxy / public exposure / TLS.** Out of this architecture's scope; revisit before the app needs to be reachable from outside the host network.
+- **TLS/HTTPS and the `Secure` cookie flag.** Plain HTTP by decision (PRD §5), even though port 80 is forwarded from the router, so login codes and session cookies cross the internet in cleartext. Revisit when that risk is no longer acceptable; terminate at the proxy and set `Secure` via an env var (AD-11, AD-14).
+- **Abuse limits on the login endpoints.** Login codes are 6 digits valid for 10 minutes, `ValidateLoginCode` matches across all Players, and `POST /login` can be used to flood a Player with code emails; nothing rate-limits either, and the app is now internet-reachable. Deferred by decision (2026-09-30); Epic 9 adds no limit. Revisit when the port-80 forward goes live or at the first sign of abuse — candidates are `limit_req` in the shared nginx config (AD-34) or an in-app attempt limit.
+- **Collection and visualization of telemetry.** Alloy, Grafana Cloud, dashboards and OpenTelemetry live in another repo (PRD §5); this spine fixes only what the app and proxy emit.
 - **Raspberry Pi image update mechanism.** The image build/publish side is already a working pipeline (Docker Hub via `.github/workflows/release.yml`); how the Pi host actually picks up a new image is not decided — manual `docker compose pull && up -d`, a scheduled puller (e.g. Watchtower), or something else. Low-stakes for a 3-person hobby deployment; decide before the release cadence makes manual pulls annoying.
 - **`fantasy-hockey.yml`'s exact field-level schema.** The shape above is illustrative, not binding — final field names/nesting are an implementation-time decision (PRD Open Question 3).
