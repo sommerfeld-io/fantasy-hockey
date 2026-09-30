@@ -28,3 +28,14 @@ Feed this into `bmad-architecture` (email-delivery mechanism design) and the eve
 - **Series length notation (→ PRD FR-19/FR-20, Glossary "Series").** The retired planning pass specified series results as win-loss notation (e.g. "4-2"). The click-dummy records and displays a series purely as a game count (4–7) with a separately identified winner. Resolved in favor of the click-dummy: game-count notation, used for both predictions and results.
 - **Admin/commissioner role (→ PRD §5 Non-Goals).** The click-dummy's own domain glossary calls this "implied, not yet a real role" and leaves it open. The requirements-baseline document resolved it further than either source: no in-app role or screen for it at all — results, deadlines, and matchups are maintained by directly editing `fantasy-hockey.yml` outside the app.
 - **Finalist-name validation (→ PRD FR-17).** The click-dummy's player-award inputs offer free-text suggestions without enforcing a match, and its own text flags this as an open question. The retired planning pass's answer — validated entry, reject non-matching names — didn't contradict anything the click-dummy asserts as final, so it was carried forward as the resolution.
+
+## Deployment & reverse proxy (added 2026-09-30 → PRD §4.10, FR-35–FR-36, §5)
+
+For `bmad-architecture` and build; not requirements in themselves.
+
+- **Motivation.** Run the app on a Raspberry Pi in a homelab; forward router port 80 to it so the other Players can reach it. The image is already published for `linux/amd64` and `linux/arm64`.
+- **Proxy.** nginx, exposing port 80 and forwarding to the app container on 8080 over the compose network. Added to the root `docker-compose.yml` (dev; the app's direct `8080` publish stays for dev unless architecture decides otherwise) and to `docs/examples/docker-compose.yml`.
+- **Example production compose.** Image `sommerfeldio/fantasy-hockey:latest`, mounted data YAML file, Mailpit for SMTP, dummy `SESSION_SECRET`. The user confirmed each is intentional because the file is only an example; production rollout happens in a separate repo with Ansible and an Ansible Vault for secrets.
+- **Known consequences accepted by the user:** `latest` floats (a `pull` can change the running version, including across a season rollover — see the operator guide's rollover check); with Mailpit as SMTP, login codes are only visible in Mailpit's UI, so real mail delivery needs real SMTP in an actual deployment; a dummy secret must never be used on a public host.
+- **No HTTPS/443.** Plain HTTP only, by decision. Login codes and session cookies are sent in cleartext and the app sets no `Secure` flag (`internal/auth/session.go`). Adding TLS later means terminating it at the proxy and setting the cookie's `Secure` flag.
+- **Build notes.** Infra/config work: per the repo's `CLAUDE.md`, ask the human whether an acceptance test applies before skipping one. The Dockerfile and `.github/workflows/**` are protected and untouched.
