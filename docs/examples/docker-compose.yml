@@ -1,0 +1,63 @@
+---
+# EXAMPLE ONLY - adapt before use. This is a ready-to-adapt starting point for
+# running the app on a Raspberry Pi (arm64) behind an nginx reverse proxy. It
+# is not a supported deployment, and the placeholders below are deliberate:
+#
+#   - SESSION_SECRET is a dummy. Replace it with a long random value, or every
+#     visitor can forge a session cookie.
+#   - Mailpit is the SMTP target, so login codes are caught in Mailpit and
+#     never delivered. Its ports are not published; to read a code while
+#     trying the example, temporarily add  ports: ["127.0.0.1:8025:8025"]
+#     to the mailpit service and open http://localhost:8025. To send real
+#     login-code emails, set SMTP_HOST, SMTP_PORT, SMTP_USERNAME and
+#     SMTP_APP_PASSWORD (see below) for a real mail server and drop mailpit.
+#   - The app and mailpit images are pulled at the "latest" tag; pin release
+#     tags instead.
+#
+# Ports: port 80 (the proxy) is the only port meant for the internet. The
+# app's 8080 is published on the host's loopback only, so a scraper on this
+# host can read http://localhost:8080/metrics while the network cannot. The
+# proxy answers /metrics with 404. There is no HTTPS/443 by decision.
+#
+# Data: the data directory is mounted, never the single fantasy-hockey.yml
+# file. The store saves by atomic write-and-rename, and a rename cannot
+# replace a path that is itself a bind-mount point. The image runs as the
+# non-root user fantasy-hockey with UID 1000, so the directory must be
+# writable by it:  mkdir -p data && sudo chown 1000:1000 data
+#
+# The nginx config is re-used from the repo, not copied. If you copy this file
+# out of the repo, copy configs/nginx/default.conf next to it and change the
+# nginx volume below to point at the copy.
+services:
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+
+  fantasy-hockey:
+    image: sommerfeldio/fantasy-hockey:latest
+    restart: unless-stopped
+    depends_on:
+      - mailpit
+    ports:
+      - 127.0.0.1:8080:8080
+    volumes:
+      - ./data:/data
+    environment:
+      - SESSION_SECRET=dummy-secret-replace-me-before-use
+      - DATA_FILE=/data/fantasy-hockey.yml
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
+      # For a real mail server, replace the two lines above and add:
+      #   - SMTP_USERNAME=<account>
+      #   - SMTP_APP_PASSWORD=<app-password>
+
+  nginx:
+    image: nginx:1.31.6
+    restart: unless-stopped
+    depends_on:
+      - fantasy-hockey
+    ports:
+      - 80:80
+    volumes:
+      - ../../configs/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro

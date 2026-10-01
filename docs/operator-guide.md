@@ -4,6 +4,8 @@ Checklist for whoever runs the pool: what to do, and when. There's no admin scre
 
 An AI coding assistant (e.g. Claude Code) can draft the exact YAML edit for any row below — describe what happened ("round 1 is over, here's who won each series") and ask it to propose the diff against your data file.
 
+To run the app on a Raspberry Pi behind the nginx proxy, start from the [example production compose](examples/docker-compose.yml). It is an example, not a supported deployment: its dummy `SESSION_SECRET` and Mailpit SMTP target are placeholders you must replace, and the data directory must be writable by UID 1000. Port 80 is the only port meant for the internet; the proxy answers `/metrics` with 404, and the app's 8080 is published on the host's loopback only. From the repo root: `mkdir -p docs/examples/data && sudo chown 1000:1000 docs/examples/data`, then `docker compose -f docs/examples/docker-compose.yml up -d`, and check that `curl -i localhost/login` answers 200 while `curl -i localhost/metrics` answers 404. Back up the data directory: it holds the pool's only state.
+
 ## Checklist
 
 | When                                                                                | Task                                                                                                                                                                                       | Details                                                                                                                                                                           |

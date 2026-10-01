@@ -13,6 +13,7 @@
     "configs/nginx",
 
     "docs",
+    "docs/examples",
 
     "_bmad/**",
     "_bmad-output/**",
