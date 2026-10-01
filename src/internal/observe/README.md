@@ -14,6 +14,8 @@ The one home of the app's observability. An `*Observer` owns a dedicated Prometh
 
 The `route` label is the request's route pattern, or `unmatched` when no pattern matched, so a raw path never becomes a label. No Player, email or login code may appear in a label or metric.
 
+`/metrics` has no authentication: it is protected by network placement only. The nginx proxy on port 80 answers `/metrics` and `/metrics/` (any case) with 404 without forwarding (`configs/nginx/default.conf`), so it is reachable only on the app's own port 8080.
+
 Imports are limited by a `depguard` rule to the standard library, `internal/clock` and `github.com/prometheus/client_golang`.
 
 Audit lines are covered by `internal/web` unit tests and the `audit-log-lines.feature` acceptance feature. `internal/mailer` strips the recipient address from the SMTP errors it returns, so the `slog.Error` line for a failed send carries no email.
