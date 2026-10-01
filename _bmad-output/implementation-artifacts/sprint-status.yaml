@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 10-01-2026 14:58
+last_updated: 10-01-2026 15:05
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -91,7 +91,7 @@ development_status:
   9-4-audit-log-lines-for-logins-and-prediction-saves: done
   9-5-the-proxy-hides-metrics: done
   9-6-example-production-compose: done
-  epic-9-retrospective: optional
+  epic-9-retrospective: done
 
 action_items:
   - id: "epic-1-retro-item-1-add-a-regression-test-asserting-the-sess"
@@ -630,3 +630,111 @@ action_items:
     owner: "whoever next touches the Rules page UX"
     status: done
     ref: "_bmad-output/implementation-artifacts/epic-8-retro-2026-09-28.md"
+  - id: "epic-9-retro-item-66-allow-docs-examples-data-in-folderslintr"
+    epic: 9
+    action: "Allow docs/examples/data in .folderslintrc: following the operator guide
+      creates that directory and lint-folders then fails with 'Directory is not allowed
+      by config'; add it and re-run task lint with the directory present."
+    owner: "next dev touching docs/examples"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-67-decide-the-login-abuse-policy-before-put"
+    epic: 9
+    action: "Decide the login abuse policy before putting port 80 on the internet
+      (nginx limit_req on POST /login and /login/code, an attempt cap in ValidateLoginCode,
+      TLS plus a Secure cookie, or LAN-only), and add a one-line unthrottled-plain-HTTP
+      warning to the example header and operator guide."
+    owner: "product owner / operator"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-68-log-the-player-id-on-a-failed-code-send"
+    epic: 9
+    action: "Log the Player id on a failed code send in internal/auth and document
+      that login_code_requested means persisted and send attempted, not delivered;
+      consider an Info line on send success."
+    owner: "next dev touching internal/auth"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-69-write-the-operator-observability-section"
+    epic: 9
+    action: "Write the operator observability section in docs/operator-guide.md: scrape
+      target, series names, audit event list, that login_code_requested reveals which
+      emails matched, that the published latest image predates /metrics, and a link
+      to the fresh-data-file players row."
+    owner: "next dev touching docs/operator-guide.md"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-70-reconcile-the-contract-to-the-as-built-h"
+    epic: 9
+    action: "Reconcile the contract to the as-built (human applies): Story 9.6, AD-34
+      and epic-9-context.md say the example mounts the repo nginx config with no drift
+      test; AD-33 names (*Observer).Audit, records the mailer redaction landed in
+      9.4, and states cleared division picks are intentionally not audited."
+    owner: "human via bmad-correct-course or direct edit"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-71-hoist-the-duplicated-test-helpers-one-sh"
+    epic: 9
+    action: "Hoist the duplicated test helpers: one shared log-capture helper for
+      internal/web, internal/auth and internal/observe, and one shared acceptance
+      helper for the email-capturing sender, issuedCode and the seed template used
+      by five step files."
+    owner: "next dev touching the acceptance suite"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-72-add-a-failure-seam-to-the-store-and-test"
+    epic: 9
+    action: "Add a failure seam to the store and test the partial series save (a later
+      SaveSeriesPick fails after earlier rows persisted: counter +N and a 500)."
+    owner: "next dev touching internal/store"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-73-after-the-next-release-run-docs-examples"
+    epic: 9
+    action: "After the next release, run docs/examples/docker-compose.yml unmodified
+      on a Raspberry Pi: published latest image on arm64 as UID 1000, /metrics 200
+      on loopback and 404 on port 80."
+    owner: "operator"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-74-stop-the-flaky-link-check-blocking-commi"
+    epic: 9
+    action: "Stop the flaky link check blocking commits: exclude the kroki.io diagram
+      URLs in .lychee.toml and confirm a commit passes without retries."
+    owner: "next dev touching .lychee.toml"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-75-lint-after-review-patches-before-committ"
+    epic: 9
+    action: "Lint after review patches before committing: run task lint or at least
+      gocyclo after any post-review patch."
+    owner: "whoever runs reviews"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-76-give-later-reviewers-the-earlier-review"
+    epic: 9
+    action: "Give later reviewers the earlier Review Triage Logs and record the standing
+      accepted deviations (uncounted panics, statusRecorder without Flusher/Hijacker,
+      nil Observer, stringly typed Audit, Kinds drift, per-error regexp, redaction
+      limited to the full address, cleared division picks unaudited) so they stop
+      being re-raised."
+    owner: "whoever runs reviews"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-77-propose-a-standing-default-for-infrastru"
+    epic: 9
+    action: "Propose a standing default for infrastructure stories (config, compose,
+      docs: manual verification unless behavior is app-observable) in the project
+      instructions so the test question is not asked each time; CLAUDE.md is an agent-context
+      file so the human applies it."
+    owner: "human"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-9-retro-item-78-lower-priority-add-depguard-rules-denyin"
+    epic: 9
+    action: "Lower priority: add depguard rules denying client_golang in internal/server
+      and main.go and drop the unused internal/clock allowance; slices.Clone the slices
+      in returned Prediction rows or reword the 'a copy' doc comments."
+    owner: "next dev touching .golangci.yml or internal/store"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
