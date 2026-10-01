@@ -74,6 +74,26 @@ context:
 - Given a save that persists several rows, or a partial failure after some rows persisted, when I read `/metrics`, then the counter rose by exactly the number of persisted rows, and an all-blank submission raises nothing.
 - Given a fresh server, when I read `/metrics`, then every login and save series exists at zero.
 
+### Review Findings
+
+Code review 2026-10-01 (Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor): 0 `decision-needed`, 1 `patch` (applied), 0 `defer`, rest rejected. The Acceptance Auditor found no AC violation.
+
+- [x] [Review][Patch] Label-hygiene step only inspected label text, so a leaked Player id or email elsewhere in the body would pass -- fixed: the step now also fails if the whole `/metrics` body contains the Player id or email [`src/acceptance-tests/login_and_action_counters_steps_test.go`].
+
+#### Rejected
+
+- `false` -- store error on `ValidateLoginCode` counted as `login_failed` -- the err branch returns the 500 before the `!ok` branch.
+- `false` -- cleared division playoff-teams row not counted -- AD-35: a row is returned only if it carries a pick.
+- `false` -- logout counted on replayed cookie, or not counted for an idle-expired cookie -- AD-33 counts a valid session cookie; sessions are stateless (AD-11).
+- `false` -- `player_id` omitted when empty changes the log shape -- spec decision; `login_failed` has no Player.
+- `false` -- save counter counts write volume, not distinct picks -- AD-35 defines the counter as one per persisted row.
+- `false` -- spec `done` vs sprint `review`, unpadded spec tables -- bookkeeping; status synced at the end of this review, and the frozen block is not edited.
+- `low` -- series audit runs in a `defer` after the 500 is written, and the partial-failure row is untested -- already triaged and flagged in the build run; the store has no failure seam.
+- `low` -- `Audit` accepts any `kind` or event string, positional attrs, `store.Kinds` exported and hand-synced, nil Observer -- only `web` calls it with store-derived values; guards add branches.
+- `low` -- returned `Prediction` slices alias store memory -- callers only read `Kind`; deep copies add cost.
+- `low` -- acceptance steps ignore HTTP status; only the cup save path is end to end; `login_succeeded` has no unit test; duplicated test helpers, regex compiled in loop -- counter assertions require the route to be reached, and the rest is covered by unit tests or cosmetic.
+- `low` -- `docs/architecture.md` only lightly updated -- series names live in the `observe` and `web` READMEs.
+
 ## Implementation Notes
 
 - Implemented by a subagent from this spec; acceptance feature written first (10 scenarios). Verified: `go test ./...`, `task lint`, `task docker:build`, `task go:run` start.

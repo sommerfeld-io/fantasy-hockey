@@ -220,6 +220,17 @@ func (s *actionCountersScenarioState) theCounterSeriesAreLabelledOnlyByEventOrKi
 			}
 		}
 	}
+	return s.metricsHoldNoIdentifiers()
+}
+
+// metricsHoldNoIdentifiers fails if the whole /metrics body contains the
+// Player id, the Player email or the issued login code.
+func (s *actionCountersScenarioState) metricsHoldNoIdentifiers() error {
+	for _, forbidden := range []string{counterPlayerID, counterPlayerMail} {
+		if strings.Contains(s.metrics, forbidden) {
+			return fmt.Errorf("the metrics output contains %q", forbidden)
+		}
+	}
 	if code := s.issuedCode(); code != "" && strings.Contains(s.metrics, code) {
 		return fmt.Errorf("the metrics output contains the issued login code")
 	}
