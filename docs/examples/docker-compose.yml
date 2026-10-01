@@ -23,7 +23,9 @@
 # file. The store saves by atomic write-and-rename, and a rename cannot
 # replace a path that is itself a bind-mount point. The image runs as the
 # non-root user fantasy-hockey with UID 1000, so the directory must be
-# writable by it:  mkdir -p data && sudo chown 1000:1000 data
+# writable by it. From the directory holding this file:
+#   mkdir -p data && sudo chown 1000:1000 data
+# (docs/examples/data/ is git-ignored; keep it that way, it holds player emails.)
 #
 # The nginx config is re-used from the repo, not copied. If you copy this file
 # out of the repo, copy configs/nginx/default.conf next to it and change the
@@ -60,4 +62,5 @@ services:
     ports:
       - 80:80
     volumes:
+      # Change the host path here if you copy this file out of the repo.
       - ../../configs/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro

@@ -37,3 +37,13 @@ context:
 | Port 8080 exposure unchecked | false | AD-34: 8080 stays published in the dev compose; the example compose (Story 9.6) binds it to loopback. |
 | Docs do not say `/metrics` is hidden on port 80 | low | Direct fix applied: a paragraph in `src/internal/observe/README.md`. Scrape guidance belongs to Story 9.6. |
 | Spec and status bookkeeping incomplete | false | Finalized in this step: spec `done`, story `review`. |
+
+### Code review 2026-10-01
+
+Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor: 0 patches, 0 deferred, rest rejected. The Acceptance Auditor found all four ACs and the AD-34 pattern met.
+
+- `false` -- `/metrics/foo` or `/metrics;x` stay reachable through port 80 -- the app registers only `GET /metrics` (`src/internal/web/web.go`), so those paths are the app's own 404; AD-34 fixes the pattern.
+- `false` -- a path-prefixing ingress could bypass the regex -- no base path or ingress exists in this stack.
+- `false` -- no automated test -- human decision for this story.
+- `low` -- README says `/metrics` is "reachable only on the app's own port 8080" without naming the publish setting -- accurate for the dev compose; the example compose (9.6) binds 8080 to loopback and says so.
+- `low` -- nginx 404 page differs from the app's; `~*` rationale; access-log noise -- cosmetic; the story requires a 404, not concealment.

@@ -46,3 +46,15 @@ context:
 | No automated check or smoke test for the example | false | Human decision in this build: no test of any kind. |
 | Example can drift from root compose, nginx config, env vars | false | The nginx config is mounted, not copied (human decision); env vars verified against `main.go` by the real run. |
 | Relative nginx mount path breaks if copied out | low | Documented in the compose header comment. |
+
+### Code review 2026-10-01
+
+Blind Hunter, Edge Case Hunter, Verification Gap and Acceptance Auditor: 3 small patches applied, 0 deferred, rest rejected. The Acceptance Auditor found no violation beyond the deliberate overrides (no drift test, no copy of the nginx config).
+
+- `medium` (patched) -- following the guide creates `docs/examples/data` inside the repo with no ignore rule, so the pool's emails and picks could be committed -- added `docs/examples/data/` to `.gitignore`, and the compose header now says to keep it ignored.
+- `low` (patched) -- the compose header and the guide describe the data directory from different working directories -- the header now says "from the directory holding this file".
+- `low` (patched) -- nothing marks the nginx mount as the line to change when the file is copied out -- added an inline comment.
+- `low` -- no healthchecks (502 for the first seconds) -- nginx re-resolves per request; rejected.
+- `low` -- `latest` tags and no `platform:` pin for arm64 -- the header says to pin tags; the images target arm64 (AD-14); rejected.
+- `low` -- skipping the `chown` makes the app exit; host port 80 may be in use; dense guide paragraph -- documented in the comments or cosmetic; rejected.
+- `false` -- no automated test, regression guard or drift test -- human decision for this story.
