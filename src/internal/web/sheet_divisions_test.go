@@ -197,7 +197,7 @@ func TestGetDivisionsSheetShouldPreselectSavedPicksAndReadUpdatePredictions(t *t
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
 	now := time.Now().UTC()
-	if err := st.SaveDivisionPicks("basti", validDivisionPicks(), validDivisionWinners(), now); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", validDivisionPicks(), validDivisionWinners(), now); err != nil {
 		t.Fatalf("seed SaveDivisionPicks: %v", err)
 	}
 	handler := newTestServer(st, noopSender)
@@ -228,7 +228,7 @@ func TestGetDivisionsSheetShouldPreselectSavedPicksAndReadUpdatePredictions(t *t
 func TestGetDivisionsSheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	if err := st.SaveDivisionPicks("basti", validDivisionPicks(), validDivisionWinners(), time.Now().UTC().Add(-48*time.Hour)); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", validDivisionPicks(), validDivisionWinners(), time.Now().UTC().Add(-48*time.Hour)); err != nil {
 		t.Fatalf("seed SaveDivisionPicks: %v", err)
 	}
 	handler := newTestServer(st, noopSender)

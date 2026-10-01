@@ -185,7 +185,7 @@ func (s *seriesPredictionsScenarioState) thePlayerAlreadyPickedInGamesForSeries(
 // division_picks_steps_test.go's own savePriorSubmission precedent.
 func (s *seriesPredictionsScenarioState) savePriorPicks(st *store.Store) error {
 	for _, pick := range s.priorPicks {
-		if err := st.SaveSeriesPick(seriesPredictionsPlayerID, "r1."+pick.key, pick.teamID, pick.games, time.Now().UTC()); err != nil {
+		if _, err := st.SaveSeriesPick(seriesPredictionsPlayerID, "r1."+pick.key, pick.teamID, pick.games, time.Now().UTC()); err != nil {
 			return fmt.Errorf("seed prior series pick: %w", err)
 		}
 	}

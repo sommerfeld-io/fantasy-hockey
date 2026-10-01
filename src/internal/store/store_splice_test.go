@@ -12,7 +12,7 @@ import (
 func TestSavingAPredictionShouldPreserveTheHandRecordedResults(t *testing.T) {
 	st, path := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
-	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 	reopened, err := New(path)
@@ -67,7 +67,7 @@ func assertFixtureResultsRecorded(t *testing.T, st *Store) {
 func TestSavingAPredictionShouldNotAddAResultsSectionToAFileWithoutOne(t *testing.T) {
 	st, path := newSeededStore(t, resultsFixtureBase)
 
-	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 	raw, err := os.ReadFile(path)
@@ -94,7 +94,7 @@ func TestSavingAPredictionShouldLeaveAToleratedShapeErrorByteForByteUnchanged(t 
 		t.Fatalf("New returned error: %v", err)
 	}
 
-	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 
@@ -127,7 +127,7 @@ award_finalists:
 		t.Fatalf("New returned error: %v", err)
 	}
 
-	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 
@@ -243,7 +243,7 @@ func TestWriteLockedShouldRollBackAReplacedRawNodeWhenTheWriteFails(t *testing.T
 func TestNewShouldRoundTripACleanFileEndToEnd(t *testing.T) {
 	st, path := newSeededStore(t, resultsFixtureBase+resultsFixtureResults)
 
-	if err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "FLA", time.Now()); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 

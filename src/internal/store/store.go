@@ -130,6 +130,18 @@ const (
 	KindSeries = "series"
 )
 
+// Kinds lists every Prediction Kind value, so observe can pre-register one
+// save series per kind (AD-36).
+var Kinds = []string{
+	KindCupChampion,
+	KindPresidentsTrophy,
+	KindPlayoffsCup,
+	KindDivisionPlayoffTeams,
+	KindDivisionWinner,
+	KindAward,
+	KindSeries,
+}
+
 // Award values, matching the PRD's own five individual-award names
 // (FR-17/AD-28) - the fixed key every KindAward Prediction row is scoped by,
 // mirroring Division's own scoping of KindDivisionPlayoffTeams/
@@ -665,8 +677,9 @@ func (s *Store) FindPrediction(playerID, kind string) (Prediction, bool) {
 // If the write fails, the change is rolled back from memory (restoring the
 // row's old TeamID/SubmittedAt on an update, or truncating the appended row)
 // so a caller told the write failed can't later have it silently persisted
-// by an unrelated successful write.
-func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) error {
+// by an unrelated successful write. It returns the one persisted row (a copy),
+// or nil when the write failed (AD-35).
+func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) ([]Prediction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -684,9 +697,9 @@ func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) err
 
 		if err := s.writeLocked("save prediction", now); err != nil {
 			row.TeamID, row.SubmittedAt = oldTeamID, oldSubmittedAt
-			return fmt.Errorf("store: persist prediction: %w", err)
+			return nil, fmt.Errorf("store: persist prediction: %w", err)
 		}
-		return nil
+		return []Prediction{*row}, nil
 	}
 
 	s.doc.Predictions = append(s.doc.Predictions, Prediction{
@@ -699,9 +712,9 @@ func (s *Store) SavePrediction(playerID, kind, teamID string, now time.Time) err
 
 	if err := s.writeLocked("save prediction", now); err != nil {
 		s.doc.Predictions = s.doc.Predictions[:len(s.doc.Predictions)-1]
-		return fmt.Errorf("store: persist prediction: %w", err)
+		return nil, fmt.Errorf("store: persist prediction: %w", err)
 	}
-	return nil
+	return []Prediction{s.doc.Predictions[len(s.doc.Predictions)-1]}, nil
 }
 
 // FindSeriesPick returns playerID's saved winner-and-games pick for
@@ -729,8 +742,9 @@ func (s *Store) FindSeriesPick(playerID, seriesKey string) (Prediction, bool) {
 // (internal/web re-validates both server-side before ever calling this,
 // matching every other pick kind). If the write fails, the change is rolled
 // back from memory so a caller told the write failed can't later have it
-// silently persisted by an unrelated successful write.
-func (s *Store) SaveSeriesPick(playerID, seriesKey, teamID, games string, now time.Time) error {
+// silently persisted by an unrelated successful write. It returns the one
+// persisted row (a copy), or nil when the write failed (AD-35).
+func (s *Store) SaveSeriesPick(playerID, seriesKey, teamID, games string, now time.Time) ([]Prediction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -749,9 +763,9 @@ func (s *Store) SaveSeriesPick(playerID, seriesKey, teamID, games string, now ti
 
 		if err := s.writeLocked("save series pick", now); err != nil {
 			row.TeamID, row.Games, row.SubmittedAt = oldTeamID, oldGames, oldSubmittedAt
-			return fmt.Errorf("store: persist series pick: %w", err)
+			return nil, fmt.Errorf("store: persist series pick: %w", err)
 		}
-		return nil
+		return []Prediction{*row}, nil
 	}
 
 	s.doc.Predictions = append(s.doc.Predictions, Prediction{
@@ -766,9 +780,9 @@ func (s *Store) SaveSeriesPick(playerID, seriesKey, teamID, games string, now ti
 
 	if err := s.writeLocked("save series pick", now); err != nil {
 		s.doc.Predictions = s.doc.Predictions[:len(s.doc.Predictions)-1]
-		return fmt.Errorf("store: persist series pick: %w", err)
+		return nil, fmt.Errorf("store: persist series pick: %w", err)
 	}
-	return nil
+	return []Prediction{s.doc.Predictions[len(s.doc.Predictions)-1]}, nil
 }
 
 // FindDivisionPlayoffTeams returns playerID's saved playoff-teams pick for
@@ -815,8 +829,10 @@ func (s *Store) findDivisionPrediction(playerID, kind, division string) (Predict
 // whole-document snapshot rather than per-row pointer restoration (which
 // SavePrediction uses for its one row), since holding row pointers across
 // this call's own interleaved appends could invalidate them once the
-// underlying slice reallocates.
-func (s *Store) SaveDivisionPicks(playerID string, playoffTeams map[string][]string, winners map[string]string, now time.Time) error {
+// underlying slice reallocates. It returns the rows it persisted that carry a
+// pick (a playoff-teams row with an empty team list is written but not
+// returned), in no particular order; nil when the write failed (AD-35).
+func (s *Store) SaveDivisionPicks(playerID string, playoffTeams map[string][]string, winners map[string]string, now time.Time) ([]Prediction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -825,39 +841,44 @@ func (s *Store) SaveDivisionPicks(playerID string, playoffTeams map[string][]str
 
 	submittedAt := now.UTC().Format(time.RFC3339)
 
+	var saved []Prediction
 	for division, teamIDs := range playoffTeams {
-		s.upsertDivisionPredictionLocked(playerID, KindDivisionPlayoffTeams, division, teamIDs, "", submittedAt)
+		row := s.upsertDivisionPredictionLocked(playerID, KindDivisionPlayoffTeams, division, teamIDs, "", submittedAt)
+		if len(teamIDs) > 0 {
+			saved = append(saved, row)
+		}
 	}
 	for division, teamID := range winners {
 		if teamID == "" {
 			continue
 		}
-		s.upsertDivisionPredictionLocked(playerID, KindDivisionWinner, division, nil, teamID, submittedAt)
+		saved = append(saved, s.upsertDivisionPredictionLocked(playerID, KindDivisionWinner, division, nil, teamID, submittedAt))
 	}
 
 	if err := s.writeLocked("save division picks", now); err != nil {
 		s.doc.Predictions = snapshot
-		return fmt.Errorf("store: persist division picks: %w", err)
+		return nil, fmt.Errorf("store: persist division picks: %w", err)
 	}
-	return nil
+	return saved, nil
 }
 
 // upsertDivisionPredictionLocked updates the existing (playerID, kind,
 // division) row's TeamIDs/TeamID/SubmittedAt in place, or appends a new row
-// with a generated id - shared by SaveDivisionPicks' two upsert loops.
+// with a generated id - shared by SaveDivisionPicks' two upsert loops. It
+// returns a copy of the row as persisted in memory.
 // Callers must hold s.mu for writing.
-func (s *Store) upsertDivisionPredictionLocked(playerID, kind, division string, teamIDs []string, teamID, submittedAt string) {
+func (s *Store) upsertDivisionPredictionLocked(playerID, kind, division string, teamIDs []string, teamID, submittedAt string) Prediction {
 	for i := range s.doc.Predictions {
 		row := &s.doc.Predictions[i]
 		if row.PlayerID == playerID && row.Kind == kind && row.Division == division {
 			row.TeamIDs = teamIDs
 			row.TeamID = teamID
 			row.SubmittedAt = submittedAt
-			return
+			return *row
 		}
 	}
 
-	s.doc.Predictions = append(s.doc.Predictions, Prediction{
+	row := Prediction{
 		ID:          uuid.NewString(),
 		PlayerID:    playerID,
 		Kind:        kind,
@@ -865,7 +886,9 @@ func (s *Store) upsertDivisionPredictionLocked(playerID, kind, division string, 
 		TeamIDs:     teamIDs,
 		TeamID:      teamID,
 		SubmittedAt: submittedAt,
-	})
+	}
+	s.doc.Predictions = append(s.doc.Predictions, row)
+	return row
 }
 
 // AwardFinalistCount is the exact number of finalist slugs a KindAward row
@@ -917,8 +940,9 @@ func awardHasAllFinalistSlugs(slugs []string) bool {
 // whole-document snapshot taken before any mutation, the same rollback
 // shape SaveDivisionPicks uses for the same reason (this call's own
 // interleaved appends could invalidate held row pointers once the
-// underlying slice reallocates).
-func (s *Store) SaveAwardPicks(playerID string, finalists map[string][]string, now time.Time) error {
+// underlying slice reallocates). It returns the rows it persisted, in no
+// particular order; nil when nothing qualified or the write failed (AD-35).
+func (s *Store) SaveAwardPicks(playerID string, finalists map[string][]string, now time.Time) ([]Prediction, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -927,25 +951,26 @@ func (s *Store) SaveAwardPicks(playerID string, finalists map[string][]string, n
 
 	submittedAt := now.UTC().Format(time.RFC3339)
 
+	var saved []Prediction
 	for award, slugs := range finalists {
 		if !awardHasAllFinalistSlugs(slugs) {
 			continue
 		}
-		s.upsertAwardPredictionLocked(playerID, award, slugs, submittedAt)
+		saved = append(saved, s.upsertAwardPredictionLocked(playerID, award, slugs, submittedAt))
 	}
 
 	if err := s.writeLocked("save award picks", now); err != nil {
 		s.doc.Predictions = snapshot
-		return fmt.Errorf("store: persist award picks: %w", err)
+		return nil, fmt.Errorf("store: persist award picks: %w", err)
 	}
-	return nil
+	return saved, nil
 }
 
 // upsertAwardPredictionLocked updates the existing (playerID, KindAward,
 // award) row's FinalistSlugs/SubmittedAt in place, or appends a new row
 // with a generated id - shared by SaveAwardPicks' own upsert loop, mirroring
 // upsertDivisionPredictionLocked. Callers must hold s.mu for writing.
-func (s *Store) upsertAwardPredictionLocked(playerID, award string, slugs []string, submittedAt string) {
+func (s *Store) upsertAwardPredictionLocked(playerID, award string, slugs []string, submittedAt string) Prediction {
 	finalistSlugs := append([]string(nil), slugs...) // own copy: never alias the caller's slice.
 
 	for i := range s.doc.Predictions {
@@ -953,18 +978,20 @@ func (s *Store) upsertAwardPredictionLocked(playerID, award string, slugs []stri
 		if row.PlayerID == playerID && row.Kind == KindAward && row.Award == award {
 			row.FinalistSlugs = finalistSlugs
 			row.SubmittedAt = submittedAt
-			return
+			return *row
 		}
 	}
 
-	s.doc.Predictions = append(s.doc.Predictions, Prediction{
+	row := Prediction{
 		ID:            uuid.NewString(),
 		PlayerID:      playerID,
 		Kind:          KindAward,
 		Award:         award,
 		FinalistSlugs: finalistSlugs,
 		SubmittedAt:   submittedAt,
-	})
+	}
+	s.doc.Predictions = append(s.doc.Predictions, row)
+	return row
 }
 
 // cleanupLoginCodes returns the subset of rows that are still eligible to be

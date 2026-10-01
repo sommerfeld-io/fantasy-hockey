@@ -34,6 +34,8 @@ type Observer struct {
 	registry *prometheus.Registry
 	requests *prometheus.CounterVec
 	duration *prometheus.HistogramVec
+	logins   *prometheus.CounterVec
+	saves    *prometheus.CounterVec
 }
 
 // New builds an Observer with its own registry (never the default
@@ -51,14 +53,36 @@ func New() *Observer {
 			Help:    "HTTP request duration in seconds, by route pattern and status code.",
 			Buckets: prometheus.DefBuckets,
 		}, labels),
+		logins: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "fantasy_hockey_login_events_total",
+			Help: "Login events, by event name.",
+		}, []string{"event"}),
+		saves: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "fantasy_hockey_prediction_saves_total",
+			Help: "Prediction rows saved, by prediction kind.",
+		}, []string{"kind"}),
 	}
 	ob.registry.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		ob.requests,
 		ob.duration,
+		ob.logins,
+		ob.saves,
 	)
+	for _, event := range []string{EventLoginCodeRequested, EventLoginSucceeded, EventLoginFailed, EventLogout} {
+		ob.logins.WithLabelValues(event).Add(0)
+	}
 	return ob
+}
+
+// PreRegisterKinds creates one prediction-save series per kind at zero, so
+// every series is scrapeable before the first save. observe cannot import
+// store, so the caller hands it the kind list.
+func (o *Observer) PreRegisterKinds(kinds ...string) {
+	for _, kind := range kinds {
+		o.saves.WithLabelValues(kind).Add(0)
+	}
 }
 
 // Handler serves the registry in the Prometheus text format.
@@ -86,12 +110,40 @@ func (o *Observer) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// Audit writes one structured info line for event, naming the acting player
-// by id. attrs are extra slog key/value pairs. It is the single audit
-// emitter, so counters can later be attached to it without changing callers.
+// Audit is the single audit emitter: it writes one structured info line for
+// event and increments the matching counter. The login events increment
+// fantasy_hockey_login_events_total by event; prediction_saved increments
+// fantasy_hockey_prediction_saves_total by the "kind" attr. playerID names the
+// acting player and is omitted from the line when empty; it is never a metric
+// label. attrs are extra slog key/value pairs; callers never pass an email or
+// a login code.
 func (o *Observer) Audit(event, playerID string, attrs ...any) {
-	args := append([]any{"event", event, "player_id", playerID}, attrs...)
+	args := []any{"event", event}
+	if playerID != "" {
+		args = append(args, "player_id", playerID)
+	}
+	args = append(args, attrs...)
 	slog.Info("audit", args...)
+
+	switch event {
+	case EventLoginCodeRequested, EventLoginSucceeded, EventLoginFailed, EventLogout:
+		o.logins.WithLabelValues(event).Inc()
+	case EventPredictionSaved:
+		if kind, ok := attrString(attrs, "kind"); ok {
+			o.saves.WithLabelValues(kind).Inc()
+		}
+	}
+}
+
+// attrString returns the string value following key in a slog key/value list.
+func attrString(attrs []any, key string) (string, bool) {
+	for i := 0; i+1 < len(attrs); i += 2 {
+		if k, ok := attrs[i].(string); ok && k == key {
+			v, ok := attrs[i+1].(string)
+			return v, ok
+		}
+	}
+	return "", false
 }
 
 // statusRecorder remembers the status code written to the response.

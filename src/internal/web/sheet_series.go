@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
@@ -283,18 +284,24 @@ func seriesSubmissionIsComplete(m store.PlayoffMatchup, sub seriesSubmission) bo
 // walked, an empty invalid set redirects to /predict (302); otherwise the
 // sheet re-renders (200) with every invalid series' own inline error, while
 // every valid series saved moments earlier stays saved.
-func handleSeriesSubmit(w http.ResponseWriter, r *http.Request, st *store.Store, set store.PredictionSet, playerID string, now time.Time) {
+func handleSeriesSubmit(w http.ResponseWriter, r *http.Request, st *store.Store, ob *observe.Observer, set store.PredictionSet, playerID string, now time.Time) {
 	matchups := st.PlayoffMatchups(set.ID)
 	submission := parseSeriesSubmission(r, matchups)
 
 	invalid := make(map[string]bool)
+	var saved []store.Prediction
+	// Rows persisted before a failure or the rejected-pick page are audited
+	// on every exit path.
+	defer func() { auditPredictionsSaved(ob, playerID, set.ID, saved) }()
 	for _, m := range matchups {
 		sub := submission[m.Key]
 		switch {
 		case seriesSubmissionIsBlank(sub), seriesSubmissionIsHalfFilled(sub):
 			continue
 		case seriesSubmissionIsComplete(m, sub):
-			if err := st.SaveSeriesPick(playerID, store.JoinSeriesKey(set.ID, m.Key), sub.TeamID, sub.Games, now); err != nil {
+			rows, err := st.SaveSeriesPick(playerID, store.JoinSeriesKey(set.ID, m.Key), sub.TeamID, sub.Games, now)
+			saved = append(saved, rows...)
+			if err != nil {
 				slog.Error("save series pick", "player_id", playerID, "series_key", store.JoinSeriesKey(set.ID, m.Key), "error", err)
 				http.Error(w, genericErrorBody, http.StatusInternalServerError)
 				return

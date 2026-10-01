@@ -363,7 +363,7 @@ func TestPostR1SheetShouldSaveWinnerAndGamesTogetherAndRedirect(t *testing.T) {
 func TestPostR1SheetShouldUpdateAnExistingPickInPlaceOnResubmission(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	if err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC()); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveSeriesPick: %v", err)
 	}
 	handler := newTestServer(st, noopSender)
@@ -387,7 +387,7 @@ func TestPostR1SheetShouldUpdateAnExistingPickInPlaceOnResubmission(t *testing.T
 func TestGetR1SheetShouldPreselectSavedPicksAndReadUpdatePredictions(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	if err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC()); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveSeriesPick: %v", err)
 	}
 	handler := newTestServer(st, noopSender)
@@ -458,10 +458,10 @@ func assertSavedSeriesPick(t *testing.T, st *store.Store, playerID, seriesKey, w
 func TestPostR1SheetShouldLeaveAnExistingSeriesPickUnchangedWhenItsResubmissionIsHalfFilledOrInvalid(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	if err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC()); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveSeriesPick for e1: %v", err)
 	}
-	if err := st.SaveSeriesPick("basti", "r1.e2", "TBL", "5", time.Now().UTC()); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.e2", "TBL", "5", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveSeriesPick for e2: %v", err)
 	}
 	handler := newTestServer(st, noopSender)
@@ -627,7 +627,7 @@ func TestPostR1SheetShouldRejectAfterTheDeadlineWithNoOverride(t *testing.T) {
 func TestGetR1SheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	if err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC().Add(-48*time.Hour)); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC().Add(-48*time.Hour)); err != nil {
 		t.Fatalf("seed SaveSeriesPick: %v", err)
 	}
 	handler := newTestServer(st, noopSender)
@@ -648,7 +648,7 @@ func TestGetR1SheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed(t *tes
 func TestPredictShouldShowSubmittedStatusForR1OnceAPickIsSaved(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	if err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC()); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveSeriesPick: %v", err)
 	}
 

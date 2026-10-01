@@ -133,8 +133,12 @@ func TestRequestLoginCodeShouldPersistAndEmailACodeOnAMatch(t *testing.T) {
 	st, path := newSeededStore(t)
 	fake := &fakeSender{}
 
-	if err := auth.RequestLoginCode(st, fake.send, "basti@example.com"); err != nil {
+	id, err := auth.RequestLoginCode(st, fake.send, "basti@example.com")
+	if err != nil {
 		t.Fatalf("RequestLoginCode returned error: %v", err)
+	}
+	if id != "basti" {
+		t.Errorf("expected the matched player id %q, got %q", "basti", id)
 	}
 
 	waitForSendCalls(t, fake, 1)
@@ -191,8 +195,12 @@ func TestRequestLoginCodeShouldDoNothingOnNoMatch(t *testing.T) {
 	st, path := newSeededStore(t)
 	fake := &fakeSender{}
 
-	if err := auth.RequestLoginCode(st, fake.send, "unknown@example.com"); err != nil {
+	id, err := auth.RequestLoginCode(st, fake.send, "unknown@example.com")
+	if err != nil {
 		t.Fatalf("RequestLoginCode returned error: %v", err)
+	}
+	if id != "" {
+		t.Errorf("expected an empty player id for an unknown email, got %q", id)
 	}
 
 	if fake.callCount() != 0 {
@@ -210,7 +218,7 @@ func TestRequestLoginCodeShouldNotLogOnNoMatch(t *testing.T) {
 	fake := &fakeSender{}
 	logs := captureLogs(t)
 
-	if err := auth.RequestLoginCode(st, fake.send, "unknown@example.com"); err != nil {
+	if _, err := auth.RequestLoginCode(st, fake.send, "unknown@example.com"); err != nil {
 		t.Fatalf("RequestLoginCode returned error: %v", err)
 	}
 
@@ -223,12 +231,12 @@ func TestRequestLoginCodeShouldLeaveAnEarlierRowUntouchedOnARepeatRequest(t *tes
 	st, path := newSeededStore(t)
 	fake := &fakeSender{}
 
-	if err := auth.RequestLoginCode(st, fake.send, "basti@example.com"); err != nil {
+	if _, err := auth.RequestLoginCode(st, fake.send, "basti@example.com"); err != nil {
 		t.Fatalf("first RequestLoginCode returned error: %v", err)
 	}
 	first := readPersisted(t, path).LoginCodes[0]
 
-	if err := auth.RequestLoginCode(st, fake.send, "basti@example.com"); err != nil {
+	if _, err := auth.RequestLoginCode(st, fake.send, "basti@example.com"); err != nil {
 		t.Fatalf("second RequestLoginCode returned error: %v", err)
 	}
 
@@ -270,7 +278,7 @@ func TestRequestLoginCodeShouldReturnNilWhenSendingFails(t *testing.T) {
 	sendErr := errors.New("smtp: connection refused")
 	failingSend := func(_, _, _ string) error { return sendErr }
 
-	if err := auth.RequestLoginCode(st, failingSend, "basti@example.com"); err != nil {
+	if _, err := auth.RequestLoginCode(st, failingSend, "basti@example.com"); err != nil {
 		t.Fatalf("expected RequestLoginCode to swallow the send error, got %v", err)
 	}
 
@@ -308,7 +316,7 @@ players:
 	}
 
 	fake := &fakeSender{}
-	if err := auth.RequestLoginCode(st, fake.send, "basti@example.com"); err == nil {
+	if id, err := auth.RequestLoginCode(st, fake.send, "basti@example.com"); err == nil || id != "" {
 		t.Fatal("expected an error when the store write fails, got nil")
 	}
 	if fake.callCount() != 0 {
@@ -331,7 +339,7 @@ func TestRequestLoginCodeShouldDoNothingForAMalformedOrEmptyEmail(t *testing.T) 
 			st, path := newSeededStore(t)
 			fake := &fakeSender{}
 
-			if err := auth.RequestLoginCode(st, fake.send, tt.email); err != nil {
+			if _, err := auth.RequestLoginCode(st, fake.send, tt.email); err != nil {
 				t.Fatalf("RequestLoginCode returned error: %v", err)
 			}
 

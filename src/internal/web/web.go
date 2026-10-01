@@ -77,16 +77,21 @@ var shellRoutes = []struct {
 // POST /logout is registered directly on the outer mux rather than authMux,
 // since clearing the session cookie must work even when the presented
 // cookie is missing, expired, or tampered.
+// ob.Audit is called from the login, logout and save handlers for each
+// successful outcome, and every login and save counter series is
+// pre-registered at zero here.
 // GET /metrics serves ob's Prometheus registry on the outer mux, outside
 // requireSession, and the whole mux is wrapped in ob's request middleware so
 // every route (and every unmatched request) is counted.
 func NewServer(st *store.Store, send mailer.Sender, secret string, ob *observe.Observer) http.Handler {
+	ob.PreRegisterKinds(store.Kinds...)
+
 	authMux := http.NewServeMux()
 	for _, r := range shellRoutes {
 		authMux.Handle(r.pattern, handleShell(st, r.tab))
 	}
 	authMux.Handle(predictSheetPattern, handleSheet(st))
-	authMux.Handle(predictSheetSubmitPattern, handleSheetSubmit(st))
+	authMux.Handle(predictSheetSubmitPattern, handleSheetSubmit(st, ob))
 	protected := requireSession(secret, authMux)
 
 	mux := http.NewServeMux()
@@ -96,9 +101,9 @@ func NewServer(st *store.Store, send mailer.Sender, secret string, ob *observe.O
 	mux.Handle(predictSheetPattern, protected)
 	mux.Handle(predictSheetSubmitPattern, protected)
 	mux.HandleFunc("GET /login", handleLoginForm(secret))
-	mux.HandleFunc("POST /login", handleLoginSubmit(st, send))
-	mux.HandleFunc("POST /login/code", handleLoginCodeSubmit(st, secret))
-	mux.HandleFunc("POST /logout", handleLogout)
+	mux.HandleFunc("POST /login", handleLoginSubmit(st, send, ob))
+	mux.HandleFunc("POST /login/code", handleLoginCodeSubmit(st, secret, ob))
+	mux.HandleFunc("POST /logout", handleLogout(secret, ob))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFiles())))
 	mux.Handle("GET /metrics", ob.Handler())
 	return ob.Middleware(mux)

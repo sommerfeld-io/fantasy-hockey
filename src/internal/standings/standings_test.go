@@ -213,7 +213,7 @@ func TestRowsShouldReflectAPickSavedAfterAnEarlierCallAndNotReuseStaleRows(t *te
 	})
 	before := Rows(st)
 
-	if err := st.SavePrediction("sadl", store.KindPlayoffsCup, "FLA", time.Now()); err != nil {
+	if _, err := st.SavePrediction("sadl", store.KindPlayoffsCup, "FLA", time.Now()); err != nil {
 		t.Fatalf("SavePrediction: %v", err)
 	}
 	after := Rows(st)

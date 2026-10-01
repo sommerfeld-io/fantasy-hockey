@@ -7,6 +7,7 @@ import (
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
@@ -56,7 +57,7 @@ func handleLoginForm(secret string) http.HandlerFunc {
 // the email matched (FR-1). Only a failure to persist the new login code
 // surfaces as a 500; a failure to email it is handled (logged) entirely
 // inside internal/auth and never reaches here.
-func handleLoginSubmit(st *store.Store, send mailer.Sender) http.HandlerFunc {
+func handleLoginSubmit(st *store.Store, send mailer.Sender, ob *observe.Observer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxLoginFormBytes)
 		if err := r.ParseForm(); err != nil {
@@ -66,10 +67,14 @@ func handleLoginSubmit(st *store.Store, send mailer.Sender) http.HandlerFunc {
 		}
 
 		email := r.FormValue("email")
-		if err := auth.RequestLoginCode(st, send, email); err != nil {
+		playerID, err := auth.RequestLoginCode(st, send, email)
+		if err != nil {
 			slog.Error("request login code", "error", err)
 			http.Error(w, genericErrorBody, http.StatusInternalServerError)
 			return
+		}
+		if playerID != "" {
+			ob.Audit(observe.EventLoginCodeRequested, playerID)
 		}
 
 		renderTemplate(w, "login-code.html", loginCodeData{})
@@ -85,7 +90,7 @@ func handleLoginSubmit(st *store.Store, send mailer.Sender) http.HandlerFunc {
 // value retained (FR-2) - ValidateLoginCode never tells the three cases
 // apart, so this handler can't leak which one happened either. Only a
 // failure to persist the consumed row surfaces as a 500.
-func handleLoginCodeSubmit(st *store.Store, secret string) http.HandlerFunc {
+func handleLoginCodeSubmit(st *store.Store, secret string, ob *observe.Observer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, maxCodeFormBytes)
 		if err := r.ParseForm(); err != nil {
@@ -104,12 +109,15 @@ func handleLoginCodeSubmit(st *store.Store, secret string) http.HandlerFunc {
 		if !ok || playerID == "" {
 			if ok {
 				slog.Error("validate login code", "error", "matched a login code row with an empty player id")
+			} else {
+				ob.Audit(observe.EventLoginFailed, "")
 			}
 			renderTemplateStatus(w, http.StatusUnauthorized, "login-code.html", loginCodeData{Code: code, Error: genericCodeErrorText})
 			return
 		}
 
 		http.SetCookie(w, auth.IssueSessionCookie(playerID, secret))
+		ob.Audit(observe.EventLoginSucceeded, playerID)
 		http.Redirect(w, r, "/", http.StatusFound)
 	}
 }
@@ -118,8 +126,15 @@ func handleLoginCodeSubmit(st *store.Store, secret string) http.HandlerFunc {
 // intentionally not wrapped by requireSession: a player with an already-
 // expired or tampered cookie still needs logout to work, so clearing is
 // unconditional and idempotent regardless of what cookie (if any) was
-// presented.
-func handleLogout(w http.ResponseWriter, r *http.Request) {
-	http.SetCookie(w, auth.ClearSessionCookie())
-	http.Redirect(w, r, "/login", http.StatusFound)
+// presented. Only a request carrying a valid session cookie is audited as a
+// logout.
+func handleLogout(secret string, ob *observe.Observer) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		c, _ := r.Cookie(auth.SessionCookieName)
+		if playerID, ok := auth.ValidateSession(c, secret); ok {
+			ob.Audit(observe.EventLogout, playerID)
+		}
+		http.SetCookie(w, auth.ClearSessionCookie())
+		http.Redirect(w, r, "/login", http.StatusFound)
+	}
 }

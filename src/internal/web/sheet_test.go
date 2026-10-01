@@ -167,7 +167,7 @@ func TestGetPredictSheetShouldRenderThePickFormWithNoTeamPreselectedWhenNoPriorP
 func TestGetPredictSheetShouldPreselectTheSavedPickAndReadUpdatePredictions(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline))
-	if err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
+	if _, err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SavePrediction: %v", err)
 	}
 
@@ -203,7 +203,7 @@ func TestGetPredictSheetShouldOrderOptgroupsAtlanticMetropolitanCentralPacific(t
 func TestGetPredictSheetShouldRenderAReadOnlyBannerAndDisabledSelectWhenClosed(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline))
-	if err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC().Add(-48*time.Hour)); err != nil {
+	if _, err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC().Add(-48*time.Hour)); err != nil {
 		t.Fatalf("seed SavePrediction: %v", err)
 	}
 
@@ -391,7 +391,7 @@ func TestPostPredictSheetShouldSaveAValidPickForPlayoffsCupAndShowSubmittedOnRel
 func TestPostPredictSheetShouldNotOverwriteTheSeasonCupPickWhenSavingPlayoffsCup(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline)+playoffsCupPredictionSetSeed(deadline))
-	if err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
+	if _, err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SavePrediction: %v", err)
 	}
 	handler := newTestServer(st, noopSender)
@@ -422,7 +422,7 @@ func TestPostPredictSheetShouldNotOverwriteTheSeasonCupPickWhenSavingPlayoffsCup
 func TestPostPredictSheetShouldUpdateAnExistingPickInPlaceOnResubmission(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline))
-	if err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
+	if _, err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SavePrediction: %v", err)
 	}
 	handler := newTestServer(st, noopSender)
@@ -619,7 +619,7 @@ func TestPostPredictSheetShouldRedirectToLoginWithNoSessionCookie(t *testing.T) 
 func TestPredictShouldShowSubmittedStatusAndAccentAfterASavedPick(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline))
-	if err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
+	if _, err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SavePrediction: %v", err)
 	}
 

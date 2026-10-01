@@ -150,7 +150,7 @@ func (s *divisionPicksScenarioState) savePriorSubmission(st *store.Store) error 
 	if !s.priorSubmit {
 		return nil
 	}
-	if err := st.SaveDivisionPicks(divisionPicksPlayerID, validDivisionPicksFixture(), validDivisionWinnersFixture(), time.Now().UTC()); err != nil {
+	if _, err := st.SaveDivisionPicks(divisionPicksPlayerID, validDivisionPicksFixture(), validDivisionWinnersFixture(), time.Now().UTC()); err != nil {
 		return fmt.Errorf("seed prior division picks: %w", err)
 	}
 	return nil

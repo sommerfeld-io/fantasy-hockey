@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
@@ -372,7 +373,7 @@ const divisionsWinnerErrorText = "Pick a valid team for each division winner, or
 // empty winner pick). A valid submission dedups every division's team ids
 // before persisting them via one st.SaveDivisionPicks call and redirects to
 // /predict (302).
-func handleDivisionsSubmit(w http.ResponseWriter, r *http.Request, st *store.Store, set store.PredictionSet, playerID string, now time.Time) {
+func handleDivisionsSubmit(w http.ResponseWriter, r *http.Request, st *store.Store, ob *observe.Observer, set store.PredictionSet, playerID string, now time.Time) {
 	playoffTeams, winners := parseDivisionsSubmission(r)
 
 	switch {
@@ -391,7 +392,9 @@ func handleDivisionsSubmit(w http.ResponseWriter, r *http.Request, st *store.Sto
 		deduped[division] = dedupTeamIDs(ids)
 	}
 
-	if err := st.SaveDivisionPicks(playerID, deduped, winners, now); err != nil {
+	rows, err := st.SaveDivisionPicks(playerID, deduped, winners, now)
+	auditPredictionsSaved(ob, playerID, set.ID, rows)
+	if err != nil {
 		slog.Error("save division picks", "player_id", playerID, "error", err)
 		http.Error(w, genericErrorBody, http.StatusInternalServerError)
 		return

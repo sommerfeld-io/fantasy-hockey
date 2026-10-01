@@ -173,3 +173,89 @@ func TestAuditEventsShouldUseTheFixedVocabulary(t *testing.T) {
 		}
 	}
 }
+
+func quietLogs(t *testing.T) {
+	t.Helper()
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+}
+
+func TestNewShouldPreRegisterEveryLoginEventAtZero(t *testing.T) {
+	out := scrape(t, observe.New())
+	for _, event := range []string{"login_code_requested", "login_succeeded", "login_failed", "logout"} {
+		want := `fantasy_hockey_login_events_total{event="` + event + `"} 0`
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in the metrics output", want)
+		}
+	}
+}
+
+func TestPreRegisterKindsShouldExposeEachKindAtZero(t *testing.T) {
+	ob := observe.New()
+	ob.PreRegisterKinds("cup", "series")
+	out := scrape(t, ob)
+	for _, kind := range []string{"cup", "series"} {
+		want := `fantasy_hockey_prediction_saves_total{kind="` + kind + `"} 0`
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in the metrics output", want)
+		}
+	}
+}
+
+func TestAuditShouldIncrementTheLoginEventCounter(t *testing.T) {
+	quietLogs(t)
+	ob := observe.New()
+	ob.Audit(observe.EventLoginFailed, "")
+	ob.Audit(observe.EventLoginFailed, "")
+	ob.Audit(observe.EventLoginSucceeded, "basti")
+	out := scrape(t, ob)
+	for _, want := range []string{
+		`fantasy_hockey_login_events_total{event="login_failed"} 2`,
+		`fantasy_hockey_login_events_total{event="login_succeeded"} 1`,
+		`fantasy_hockey_login_events_total{event="logout"} 0`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in the metrics output", want)
+		}
+	}
+}
+
+func TestAuditShouldIncrementTheSaveCounterByKindOnly(t *testing.T) {
+	quietLogs(t)
+	ob := observe.New()
+	ob.PreRegisterKinds("cup", "presidents")
+	ob.Audit(observe.EventPredictionSaved, "basti", "kind", "cup", "set", "cup")
+	out := scrape(t, ob)
+	if !strings.Contains(out, `fantasy_hockey_prediction_saves_total{kind="cup"} 1`) {
+		t.Errorf("expected the cup save counter at 1, got %q", out)
+	}
+	if !strings.Contains(out, `fantasy_hockey_prediction_saves_total{kind="presidents"} 0`) {
+		t.Errorf("expected the presidents save counter to stay at 0")
+	}
+	if strings.Contains(out, "basti") {
+		t.Errorf("expected no player id in the metrics output")
+	}
+}
+
+func TestAuditShouldOmitPlayerIDWhenEmpty(t *testing.T) {
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	observe.New().Audit(observe.EventLoginFailed, "")
+
+	if strings.Contains(buf.String(), "player_id") {
+		t.Errorf("expected no player_id attribute, got %q", buf.String())
+	}
+}
+
+func TestAuditShouldNotCountASaveWithoutAKind(t *testing.T) {
+	quietLogs(t)
+	ob := observe.New()
+	ob.Audit(observe.EventPredictionSaved, "basti")
+	if strings.Contains(scrape(t, ob), "fantasy_hockey_prediction_saves_total{") {
+		t.Errorf("expected no save series without a kind")
+	}
+}

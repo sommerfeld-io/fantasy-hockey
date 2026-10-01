@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
@@ -361,7 +362,7 @@ func awardFinalistSlugsToSave(st *store.Store, submission map[string][awardFinal
 // valid submission saves every award whose 3 slots are all filled via one
 // st.SaveAwardPicks call - a partially or fully blank award simply isn't
 // saved this submission (FR-11) - and redirects to /predict (302).
-func handleAwardsSubmit(w http.ResponseWriter, r *http.Request, st *store.Store, set store.PredictionSet, playerID string, now time.Time) {
+func handleAwardsSubmit(w http.ResponseWriter, r *http.Request, st *store.Store, ob *observe.Observer, set store.PredictionSet, playerID string, now time.Time) {
 	submission := parseAwardsSubmission(r)
 
 	if awardsSubmissionHasAnInvalidSlot(st, submission) {
@@ -369,7 +370,9 @@ func handleAwardsSubmit(w http.ResponseWriter, r *http.Request, st *store.Store,
 		return
 	}
 
-	if err := st.SaveAwardPicks(playerID, awardFinalistSlugsToSave(st, submission), now); err != nil {
+	rows, err := st.SaveAwardPicks(playerID, awardFinalistSlugsToSave(st, submission), now)
+	auditPredictionsSaved(ob, playerID, set.ID, rows)
+	if err != nil {
 		slog.Error("save award picks", "player_id", playerID, "error", err)
 		http.Error(w, genericErrorBody, http.StatusInternalServerError)
 		return

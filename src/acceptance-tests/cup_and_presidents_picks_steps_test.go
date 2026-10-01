@@ -144,7 +144,7 @@ func (s *cupAndPresidentsPicksScenarioState) seedBody() (string, error) {
 // store, before the scenario's first request.
 func (s *cupAndPresidentsPicksScenarioState) savePriorPicks(st *store.Store) error {
 	for _, pick := range s.picks {
-		if err := st.SavePrediction(cupAndPresidentsPicksPlayerID, pick.kind, pick.teamID, time.Now().UTC()); err != nil {
+		if _, err := st.SavePrediction(cupAndPresidentsPicksPlayerID, pick.kind, pick.teamID, time.Now().UTC()); err != nil {
 			return fmt.Errorf("seed prior pick: %w", err)
 		}
 	}

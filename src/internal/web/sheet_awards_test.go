@@ -214,7 +214,7 @@ func TestGetAwardsSheetShouldRenderFiveEmptyTrophyGroupsWithNoGreenChecks(t *tes
 func TestGetAwardsSheetShouldPreselectSavedPicksAndReadUpdatePredictions(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	if err := st.SaveAwardPicks("basti", map[string][]string{
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{
 		store.AwardHart: {"mcdavid-connor", "mackinnon-nathan", "kucherov-nikita"},
 	}, time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveAwardPicks: %v", err)
@@ -244,7 +244,7 @@ func TestGetAwardsSheetShouldPreselectSavedPicksAndReadUpdatePredictions(t *test
 func TestGetAwardsSheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	if err := st.SaveAwardPicks("basti", map[string][]string{
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{
 		store.AwardHart: {"mcdavid-connor", "mackinnon-nathan", "kucherov-nikita"},
 	}, time.Now().UTC().Add(-48*time.Hour)); err != nil {
 		t.Fatalf("seed SaveAwardPicks: %v", err)
@@ -528,7 +528,7 @@ func TestPostAwardsSheetShouldNotShowTheGreenCheckForAnAwardWithADuplicateSlug(t
 func TestGetAwardsSheetShouldNotMarkAPreviouslySavedNowUnresolvedSlugAsInvalid(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	if err := st.SaveAwardPicks("basti", map[string][]string{
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{
 		store.AwardHart: {"mcdavid-connor", "retired-player-not-on-roster", "kucherov-nikita"},
 	}, time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveAwardPicks: %v", err)

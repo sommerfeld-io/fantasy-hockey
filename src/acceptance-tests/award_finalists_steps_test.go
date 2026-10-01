@@ -180,7 +180,7 @@ func (s *awardFinalistsScenarioState) savePriorSubmission(st *store.Store) error
 		}
 		finalists[award] = slugs
 	}
-	if err := st.SaveAwardPicks(awardFinalistsPlayerID, finalists, time.Now().UTC()); err != nil {
+	if _, err := st.SaveAwardPicks(awardFinalistsPlayerID, finalists, time.Now().UTC()); err != nil {
 		return fmt.Errorf("seed prior award picks: %w", err)
 	}
 	return nil

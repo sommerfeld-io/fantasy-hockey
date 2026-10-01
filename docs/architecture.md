@@ -24,18 +24,18 @@ One dependency direction: presentation (`internal/web`) depends on domain packag
 
 ![Layered architecture](https://kroki.io/mermaid/svg/eNp9kcFugzAMhu99iohTK43yAlVPO-ywSZXGDfVggkuihRgl6SrevgaXjQ5pHJD84--zE9oAvVHl60bx04H1VTa-9y0d6lActzcbrG8VeTfssrPK86OKGL4xVJn1CYMHV0gg_W9leVI1UYqJzYxMYumY6BvWC5SrBWfANw5DfFEmda5I2PUOEs4Wbp4UcE1m4RhLkThqrVeaGmRFxBgt-fiXjprGIy33l0QcPXGuNDh95dksWPGJt-T2uDTMmTjeERoMNUFoZnpc8oFTwCeUa8Eu4BPEITekv3DYD51b0fxv3NPdSyD850d5-rlxOdPvSEnnPf_PhX184Z4pvfCgaputl8x2580dZuy-tw==)
 
-| Package              | Responsibility                                                                                                                     |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `internal/web`       | HTTP handlers, `html/template` views, the two sanctioned vanilla-JS widgets (award-finalist autocomplete, live division-pick caps) |
-| `internal/auth`      | Login-code issuance/validation, session cookies                                                                                    |
-| `internal/scoring`   | The point table and every point calculation — the only home of scoring logic                                                       |
-| `internal/standings` | Live Leaderboard computation (Regular/Playoff/Total), reads `internal/scoring`                                                     |
-| `internal/store`     | The only package that reads or writes `fantasy-hockey.yml`                                                                         |
-| `internal/mailer`    | SMTP delivery, used by `internal/auth` and `internal/web`                                                                          |
-| `internal/observe`   | Prometheus registry, HTTP metrics middleware, `/metrics` handler, audit-log emitter; used by `internal/web` and `main.go`          |
-| `internal/clock`     | Current time, RFC3339 formatting                                                                                                   |
-| `internal/server`    | HTTP bootstrap: port resolution, graceful shutdown — no business logic                                                             |
-| `main.go`            | Wiring only: config, opens the data file, starts the server                                                                        |
+| Package              | Responsibility                                                                                                                                     |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `internal/web`       | HTTP handlers, `html/template` views, the two sanctioned vanilla-JS widgets (award-finalist autocomplete, live division-pick caps)                 |
+| `internal/auth`      | Login-code issuance/validation, session cookies                                                                                                    |
+| `internal/scoring`   | The point table and every point calculation — the only home of scoring logic                                                                       |
+| `internal/standings` | Live Leaderboard computation (Regular/Playoff/Total), reads `internal/scoring`                                                                     |
+| `internal/store`     | The only package that reads or writes `fantasy-hockey.yml`                                                                                         |
+| `internal/mailer`    | SMTP delivery, used by `internal/auth` and `internal/web`                                                                                          |
+| `internal/observe`   | Prometheus registry, HTTP metrics middleware, `/metrics` handler, login and save counters, audit-log emitter; used by `internal/web` and `main.go` |
+| `internal/clock`     | Current time, RFC3339 formatting                                                                                                                   |
+| `internal/server`    | HTTP bootstrap: port resolution, graceful shutdown — no business logic                                                                             |
+| `main.go`            | Wiring only: config, opens the data file, starts the server                                                                                        |
 
 ## Data model
 

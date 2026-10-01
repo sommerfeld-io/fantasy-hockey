@@ -235,7 +235,7 @@ func TestPlayerPointsShouldReflectAPickSavedBetweenCalls(t *testing.T) {
 	st, _ := newScoringStore(t, nil, "results:\n    stanley_cup_winner: FLA\n")
 	before := PlayerPoints(st, "basti")
 
-	if err := st.SavePrediction("basti", store.KindCupChampion, "FLA", time.Now()); err != nil {
+	if _, err := st.SavePrediction("basti", store.KindCupChampion, "FLA", time.Now()); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 	after := PlayerPoints(st, "basti")

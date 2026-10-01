@@ -1116,7 +1116,7 @@ func TestSavePredictionShouldPruneAStaleLoginCodeRowOnItsNextWrite(t *testing.T)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-11 * time.Minute).Format(time.RFC3339)})
 
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 
@@ -1157,7 +1157,7 @@ func TestSavePredictionShouldPruneAUsedLoginCodeRowOnItsNextWrite(t *testing.T) 
 	usedAt := now.Add(-1 * time.Minute).Format(time.RFC3339)
 	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339), UsedAt: &usedAt})
 
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 
@@ -1176,7 +1176,7 @@ func TestSavePredictionShouldNotPruneAnUnexpiredUnusedLoginCodeRowOnItsNextWrite
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 	seedLoginCode(t, st, LoginCode{ID: "lc1", PlayerID: "basti", CodeHash: "hash-1", IssuedAt: now.Add(-5 * time.Minute).Format(time.RFC3339)})
 
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 
@@ -1200,7 +1200,7 @@ func TestConsumeLoginCodeShouldRejectAResubmissionOfACodeCleanedUpByAnEarlierWri
 
 	// An unrelated write triggers cleanup, pruning the already-expired row
 	// before it's ever submitted for consumption.
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 
@@ -1272,7 +1272,7 @@ func TestSavePredictionShouldAppendANewRowWhenNoneExists(t *testing.T) {
 	st := newTestStore(t)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 
@@ -1299,11 +1299,11 @@ func TestSavePredictionShouldUpdateAnExistingRowInPlaceOnResubmission(t *testing
 	first := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 	second := first.Add(time.Hour)
 
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", first); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", first); err != nil {
 		t.Fatalf("first SavePrediction returned error: %v", err)
 	}
 	logs := captureLogs(t)
-	if err := st.SavePrediction("basti", KindCupChampion, "VGK", second); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "VGK", second); err != nil {
 		t.Fatalf("second SavePrediction returned error: %v", err)
 	}
 
@@ -1335,13 +1335,13 @@ func TestSavePredictionShouldNotTouchARowForADifferentKindOrPlayer(t *testing.T)
 	st := newTestStore(t)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
-	if err := st.SavePrediction("basti", KindPresidentsTrophy, "VGK", now); err != nil {
+	if _, err := st.SavePrediction("basti", KindPresidentsTrophy, "VGK", now); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
-	if err := st.SavePrediction("other-player", KindCupChampion, "COL", now); err != nil {
+	if _, err := st.SavePrediction("other-player", KindCupChampion, "COL", now); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 
@@ -1367,7 +1367,7 @@ func TestSavePredictionShouldPersistToDisk(t *testing.T) {
 		t.Fatalf("New() returned error: %v", err)
 	}
 
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 
@@ -1388,7 +1388,7 @@ func TestSavePredictionShouldLogOnASuccessfulWrite(t *testing.T) {
 	st := newTestStore(t)
 	logs := captureLogs(t)
 
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("SavePrediction returned error: %v", err)
 	}
 
@@ -1411,7 +1411,7 @@ func TestSavePredictionShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	}
 	logs := captureLogs(t)
 
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Now().UTC()); err == nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Now().UTC()); err == nil {
 		t.Fatal("expected SavePrediction to return an error when the write fails")
 	}
 
@@ -1446,7 +1446,7 @@ func TestSavePredictionShouldNotCommitLoginCodeCleanupWhenTheWriteFails(t *testi
 		t.Fatalf("remove dir: %v", err)
 	}
 
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err == nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err == nil {
 		t.Fatal("expected SavePrediction to return an error when the write fails")
 	}
 
@@ -1464,7 +1464,7 @@ func TestSavePredictionShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
 	}
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Now().UTC()); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SavePrediction returned error: %v", err)
 	}
 
@@ -1473,7 +1473,7 @@ func TestSavePredictionShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	}
 	logs := captureLogs(t)
 
-	if err := st.SavePrediction("basti", KindCupChampion, "VGK", time.Now().UTC()); err == nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "VGK", time.Now().UTC()); err == nil {
 		t.Fatal("expected SavePrediction to return an error when the write fails")
 	}
 
@@ -1586,7 +1586,7 @@ func TestSaveDivisionPicksShouldAppendNewRowsForEveryPresentDivision(t *testing.
 		// Metropolitan winner intentionally omitted - no row should exist.
 	}
 
-	if err := st.SaveDivisionPicks("basti", playoffTeams, winners, now); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", playoffTeams, winners, now); err != nil {
 		t.Fatalf("SaveDivisionPicks returned error: %v", err)
 	}
 
@@ -1611,7 +1611,7 @@ func TestSaveDivisionPicksShouldNotUpsertADivisionAbsentFromTheMap(t *testing.T)
 	st := newTestStore(t)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, nil, now); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, nil, now); err != nil {
 		t.Fatalf("SaveDivisionPicks returned error: %v", err)
 	}
 
@@ -1624,7 +1624,7 @@ func TestSaveDivisionPicksShouldUpsertAPresentButEmptyDivisionWithAnEmptyPick(t 
 	st := newTestStore(t)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {}}, nil, now); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {}}, nil, now); err != nil {
 		t.Fatalf("SaveDivisionPicks returned error: %v", err)
 	}
 
@@ -1642,10 +1642,10 @@ func TestSaveDivisionPicksShouldUpdateExistingRowsInPlaceOnResubmission(t *testi
 	first := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 	second := first.Add(time.Hour)
 
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, first); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, first); err != nil {
 		t.Fatalf("first SaveDivisionPicks returned error: %v", err)
 	}
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"BOS", "TBL"}}, map[string]string{"Atlantic": "BOS"}, second); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"BOS", "TBL"}}, map[string]string{"Atlantic": "BOS"}, second); err != nil {
 		t.Fatalf("second SaveDivisionPicks returned error: %v", err)
 	}
 
@@ -1685,13 +1685,13 @@ func TestSaveDivisionPicksShouldNotTouchARowForADifferentDivisionOrPlayer(t *tes
 	st := newTestStore(t)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, nil, now); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, nil, now); err != nil {
 		t.Fatalf("SaveDivisionPicks returned error: %v", err)
 	}
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Metropolitan": {"WSH"}}, nil, now); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Metropolitan": {"WSH"}}, nil, now); err != nil {
 		t.Fatalf("SaveDivisionPicks returned error: %v", err)
 	}
-	if err := st.SaveDivisionPicks("other-player", map[string][]string{"Atlantic": {"COL"}}, nil, now); err != nil {
+	if _, err := st.SaveDivisionPicks("other-player", map[string][]string{"Atlantic": {"COL"}}, nil, now); err != nil {
 		t.Fatalf("SaveDivisionPicks returned error: %v", err)
 	}
 
@@ -1708,7 +1708,7 @@ func TestSaveDivisionPicksShouldPersistToDisk(t *testing.T) {
 		t.Fatalf("New() returned error: %v", err)
 	}
 
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("SaveDivisionPicks returned error: %v", err)
 	}
 
@@ -1729,7 +1729,7 @@ func TestSaveDivisionPicksShouldLogOnASuccessfulWrite(t *testing.T) {
 	st := newTestStore(t)
 	logs := captureLogs(t)
 
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("SaveDivisionPicks returned error: %v", err)
 	}
 
@@ -1752,7 +1752,7 @@ func TestSaveDivisionPicksShouldRollBackTheAppendsWhenTheWriteFails(t *testing.T
 	}
 	logs := captureLogs(t)
 
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Now().UTC()); err == nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveDivisionPicks to return an error when the write fails")
 	}
 
@@ -1772,7 +1772,7 @@ func TestSaveDivisionPicksShouldRollBackTheUpdatesWhenTheWriteFails(t *testing.T
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
 	}
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Now().UTC()); err != nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"TOR"}}, map[string]string{"Atlantic": "TOR"}, time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveDivisionPicks returned error: %v", err)
 	}
 
@@ -1781,7 +1781,7 @@ func TestSaveDivisionPicksShouldRollBackTheUpdatesWhenTheWriteFails(t *testing.T
 	}
 	logs := captureLogs(t)
 
-	if err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"BOS"}}, map[string]string{"Atlantic": "BOS"}, time.Now().UTC()); err == nil {
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{"Atlantic": {"BOS"}}, map[string]string{"Atlantic": "BOS"}, time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveDivisionPicks to return an error when the write fails")
 	}
 
@@ -1858,7 +1858,7 @@ func TestSaveAwardPicksShouldAppendNewRowsForEveryFullyFilledAward(t *testing.T)
 		AwardNorris: {"makar-cale", "hughes-quinn", "werenski-zach"},
 	}
 
-	if err := st.SaveAwardPicks("basti", finalists, now); err != nil {
+	if _, err := st.SaveAwardPicks("basti", finalists, now); err != nil {
 		t.Fatalf("SaveAwardPicks returned error: %v", err)
 	}
 
@@ -1880,7 +1880,7 @@ func TestSaveAwardPicksShouldNotUpsertAnAwardWithFewerThanThreeSlugs(t *testing.
 		AwardHart: {"mcdavid-connor", "mackinnon-nathan"}, // only 2 of 3.
 	}
 
-	if err := st.SaveAwardPicks("basti", finalists, now); err != nil {
+	if _, err := st.SaveAwardPicks("basti", finalists, now); err != nil {
 		t.Fatalf("SaveAwardPicks returned error: %v", err)
 	}
 
@@ -1897,7 +1897,7 @@ func TestSaveAwardPicksShouldNotUpsertAnAwardWithAnEmptySlugAmongThree(t *testin
 		AwardHart: {"mcdavid-connor", "", "kucherov-nikita"},
 	}
 
-	if err := st.SaveAwardPicks("basti", finalists, now); err != nil {
+	if _, err := st.SaveAwardPicks("basti", finalists, now); err != nil {
 		t.Fatalf("SaveAwardPicks returned error: %v", err)
 	}
 
@@ -1910,7 +1910,7 @@ func TestSaveAwardPicksShouldNotUpsertAnAwardAbsentFromTheMap(t *testing.T) {
 	st := newTestStore(t)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 
-	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, now); err != nil {
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, now); err != nil {
 		t.Fatalf("SaveAwardPicks returned error: %v", err)
 	}
 
@@ -1924,10 +1924,10 @@ func TestSaveAwardPicksShouldUpdateAnExistingRowInPlaceOnResubmission(t *testing
 	first := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 	second := first.Add(time.Hour)
 
-	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, first); err != nil {
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, first); err != nil {
 		t.Fatalf("first SaveAwardPicks returned error: %v", err)
 	}
-	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"x", "y", "z"}}, second); err != nil {
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"x", "y", "z"}}, second); err != nil {
 		t.Fatalf("second SaveAwardPicks returned error: %v", err)
 	}
 
@@ -1948,13 +1948,13 @@ func TestSaveAwardPicksShouldNotTouchARowForADifferentAwardOrPlayer(t *testing.T
 	st := newTestStore(t)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 
-	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, now); err != nil {
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, now); err != nil {
 		t.Fatalf("SaveAwardPicks returned error: %v", err)
 	}
-	if err := st.SaveAwardPicks("basti", map[string][]string{AwardNorris: {"d", "e", "f"}}, now); err != nil {
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{AwardNorris: {"d", "e", "f"}}, now); err != nil {
 		t.Fatalf("SaveAwardPicks returned error: %v", err)
 	}
-	if err := st.SaveAwardPicks("other-player", map[string][]string{AwardHart: {"g", "h", "i"}}, now); err != nil {
+	if _, err := st.SaveAwardPicks("other-player", map[string][]string{AwardHart: {"g", "h", "i"}}, now); err != nil {
 		t.Fatalf("SaveAwardPicks returned error: %v", err)
 	}
 
@@ -1980,7 +1980,7 @@ func TestSaveAwardPicksShouldPersistToDisk(t *testing.T) {
 		t.Fatalf("New() returned error: %v", err)
 	}
 
-	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("SaveAwardPicks returned error: %v", err)
 	}
 
@@ -2001,7 +2001,7 @@ func TestSaveAwardPicksShouldLogOnASuccessfulWrite(t *testing.T) {
 	st := newTestStore(t)
 	logs := captureLogs(t)
 
-	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("SaveAwardPicks returned error: %v", err)
 	}
 
@@ -2024,7 +2024,7 @@ func TestSaveAwardPicksShouldRollBackTheAppendsWhenTheWriteFails(t *testing.T) {
 	}
 	logs := captureLogs(t)
 
-	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Now().UTC()); err == nil {
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveAwardPicks to return an error when the write fails")
 	}
 
@@ -2041,7 +2041,7 @@ func TestSaveAwardPicksShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
 	}
-	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Now().UTC()); err != nil {
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "b", "c"}}, time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveAwardPicks returned error: %v", err)
 	}
 
@@ -2050,7 +2050,7 @@ func TestSaveAwardPicksShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	}
 	logs := captureLogs(t)
 
-	if err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"x", "y", "z"}}, time.Now().UTC()); err == nil {
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"x", "y", "z"}}, time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveAwardPicks to return an error when the write fails")
 	}
 
@@ -2145,7 +2145,7 @@ func TestSaveSeriesPickShouldAppendANewRowWhenNoneExists(t *testing.T) {
 	st := newTestStore(t)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 
-	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", now); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", now); err != nil {
 		t.Fatalf("SaveSeriesPick returned error: %v", err)
 	}
 
@@ -2172,11 +2172,11 @@ func TestSaveSeriesPickShouldUpdateAnExistingRowInPlaceOnResubmission(t *testing
 	first := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 	second := first.Add(time.Hour)
 
-	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", first); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", first); err != nil {
 		t.Fatalf("first SaveSeriesPick returned error: %v", err)
 	}
 	logs := captureLogs(t)
-	if err := st.SaveSeriesPick("basti", "r1.s1", "FLA", "7", second); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.s1", "FLA", "7", second); err != nil {
 		t.Fatalf("second SaveSeriesPick returned error: %v", err)
 	}
 
@@ -2224,13 +2224,13 @@ func TestSaveSeriesPickShouldNotTouchARowForADifferentSeriesKeyOrPlayer(t *testi
 	st := newTestStore(t)
 	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
 
-	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", now); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", now); err != nil {
 		t.Fatalf("SaveSeriesPick returned error: %v", err)
 	}
-	if err := st.SaveSeriesPick("basti", "r1.s2", "EDM", "5", now); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.s2", "EDM", "5", now); err != nil {
 		t.Fatalf("SaveSeriesPick returned error: %v", err)
 	}
-	if err := st.SaveSeriesPick("other-player", "r1.s1", "BOS", "4", now); err != nil {
+	if _, err := st.SaveSeriesPick("other-player", "r1.s1", "BOS", "4", now); err != nil {
 		t.Fatalf("SaveSeriesPick returned error: %v", err)
 	}
 
@@ -2247,7 +2247,7 @@ func TestSaveSeriesPickShouldPersistToDisk(t *testing.T) {
 		t.Fatalf("New() returned error: %v", err)
 	}
 
-	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("SaveSeriesPick returned error: %v", err)
 	}
 
@@ -2272,7 +2272,7 @@ func TestSaveSeriesPickShouldLogOnASuccessfulWrite(t *testing.T) {
 	st := newTestStore(t)
 	logs := captureLogs(t)
 
-	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("SaveSeriesPick returned error: %v", err)
 	}
 
@@ -2295,7 +2295,7 @@ func TestSaveSeriesPickShouldRollBackTheAppendWhenTheWriteFails(t *testing.T) {
 	}
 	logs := captureLogs(t)
 
-	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Now().UTC()); err == nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveSeriesPick to return an error when the write fails")
 	}
 
@@ -2312,7 +2312,7 @@ func TestSaveSeriesPickShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
 	}
-	if err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Now().UTC()); err != nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveSeriesPick returned error: %v", err)
 	}
 
@@ -2321,7 +2321,7 @@ func TestSaveSeriesPickShouldRollBackTheUpdateWhenTheWriteFails(t *testing.T) {
 	}
 	logs := captureLogs(t)
 
-	if err := st.SaveSeriesPick("basti", "r1.s1", "FLA", "7", time.Now().UTC()); err == nil {
+	if _, err := st.SaveSeriesPick("basti", "r1.s1", "FLA", "7", time.Now().UTC()); err == nil {
 		t.Fatal("expected SaveSeriesPick to return an error when the write fails")
 	}
 
@@ -2420,5 +2420,109 @@ func TestPredictionsForPlayerShouldReturnOnlyThatPlayersRows(t *testing.T) {
 	}
 	if got := st.PredictionsForPlayer("ghost"); len(got) != 0 {
 		t.Errorf("PredictionsForPlayer(ghost) = %v, want none", got)
+	}
+}
+
+func TestSavePredictionShouldReturnThePersistedRow(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 9, 14, 10, 0, 0, 0, time.UTC)
+
+	rows, err := st.SavePrediction("basti", KindCupChampion, "TOR", now)
+	if err != nil {
+		t.Fatalf("SavePrediction returned error: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Kind != KindCupChampion || rows[0].TeamID != "TOR" || rows[0].PlayerID != "basti" {
+		t.Errorf("expected the one saved cup row, got %+v", rows)
+	}
+
+	rows, err = st.SavePrediction("basti", KindCupChampion, "VGK", now)
+	if err != nil {
+		t.Fatalf("SavePrediction update returned error: %v", err)
+	}
+	if len(rows) != 1 || rows[0].TeamID != "VGK" {
+		t.Errorf("expected the updated row on resubmission, got %+v", rows)
+	}
+}
+
+func TestSavePredictionShouldReturnNoRowWhenTheWriteFails(t *testing.T) {
+	dir := t.TempDir()
+	st, err := New(filepath.Join(dir, DataFileName))
+	if err != nil {
+		t.Fatalf("New() returned error: %v", err)
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatalf("remove dir: %v", err)
+	}
+	captureLogs(t)
+
+	rows, err := st.SavePrediction("basti", KindCupChampion, "TOR", time.Now().UTC())
+	if err == nil || len(rows) != 0 {
+		t.Errorf("expected an error and no rows, got rows=%+v err=%v", rows, err)
+	}
+}
+
+func TestSaveSeriesPickShouldReturnThePersistedRow(t *testing.T) {
+	st := newTestStore(t)
+	rows, err := st.SaveSeriesPick("basti", "r1.s1", "TOR", "6", time.Now().UTC())
+	if err != nil {
+		t.Fatalf("SaveSeriesPick returned error: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Kind != KindSeries || rows[0].SeriesKey != "r1.s1" {
+		t.Errorf("expected the one saved series row, got %+v", rows)
+	}
+}
+
+func TestSaveDivisionPicksShouldReturnOnlyRowsCarryingAPick(t *testing.T) {
+	st := newTestStore(t)
+	playoffTeams := map[string][]string{"Atlantic": {"TOR", "BOS"}, "Metropolitan": {}}
+	winners := map[string]string{"Atlantic": "TOR", "Metropolitan": ""}
+
+	rows, err := st.SaveDivisionPicks("basti", playoffTeams, winners, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("SaveDivisionPicks returned error: %v", err)
+	}
+	counts := map[string]int{}
+	for _, r := range rows {
+		counts[r.Kind]++
+	}
+	if len(rows) != 2 || counts[KindDivisionPlayoffTeams] != 1 || counts[KindDivisionWinner] != 1 {
+		t.Errorf("expected one playoff-teams and one winner row, got %+v", rows)
+	}
+}
+
+func TestSaveAwardPicksShouldReturnOnlyFullyFilledAwards(t *testing.T) {
+	st := newTestStore(t)
+	finalists := map[string][]string{
+		AwardHart:   {"a", "b", "c"},
+		AwardNorris: {"d", "e", "f"},
+		AwardVezina: {"g", "h", ""},
+	}
+
+	rows, err := st.SaveAwardPicks("basti", finalists, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("SaveAwardPicks returned error: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Errorf("expected 2 persisted award rows, got %+v", rows)
+	}
+
+	rows, err = st.SaveAwardPicks("basti", map[string][]string{AwardHart: {"a", "", ""}}, time.Now().UTC())
+	if err != nil || len(rows) != 0 {
+		t.Errorf("expected no rows for an incomplete award, got rows=%+v err=%v", rows, err)
+	}
+}
+
+func TestKindsShouldListEveryPredictionKind(t *testing.T) {
+	want := []string{
+		KindCupChampion, KindPresidentsTrophy, KindPlayoffsCup,
+		KindDivisionPlayoffTeams, KindDivisionWinner, KindAward, KindSeries,
+	}
+	if len(Kinds) != len(want) {
+		t.Fatalf("Kinds = %v, want %v", Kinds, want)
+	}
+	for i := range want {
+		if Kinds[i] != want[i] {
+			t.Errorf("Kinds[%d] = %q, want %q", i, Kinds[i], want[i])
+		}
 	}
 }

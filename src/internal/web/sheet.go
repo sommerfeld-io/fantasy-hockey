@@ -7,6 +7,7 @@ import (
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/clock"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
@@ -307,7 +308,7 @@ const invalidTeamErrorText = "Pick a team before submitting."
 // missing, or unknown id re-renders the sheet (200) with an inline error
 // caption and the rejected value retained, saving nothing. A valid id is
 // saved via st.SavePrediction and redirects to /predict (302).
-func handleSheetSubmit(st *store.Store) http.HandlerFunc {
+func handleSheetSubmit(st *store.Store, ob *observe.Observer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
 		if !pickableSheetKinds[id] {
@@ -342,7 +343,7 @@ func handleSheetSubmit(st *store.Store) http.HandlerFunc {
 
 		playerID, _ := auth.PlayerIDFromContext(r.Context())
 
-		if dispatchSheetSubmitByKind(w, r, st, id, set, playerID, now) {
+		if dispatchSheetSubmitByKind(w, r, st, ob, id, set, playerID, now) {
 			return
 		}
 
@@ -352,7 +353,9 @@ func handleSheetSubmit(st *store.Store) http.HandlerFunc {
 			return
 		}
 
-		if err := st.SavePrediction(playerID, id, teamID, now); err != nil {
+		rows, err := st.SavePrediction(playerID, id, teamID, now)
+		auditPredictionsSaved(ob, playerID, set.ID, rows)
+		if err != nil {
 			slog.Error("save prediction", "player_id", playerID, "kind", id, "error", err)
 			http.Error(w, genericErrorBody, http.StatusInternalServerError)
 			return
@@ -368,18 +371,28 @@ func handleSheetSubmit(st *store.Store) http.HandlerFunc {
 // own cyclomatic complexity low (gocyclo). A false result means id gets the
 // plain single-team_id path instead (handleSheetSubmit's own remaining
 // cup/presidents/playoffcup handling).
-func dispatchSheetSubmitByKind(w http.ResponseWriter, r *http.Request, st *store.Store, id string, set store.PredictionSet, playerID string, now time.Time) bool {
+func dispatchSheetSubmitByKind(w http.ResponseWriter, r *http.Request, st *store.Store, ob *observe.Observer, id string, set store.PredictionSet, playerID string, now time.Time) bool {
 	switch {
 	case id == divisionsSetID:
-		handleDivisionsSubmit(w, r, st, set, playerID, now)
+		handleDivisionsSubmit(w, r, st, ob, set, playerID, now)
 	case id == awardsSetID:
-		handleAwardsSubmit(w, r, st, set, playerID, now)
+		handleAwardsSubmit(w, r, st, ob, set, playerID, now)
 	case seriesSetIDs[id]:
-		handleSeriesSubmit(w, r, st, set, playerID, now)
+		handleSeriesSubmit(w, r, st, ob, set, playerID, now)
 	default:
 		return false
 	}
 	return true
+}
+
+// auditPredictionsSaved emits one prediction_saved audit event per persisted
+// row, with its kind and the Prediction Set id it was saved under. It is
+// called with whatever rows a store.Save* call returned, including when that
+// call also returned an error: only returned rows were persisted.
+func auditPredictionsSaved(ob *observe.Observer, playerID, setID string, rows []store.Prediction) {
+	for _, row := range rows {
+		ob.Audit(observe.EventPredictionSaved, playerID, "kind", row.Kind, "set", setID)
+	}
 }
 
 // renderRejectedPick re-renders set's sheet (200) with teamID retained and

@@ -4,7 +4,9 @@ The presentation layer: serves the app shell (Predict/Leaderboard/Compare/Rules)
 
 ## Routes
 
-`NewServer(st *store.Store, send mailer.Sender, secret string, ob *observe.Observer) http.Handler` wires every route and wraps the mux in `ob.Middleware`. `GET /metrics` (anonymous, outside `requireSession`) serves `ob.Handler()`. Authenticated routes are registered on an inner `ServeMux` wrapped by `requireSession`; public routes sit directly on the outer mux.
+`NewServer(st *store.Store, send mailer.Sender, secret string, ob *observe.Observer) http.Handler` wires every route and wraps the mux in `ob.Middleware`. `GET /metrics` (anonymous, outside `requireSession`) serves `ob.Handler()`. Authenticated routes are registered on an inner `ServeMux` wrapped by `requireSession`; public routes sit directly on the outer mux. `NewServer` pre-registers one save series per `store.Kind`.
+
+Handlers call `ob.Audit` only for successful outcomes: `login_code_requested` (known email, code row persisted), `login_succeeded`, `login_failed` (wrong, expired or used code), `logout` (valid session cookie only) and one `prediction_saved` (with `kind` and `set`) per row a `store.Save*` call returned, even when that call also returned an error. Rejected, blank and past-deadline submissions emit nothing.
 
 | Route                      | Auth | Behavior                                                                                                                                                                                                    |
 |----------------------------|------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

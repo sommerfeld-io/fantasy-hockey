@@ -226,7 +226,8 @@ func (s *leaderboardScenarioState) savesWhileTheAppRuns(name, team, kind string)
 	if err := s.ensureReady(); err != nil {
 		return err
 	}
-	return s.st.SavePrediction(poolPlayerID(name), kind, team, time.Now())
+	_, err := s.st.SavePrediction(poolPlayerID(name), kind, team, time.Now())
+	return err
 }
 
 // renderedRows parses every Leaderboard row in the last response, in order.

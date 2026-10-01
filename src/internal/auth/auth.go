@@ -33,21 +33,24 @@ const (
 // the caller's response is identical regardless of a match: send runs in
 // its own goroutine so a match never waits on the SMTP round-trip, and an
 // internal hiccup generating the code is logged rather than returned. Only
-// a failure to persist the new row is returned as an error.
-func RequestLoginCode(st *store.Store, send mailer.Sender, email string) error {
+// a failure to persist the new row is returned as an error. The returned
+// playerID is the matched Player's id when a code row was persisted, and
+// empty when nothing was (unknown email, code generation failure, or an
+// error), so a caller can tell the two apart without the response differing.
+func RequestLoginCode(st *store.Store, send mailer.Sender, email string) (playerID string, err error) {
 	player, ok := st.FindPlayerByEmail(email)
 	if !ok {
-		return nil
+		return "", nil
 	}
 
 	code, err := generateCode()
 	if err != nil {
 		slog.Error("generate login code", "error", err)
-		return nil
+		return "", nil
 	}
 
 	if err := st.CreateLoginCode(player.ID, hashCode(code), clock.NowTime()); err != nil {
-		return fmt.Errorf("auth: persist login code: %w", err)
+		return "", fmt.Errorf("auth: persist login code: %w", err)
 	}
 
 	body := fmt.Sprintf(loginCodeBodyTemplate, code)
@@ -57,7 +60,7 @@ func RequestLoginCode(st *store.Store, send mailer.Sender, email string) error {
 		}
 	}()
 
-	return nil
+	return player.ID, nil
 }
 
 // generateCode returns a cryptographically random 6-digit numeric code,

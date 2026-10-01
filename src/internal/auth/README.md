@@ -4,7 +4,7 @@ Login and session logic: matches a submitted email against a `Player`, issues an
 
 ## Responsibilities
 
-- `RequestLoginCode(st, send, email)` looks up `email` via `internal/store`. On a match it generates a 6-digit code, persists its sha256 hash as a new `LoginCode` row (never mutating an earlier row), and emails the plaintext code via the injected `mailer.Sender`.
+- `RequestLoginCode(st, send, email)` looks up `email` via `internal/store`. On a match it generates a 6-digit code, persists its sha256 hash as a new `LoginCode` row (never mutating an earlier row), and emails the plaintext code via the injected `mailer.Sender`. It returns the matched Player's id, or an empty id when nothing was persisted (unknown email, code generation failure or error).
   - On no match, it is a no-op: no row is written, `send` is never called - and it still returns `nil`, so a caller's response is identical either way.
   - A failed send is logged via `slog.Error` here and never surfaces to the caller; only a failed store write is returned as an error.
 - `ValidateLoginCode(st, code)` hashes the submitted code and delegates to `st.ConsumeLoginCode`. A wrong, expired, or already-used code all produce the identical `ok=false, err=nil` outcome - never distinguishing which, so a caller can't either.

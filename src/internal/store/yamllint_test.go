@@ -89,12 +89,12 @@ func TestWriteLockedShouldProduceYamllintCompliantOutputForANestedListRow(t *tes
 	}
 	now := time.Now().UTC()
 
-	if err := st.SaveDivisionPicks("basti", map[string][]string{
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{
 		"Atlantic": {"TOR", "BOS", "TBL"},
 	}, nil, now); err != nil {
 		t.Fatalf("SaveDivisionPicks() returned error: %v", err)
 	}
-	if err := st.SaveAwardPicks("basti", map[string][]string{
+	if _, err := st.SaveAwardPicks("basti", map[string][]string{
 		AwardHart: {"a", "b", "c"},
 	}, now); err != nil {
 		t.Fatalf("SaveAwardPicks() returned error: %v", err)
@@ -121,7 +121,7 @@ func TestWriteLockedShouldIndentANestedListConsistentlyWithTopLevelSequences(t *
 		t.Fatalf("New() returned error: %v", err)
 	}
 
-	if err := st.SaveDivisionPicks("basti", map[string][]string{
+	if _, err := st.SaveDivisionPicks("basti", map[string][]string{
 		"Atlantic": {"TOR", "BOS", "TBL"},
 	}, nil, time.Now().UTC()); err != nil {
 		t.Fatalf("SaveDivisionPicks() returned error: %v", err)
@@ -164,7 +164,7 @@ func TestWriteLockedShouldProduceYamllintCompliantOutputForARowWithNoNestedLists
 	if err := st.CreateLoginCode("basti", "deadbeefcafe", now); err != nil {
 		t.Fatalf("CreateLoginCode() returned error: %v", err)
 	}
-	if err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
+	if _, err := st.SavePrediction("basti", KindCupChampion, "TOR", now); err != nil {
 		t.Fatalf("SavePrediction() returned error: %v", err)
 	}
 
