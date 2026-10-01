@@ -42,7 +42,7 @@ Made once, before the regular season starts:
 - **Cup champion** — your Stanley Cup winner pick, from all 32 teams.
 - **Presidents' Trophy** — your pick for the best regular-season record, from all 32 teams.
 - **Division picks** — for each of the 4 divisions (Atlantic, Metropolitan, Central, Pacific): which teams make the Playoffs from that division, and who wins it. Each conference (8 teams across its 2 divisions) must add up to exactly 8 across a 4/4 or 5/3 split.
-- **Player awards** — 3 finalists each for Hart (MVP), Norris (best defenseman), Vezina (best goalie), Art Ross (points leader) and Rocket Richard (goals leader), picked from the season's known NHL player list.
+- **Player awards** — 3 finalists each for Hart (MVP), Norris (best defenseman), Vezina (best goalie), Art Ross (points leader) and Rocket Richard (goals leader), picked from the season's known NHL player list. You can skip an award entirely, but if you pick any finalist for an award you must pick all 3 for it.
 
 ## Playoffs
 

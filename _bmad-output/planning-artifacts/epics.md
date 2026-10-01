@@ -449,6 +449,35 @@ So that a typo can never silently fail to score.
 
 *References: PRD FR-17; Architecture AD-17, AD-19, AD-24; UX-DR9; UX EXPERIENCE.md Component Patterns (Player awards), State Patterns ([ASSUMPTION] Player awards: name rejected).*
 
+*Partial awards: the "left partially or fully blank simply isn't saved" boundary is superseded by Story 2.7 (a partly filled award is flagged; an entirely blank one is still fine).*
+
+### Story 2.7: Incomplete Award Picks Are Flagged
+
+As a player,
+I want a clear error when I fill only some of an award's 3 finalists,
+So that a half-entered award can never silently fail to save.
+
+**Acceptance Criteria:**
+
+**Given** the "Player awards" set is open
+**When** I submit with an award left entirely blank
+**Then** that award is simply not saved and shows no error (FR-11), and my other awards save
+
+**Given** I fill 1 or 2 of an award's 3 finalists with valid names
+**When** I submit
+**Then** that award is not saved, its empty slots show an inline caption "Pick all 3 finalists for this award, or clear it." and the sheet re-renders (200) with my input kept
+**And** every other fully filled award in the same submit is saved
+
+**Given** any award has a typed name that does not match a suggestion, or a repeated name
+**When** I submit
+**Then** the existing rule is unchanged: the whole submit is rejected and nothing is saved
+
+**Given** an award I have already saved
+**When** I clear one of its slots and submit
+**Then** it is flagged as incomplete and its saved picks are left as they were
+
+*References: PRD FR-17 (amended), FR-11; Architecture AD-10 (the server re-validates every submit). The unit test `TestPostAwardsSheetShouldAcceptAndSkipAPartiallyFilledAward` and the "Leaving some awards blank" scenario change meaning for partial awards. New behavior: needs a Gherkin scenario in `src/acceptance-tests/features/` written before the implementation. Added by the 2026-10-01 sprint change proposal.*
+
 ## Epic 3: Playoff Predictions
 
 A player can re-pick the Cup winner once the playoff field is set, and predict each series' winner and exact game count as rounds unlock with real matchups.

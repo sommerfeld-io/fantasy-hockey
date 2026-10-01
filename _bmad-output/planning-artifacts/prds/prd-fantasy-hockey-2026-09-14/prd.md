@@ -185,6 +185,7 @@ A Player can pick 3 finalists for each of the five individual awards (Hart, Norr
 **Consequences (testable):**
 - Name entry offers autocomplete against the season's known NHL Player list (skaters for Hart/Art Ross/Rocket Richard, defensemen for Norris, goalies for Vezina — see FR-33) and rejects a name that doesn't match.
 - A real-world tie extending past 3rd place is recorded directly in `fantasy-hockey.yml`, not entered by the Player.
+- A Player may leave an award entirely blank (it scores zero, FR-11). If any of an award's 3 finalists is filled, all 3 are required: an incomplete award is rejected with an inline error naming the problem, and any fully filled awards in the same submission are still saved.
 
 ### 4.4 Playoff Predictions
 **Description:** Prototype-validated. Round unlocking (FR-20) additionally depends on that round's matchups being recorded in `fantasy-hockey.yml`.
