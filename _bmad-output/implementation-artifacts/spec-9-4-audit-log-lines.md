@@ -72,6 +72,22 @@ context:
 - Given a save persisting several rows, then there is one line per row.
 - Given the SMTP send fails with a server reply echoing the recipient, then the logged error does not contain the address.
 
+### Review Findings
+
+Code review 2026-10-01 (Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor): 0 `decision-needed`, 1 `patch` (applied), 0 `defer`, rest rejected. The Acceptance Auditor found no hard AC violation and no breach of the Never list.
+
+- [x] [Review][Patch] The `set` field on `prediction_saved` lines was asserted only for the cup save, so a wrong or empty set id in the awards, divisions or series handlers would pass -- fixed: the awards test now asserts `set=awards`, and new divisions (8 lines, `set=divisions`) and series (2 lines, `set=r1`) tests read the audit lines [`src/internal/web/audit_log_test.go`].
+
+#### Rejected
+
+- `low` -- feature not red before production change; multi-row and SMTP rows unit-only; spec says "one scenario per matrix row" -- the call sites shipped in 9.3 so the lines already passed; the human chose "Gherkin plus unit tests", and the deviation is recorded in Implementation Notes.
+- `false` -- `Unwrap` still exposes the unredacted cause -- the spec requires `errors.Is` to keep working; `Error()`, which `slog` prints, is clean.
+- `low` -- redaction misses local-part, display-name, encoded, `from` and username forms; regexp compiled per error -- AD-33 asks for the recipient; error path only.
+- `low` -- failed-login and logout lines not scanned by the no-PII scenario; wrong code `000000` not searched -- `Audit` is never passed a code or email; fixed fields only.
+- `low` -- scenarios for tampered, expired or reused codes, header-cased emails, anonymous saves, rejected saves per kind -- covered by session and counter tests in 3.x and 9.3; unauthenticated saves never reach the handler.
+- `low` -- stale `emailBody`, async send after `close()`, nil server, status reset, global `slog.SetDefault` -- each scenario builds fresh state; same pattern as earlier suites.
+- `low` -- README placement, hard-coded counts, spec status vs sprint status -- cosmetic; status synced at the end of this review.
+
 ## Implementation Notes
 
 - Audit call sites shipped in 9.3, so the new acceptance feature and web tests passed on first run; the mailer strip test was red first. Recipient redaction is case-insensitive and skips an empty recipient.
