@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/smtp"
+	"regexp"
 )
 
 // defaultFrom is used when SMTP_USERNAME is empty, matching a local dev
@@ -48,8 +49,32 @@ func newSMTPSender(host, port, username, password string, send sendMailFunc) Sen
 
 		msg := fmt.Appendf(nil, "From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s\r\n", from, to, subject, body)
 		if err := send(net.JoinHostPort(host, port), auth, from, []string{to}, msg); err != nil {
-			return fmt.Errorf("mailer: send mail: %w", err)
+			return &redactedError{cause: err, text: "mailer: send mail: " + redactRecipient(err.Error(), to)}
 		}
 		return nil
 	}
 }
+
+// redactedRecipient replaces the recipient address in returned errors, so a
+// server reply that echoes it never reaches a log line.
+const redactedRecipient = "[recipient]"
+
+// redactRecipient replaces every occurrence of to in text, ignoring case,
+// since a server may echo the address in a different case.
+func redactRecipient(text, to string) string {
+	if to == "" {
+		return text
+	}
+	return regexp.MustCompile(`(?i)`+regexp.QuoteMeta(to)).ReplaceAllString(text, redactedRecipient)
+}
+
+// redactedError carries the redacted text but still unwraps to the original
+// cause so errors.Is and errors.As keep working.
+type redactedError struct {
+	cause error
+	text  string
+}
+
+func (e *redactedError) Error() string { return e.text }
+
+func (e *redactedError) Unwrap() error { return e.cause }

@@ -1,12 +1,14 @@
 package web
 
 import (
+	"bytes"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +22,39 @@ func quietAuditLogs(t *testing.T) {
 	previous := slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	t.Cleanup(func() { slog.SetDefault(previous) })
+}
+
+// captureAuditLogs routes slog to a buffer and returns a func reading the
+// "audit" lines written so far.
+func captureAuditLogs(t *testing.T) func() []string {
+	t.Helper()
+	var mu sync.Mutex
+	var buf bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&lockedBuffer{mu: &mu, buf: &buf}, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		var lines []string
+		for _, line := range strings.Split(buf.String(), "\n") {
+			if strings.Contains(line, "msg=audit") {
+				lines = append(lines, line)
+			}
+		}
+		return lines
+	}
+}
+
+type lockedBuffer struct {
+	mu  *sync.Mutex
+	buf *bytes.Buffer
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.Write(p)
 }
 
 func newCountedServer(t *testing.T, st *store.Store) (http.Handler, *observe.Observer) {

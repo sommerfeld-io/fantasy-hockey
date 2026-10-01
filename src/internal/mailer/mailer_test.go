@@ -129,3 +129,55 @@ func TestNewSMTPSenderShouldIncludeSubjectAndBodyInTheMessage(t *testing.T) {
 		t.Errorf("expected the message to contain the subject and body, got %q", body)
 	}
 }
+
+func TestNewSMTPSenderShouldStripTheRecipientFromASendError(t *testing.T) {
+	sendErr := errors.New("550 5.1.1 <player@example.com>: Recipient address rejected")
+	fake := func(_ string, _ smtp.Auth, _ string, _ []string, _ []byte) error {
+		return sendErr
+	}
+
+	send := newSMTPSender("smtp.example.com", "587", "", "", fake)
+	err := send("player@example.com", "subject", "body")
+
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	if strings.Contains(err.Error(), "player@example.com") {
+		t.Errorf("expected the recipient to be stripped, got %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "Recipient address rejected") {
+		t.Errorf("expected the rest of the server reply to remain, got %q", err.Error())
+	}
+	if !errors.Is(err, sendErr) {
+		t.Errorf("expected the error to still wrap the cause, got %v", err)
+	}
+}
+
+func TestNewSMTPSenderShouldStripTheRecipientWhateverItsCaseInTheReply(t *testing.T) {
+	fake := func(_ string, _ smtp.Auth, _ string, _ []string, _ []byte) error {
+		return errors.New("550 5.1.1 <Player@Example.COM>: Recipient address rejected")
+	}
+
+	send := newSMTPSender("smtp.example.com", "587", "", "", fake)
+	err := send("player@example.com", "subject", "body")
+
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "player@example.com") {
+		t.Errorf("expected the recipient to be stripped in any case, got %q", err.Error())
+	}
+}
+
+func TestNewSMTPSenderShouldLeaveTheErrorTextAloneWhenTheRecipientIsEmpty(t *testing.T) {
+	fake := func(_ string, _ smtp.Auth, _ string, _ []string, _ []byte) error {
+		return errors.New("550 mailbox unavailable")
+	}
+
+	send := newSMTPSender("smtp.example.com", "587", "", "", fake)
+	err := send("", "subject", "body")
+
+	if err == nil || !strings.Contains(err.Error(), "550 mailbox unavailable") || strings.Contains(err.Error(), "[recipient]") {
+		t.Errorf("expected the error text to be left alone, got %v", err)
+	}
+}

@@ -57,6 +57,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeHandEditedResultsScenario(ctx)
 			InitializeMetricsEndpointScenario(ctx)
 			InitializeLoginAndActionCountersScenario(ctx)
+			InitializeAuditLogLinesScenario(ctx)
 		},
 		Options: &opts,
 	}
