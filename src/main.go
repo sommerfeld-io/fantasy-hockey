@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/server"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
@@ -102,7 +103,7 @@ func run() error {
 		os.Getenv("SMTP_APP_PASSWORD"),
 	)
 
-	return server.Run(ctx, cfg.port, web.NewServer(st, send, cfg.secret))
+	return server.Run(ctx, cfg.port, web.NewServer(st, send, cfg.secret, observe.New()))
 }
 
 func main() {

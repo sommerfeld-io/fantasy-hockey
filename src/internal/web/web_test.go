@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
@@ -26,6 +28,12 @@ const testSecret = "test-session-secret"
 // noopSender never sends anything and never fails, for tests that don't
 // care about the outgoing email itself.
 func noopSender(_, _, _ string) error { return nil }
+
+// newTestServer builds a server around st and send with a fresh Observer
+// and the shared testSecret.
+func newTestServer(st *store.Store, send mailer.Sender) http.Handler {
+	return NewServer(st, send, testSecret, observe.New())
+}
 
 // seedSubmittedAt stamps every seeded Prediction row; no page reads it.
 const seedSubmittedAt = "2026-09-20T10:00:00Z"
@@ -189,7 +197,7 @@ func TestGetHomeShouldRedirectToLoginWithNoSessionCookie(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	assertRedirectsToLoginWithNoCookie(t, rec)
 }
@@ -199,7 +207,7 @@ func TestGetHomeShouldRedirectToLoginForAnIdleExpiredSession(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookieAt("basti", time.Now().UTC().Add(-31*time.Minute), testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	assertRedirectsToLoginWithNoCookie(t, rec)
 }
@@ -217,7 +225,7 @@ func TestGetHomeShouldRedirectToLoginForATamperedSessionCookie(t *testing.T) {
 	req.AddCookie(c)
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	assertRedirectsToLoginWithNoCookie(t, rec)
 }
@@ -227,7 +235,7 @@ func TestGetHomeShouldRedirectToLoginForAnEmptyPlayerIDSession(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookieAt("", time.Now().UTC(), testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	assertRedirectsToLoginWithNoCookie(t, rec)
 }
@@ -238,7 +246,7 @@ func TestGetHomeShouldReIssueTheSessionCookieOnAValidRequest(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	before := time.Now().UTC()
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 	after := time.Now().UTC()
 
 	if rec.Code != http.StatusOK {
@@ -273,7 +281,7 @@ func TestGetStaticStylesheetShouldBeServed(t *testing.T) {
 	req := httptest.NewRequest("GET", "/static/styles.css", nil)
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -281,4 +289,35 @@ func TestGetStaticStylesheetShouldBeServed(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "--bg") {
 		t.Errorf("expected the stylesheet body to contain design tokens, got %q", rec.Body.String())
 	}
+}
+
+func TestNewServerShouldServeMetricsWithoutASession(t *testing.T) {
+	rec := httptest.NewRecorder()
+
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "go_goroutines") {
+		t.Error("expected the Prometheus output to include go_goroutines")
+	}
+}
+
+func TestNewServerShouldCountARequestUnderItsRoutePattern(t *testing.T) {
+	handler := newTestServer(newTestStore(t), noopSender)
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	want := `fantasy_hockey_http_requests_total{route="GET /{$}",status="302"} 1`
+	if !strings.Contains(rec.Body.String(), want) {
+		t.Errorf("expected %q in the metrics output, got:\n%s", want, rec.Body.String())
+	}
+}
+
+func TestNewServerShouldBuildTwiceInOneProcess(t *testing.T) {
+	newTestServer(newTestStore(t), noopSender)
+	newTestServer(newTestStore(t), noopSender)
 }

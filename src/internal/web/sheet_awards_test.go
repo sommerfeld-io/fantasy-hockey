@@ -170,7 +170,7 @@ func getAwardsSheet(t *testing.T, handler http.Handler) *httptest.ResponseRecord
 func TestGetAwardsSheetShouldRenderFiveEmptyTrophyGroupsWithNoGreenChecks(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getAwardsSheet(t, handler)
 
@@ -219,7 +219,7 @@ func TestGetAwardsSheetShouldPreselectSavedPicksAndReadUpdatePredictions(t *test
 	}, time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveAwardPicks: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getAwardsSheet(t, handler)
 
@@ -249,7 +249,7 @@ func TestGetAwardsSheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed(t 
 	}, time.Now().UTC().Add(-48*time.Hour)); err != nil {
 		t.Fatalf("seed SaveAwardPicks: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getAwardsSheet(t, handler)
 
@@ -282,7 +282,7 @@ func TestGetAwardsSheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed(t 
 func TestGetAwardsSheetShouldNeverCreateARowMerelyByOpeningTheSheet(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	getAwardsSheet(t, handler)
 
@@ -302,7 +302,7 @@ func TestPredictShouldShowOpenStatusForAwardsBeforeAnyPickIsSaved(t *testing.T) 
 	req := httptest.NewRequest("GET", "/predict", nil)
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	if !strings.Contains(rec.Body.String(), `<a id="predict-row-awards" href="/predict/awards" class="set-row set-row--open">`) {
 		t.Errorf("expected the awards row to show Open before any pick is saved, got %q", rec.Body.String())
@@ -312,7 +312,7 @@ func TestPredictShouldShowOpenStatusForAwardsBeforeAnyPickIsSaved(t *testing.T) 
 func TestPostAwardsSheetShouldSaveAllFiveAwardsAndRedirectToPredict(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postAwardsForm(t, handler, validAwardFinalistsForm())
 
@@ -342,7 +342,7 @@ func TestPostAwardsSheetShouldSaveAllFiveAwardsAndRedirectToPredict(t *testing.T
 func TestPostAwardsSheetShouldSaveOnlyTheCompleteAwardsAndLeaveOthersUnsaved(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	slots := validAwardFinalistsForm()
 	delete(slots, store.AwardVezina)  // leave Vezina fully blank.
@@ -373,7 +373,7 @@ func TestPostAwardsSheetShouldSaveOnlyTheCompleteAwardsAndLeaveOthersUnsaved(t *
 func TestPostAwardsSheetShouldAcceptAndSkipAPartiallyFilledAward(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	slots := validAwardFinalistsForm()
 	hart := slots[store.AwardHart]
@@ -396,7 +396,7 @@ func TestPostAwardsSheetShouldAcceptAndSkipAPartiallyFilledAward(t *testing.T) {
 func TestPostAwardsSheetShouldRejectATypedButUnresolvedNameAndSaveNothing(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	slots := validAwardFinalistsForm()
 	hart := slots[store.AwardHart]
@@ -428,7 +428,7 @@ func TestPostAwardsSheetShouldRejectATypedButUnresolvedNameAndSaveNothing(t *tes
 func TestPostAwardsSheetShouldEscapeRejectedFinalistTextInTheRerenderedHTML(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	const malicious = `"><script>alert(1)</script>`
 	slots := validAwardFinalistsForm()
@@ -453,7 +453,7 @@ func TestPostAwardsSheetShouldEscapeRejectedFinalistTextInTheRerenderedHTML(t *t
 func TestPostAwardsSheetShouldRejectASlugBelongingToTheWrongPositionAndSaveNothing(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	slots := validAwardFinalistsForm()
 	norris := slots[store.AwardNorris]
@@ -479,7 +479,7 @@ func TestPostAwardsSheetShouldRejectASlugBelongingToTheWrongPositionAndSaveNothi
 func TestPostAwardsSheetShouldRejectADuplicateSlugWithinOneAwardAndSaveNothing(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	slots := validAwardFinalistsForm()
 	hart := slots[store.AwardHart]
@@ -505,7 +505,7 @@ func TestPostAwardsSheetShouldRejectADuplicateSlugWithinOneAwardAndSaveNothing(t
 func TestPostAwardsSheetShouldNotShowTheGreenCheckForAnAwardWithADuplicateSlug(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	slots := validAwardFinalistsForm()
 	hart := slots[store.AwardHart]
@@ -533,7 +533,7 @@ func TestGetAwardsSheetShouldNotMarkAPreviouslySavedNowUnresolvedSlugAsInvalid(t
 	}, time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveAwardPicks: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getAwardsSheet(t, handler)
 
@@ -549,7 +549,7 @@ func TestGetAwardsSheetShouldNotMarkAPreviouslySavedNowUnresolvedSlugAsInvalid(t
 func TestPostAwardsSheetShouldRejectAfterTheDeadlineWithNoOverride(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postAwardsForm(t, handler, validAwardFinalistsForm())
 
@@ -564,7 +564,7 @@ func TestPostAwardsSheetShouldRejectAfterTheDeadlineWithNoOverride(t *testing.T)
 func TestPostAwardsSheetShouldUpdateAnExistingAwardInPlaceOnResubmission(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	if rec := postAwardsForm(t, handler, validAwardFinalistsForm()); rec.Code != http.StatusFound {
 		t.Fatalf("expected the first submission to succeed, got %d: %s", rec.Code, rec.Body.String())
@@ -590,7 +590,7 @@ func TestPostAwardsSheetShouldUpdateAnExistingAwardInPlaceOnResubmission(t *test
 func TestPostAwardsSheetShouldReturn500WhenTheStoreWriteFails(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st, dir := newTestStoreWithAwardsRosterAndDir(t, awardsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	// Remove the directory out from under the store so SaveAwardPicks'
 	// atomic write-and-rename fails, mirroring

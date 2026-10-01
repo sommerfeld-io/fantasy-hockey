@@ -48,7 +48,7 @@ func getLeaderboard(t *testing.T, st *store.Store, playerID string) string {
 	req.AddCookie(auth.IssueSessionCookie(playerID, testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -196,7 +196,7 @@ func TestLeaderboardShouldNotRenderOnAnyOtherTab(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithLeaderboard(t, clearLeaderPicks...), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithLeaderboard(t, clearLeaderPicks...), noopSender).ServeHTTP(rec, req)
 
 	if body := rec.Body.String(); strings.Contains(body, "leaderboard-row-") || strings.Contains(body, "Ranked by total points.") {
 		t.Errorf("expected Predict to render no Leaderboard content, got %q", body)

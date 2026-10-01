@@ -205,7 +205,7 @@ func postSeriesForm(t *testing.T, handler http.Handler, id string, picks map[str
 func TestGetR1SheetShouldGroupEightSeriesFourEasternFourWestern(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getSeriesSheet(t, handler, "r1")
 
@@ -251,7 +251,7 @@ func seriesGroupFragment(t *testing.T, body, label string) string {
 func TestGetR1SheetShouldPutEasternSeriesUnderEasternAndWesternUnderWestern(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	body := getSeriesSheet(t, handler, "r1").Body.String()
 
@@ -271,7 +271,7 @@ func TestGetR1SheetShouldPutEasternSeriesUnderEasternAndWesternUnderWestern(t *t
 func TestGetScfSheetShouldGroupUnderStanleyCupFinalNotAConference(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, scfPredictionSetSeed(deadline), scfMatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getSeriesSheet(t, handler, "scf")
 
@@ -290,7 +290,7 @@ func TestGetScfSheetShouldGroupUnderStanleyCupFinalNotAConference(t *testing.T) 
 func TestGetR1SheetShouldShowNoTeamOrGamesPreselectedWhenNoPriorPick(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	body := getSeriesSheet(t, handler, "r1").Body.String()
 
@@ -309,7 +309,7 @@ func TestGetR1SheetShouldShowNoTeamOrGamesPreselectedWhenNoPriorPick(t *testing.
 func TestGetR1SheetShouldShowANoSeriesRecordedYetPlaceholderWhenNoMatchupsAreRecorded(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), "")
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	body := getSeriesSheet(t, handler, "r1").Body.String()
 
@@ -327,7 +327,7 @@ func TestGetR1SheetShouldShowANoSeriesRecordedYetPlaceholderWhenNoMatchupsAreRec
 func TestGetR1SheetShouldNeverCreateARowMerelyByOpeningTheSheet(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	getSeriesSheet(t, handler, "r1")
 
@@ -339,7 +339,7 @@ func TestGetR1SheetShouldNeverCreateARowMerelyByOpeningTheSheet(t *testing.T) {
 func TestPostR1SheetShouldSaveWinnerAndGamesTogetherAndRedirect(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
 		"e1": {TeamID: "BOS", Games: "6"},
@@ -366,7 +366,7 @@ func TestPostR1SheetShouldUpdateAnExistingPickInPlaceOnResubmission(t *testing.T
 	if err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveSeriesPick: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
 		"e1": {TeamID: "TOR", Games: "7"},
@@ -390,7 +390,7 @@ func TestGetR1SheetShouldPreselectSavedPicksAndReadUpdatePredictions(t *testing.
 	if err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveSeriesPick: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	body := getSeriesSheet(t, handler, "r1").Body.String()
 
@@ -408,7 +408,7 @@ func TestGetR1SheetShouldPreselectSavedPicksAndReadUpdatePredictions(t *testing.
 func TestPostR1SheetShouldSilentlyDropAHalfFilledSeriesButSaveOthers(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
 		"e1": {TeamID: "BOS"},             // half-filled: team only, no games.
@@ -464,7 +464,7 @@ func TestPostR1SheetShouldLeaveAnExistingSeriesPickUnchangedWhenItsResubmissionI
 	if err := st.SaveSeriesPick("basti", "r1.e2", "TBL", "5", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SaveSeriesPick for e2: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
 		"e1": {TeamID: "TOR"},             // half-filled resubmission over an existing pick: no games.
@@ -483,7 +483,7 @@ func TestPostR1SheetShouldLeaveAnExistingSeriesPickUnchangedWhenItsResubmissionI
 func TestPostR1SheetShouldRejectAForeignTeamIDOnlyForThatSeriesAndSaveOthers(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
 		"e1": {TeamID: "COL", Games: "6"}, // COL belongs to w1, not e1 (BOS/TOR).
@@ -514,7 +514,7 @@ func TestPostR1SheetShouldRejectAForeignTeamIDOnlyForThatSeriesAndSaveOthers(t *
 func TestPostR1SheetShouldRejectAnOutOfRangeGamesCountOnlyForThatSeriesAndSaveOthers(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
 		"e1": {TeamID: "BOS", Games: "3"}, // 3 is outside 4-7.
@@ -560,7 +560,7 @@ func assertSeriesCardHasInlineError(t *testing.T, body, key, nextKey string) {
 func TestPostR1SheetShouldRejectANonNumericGamesValueOnlyForThatSeriesAndSaveOthers(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
 		"e1": {TeamID: "BOS", Games: "abc"}, // not a game count at all.
@@ -585,7 +585,7 @@ func TestPostR1SheetShouldRejectANonNumericGamesValueOnlyForThatSeriesAndSaveOth
 func TestPostR1SheetShouldKeepOtherCardsSubmittedValuesWhenRejecting(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
 		"e1": {TeamID: "COL", Games: "6"}, // COL is foreign to e1: rejects.
@@ -610,7 +610,7 @@ func TestPostR1SheetShouldKeepOtherCardsSubmittedValuesWhenRejecting(t *testing.
 func TestPostR1SheetShouldRejectAfterTheDeadlineWithNoOverride(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSeriesForm(t, handler, "r1", map[string]seriesSubmission{
 		"e1": {TeamID: "BOS", Games: "6"},
@@ -630,7 +630,7 @@ func TestGetR1SheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed(t *tes
 	if err := st.SaveSeriesPick("basti", "r1.e1", "BOS", "6", time.Now().UTC().Add(-48*time.Hour)); err != nil {
 		t.Fatalf("seed SaveSeriesPick: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	body := getSeriesSheet(t, handler, "r1").Body.String()
 
@@ -655,7 +655,7 @@ func TestPredictShouldShowSubmittedStatusForR1OnceAPickIsSaved(t *testing.T) {
 	req := httptest.NewRequest("GET", "/predict", nil)
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	if !strings.Contains(rec.Body.String(), `>Submitted</span>`) {
 		t.Errorf("expected the r1 row to show Submitted once a series pick is saved, got %q", rec.Body.String())
@@ -665,7 +665,7 @@ func TestPredictShouldShowSubmittedStatusForR1OnceAPickIsSaved(t *testing.T) {
 func TestPostR1SheetShouldReturn500WhenTheStoreWriteFails(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st, dir := newTestStoreWithSeriesFixtureAndDir(t, r1PredictionSetSeed(deadline), r1MatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	if err := os.RemoveAll(dir); err != nil {
 		t.Fatalf("remove dir: %v", err)
@@ -716,7 +716,7 @@ func TestGetGatedSeriesSheetShouldRenderSeriesCardsGroupedByConference(t *testin
 		t.Run(id, func(t *testing.T) {
 			st := newTestStoreWithSeriesFixture(t, gatedSeriesPredictionSetSeed(id, "Gated round", deadline), gatedSeriesMatchupsYAML(id))
 
-			rec := getSeriesSheet(t, NewServer(st, noopSender, testSecret), id)
+			rec := getSeriesSheet(t, newTestServer(st, noopSender), id)
 
 			if rec.Code != 200 {
 				t.Fatalf("expected status 200, got %d", rec.Code)
@@ -744,7 +744,7 @@ func TestPostGatedSeriesSheetShouldSaveEachSeriesUnderItsOwnSetID(t *testing.T) 
 		t.Run(id, func(t *testing.T) {
 			st := newTestStoreWithSeriesFixture(t, gatedSeriesPredictionSetSeed(id, "Gated round", deadline), gatedSeriesMatchupsYAML(id))
 
-			rec := postSeriesForm(t, NewServer(st, noopSender, testSecret), id, map[string]seriesSubmission{
+			rec := postSeriesForm(t, newTestServer(st, noopSender), id, map[string]seriesSubmission{
 				"e1": {TeamID: "TOR", Games: "7"},
 			})
 
@@ -768,7 +768,7 @@ func TestGetGatedSeriesSheetShouldRenderReadOnlyWhenUnlockedButPastItsDeadline(t
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
 	st := newTestStoreWithSeriesFixture(t, gatedSeriesPredictionSetSeed(store.ConferenceFinalsSetID, "Conference finals", deadline), gatedSeriesMatchupsYAML(store.ConferenceFinalsSetID))
 
-	rec := getSeriesSheet(t, NewServer(st, noopSender, testSecret), store.ConferenceFinalsSetID)
+	rec := getSeriesSheet(t, newTestServer(st, noopSender), store.ConferenceFinalsSetID)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
@@ -76,7 +77,10 @@ var shellRoutes = []struct {
 // POST /logout is registered directly on the outer mux rather than authMux,
 // since clearing the session cookie must work even when the presented
 // cookie is missing, expired, or tampered.
-func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler {
+// GET /metrics serves ob's Prometheus registry on the outer mux, outside
+// requireSession, and the whole mux is wrapped in ob's request middleware so
+// every route (and every unmatched request) is counted.
+func NewServer(st *store.Store, send mailer.Sender, secret string, ob *observe.Observer) http.Handler {
 	authMux := http.NewServeMux()
 	for _, r := range shellRoutes {
 		authMux.Handle(r.pattern, handleShell(st, r.tab))
@@ -96,7 +100,8 @@ func NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler 
 	mux.HandleFunc("POST /login/code", handleLoginCodeSubmit(st, secret))
 	mux.HandleFunc("POST /logout", handleLogout)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFiles())))
-	return mux
+	mux.Handle("GET /metrics", ob.Handler())
+	return ob.Middleware(mux)
 }
 
 // requireSession wraps next so it only runs for a request carrying a valid,

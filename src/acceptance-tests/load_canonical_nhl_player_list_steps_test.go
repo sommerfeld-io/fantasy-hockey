@@ -9,6 +9,7 @@ import (
 	"github.com/cucumber/godog"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
@@ -59,7 +60,7 @@ func newLoadCanonicalNHLPlayerListScenarioState() *loadCanonicalNHLPlayerListSce
 	st, dataFile := newSeededStore("load-canonical-nhl-player-list", loadCanonicalNHLPlayerListSeed)
 	return &loadCanonicalNHLPlayerListScenarioState{
 		dataFile: dataFile,
-		server:   httptest.NewServer(web.NewServer(st, noopSender, testSessionSecret)),
+		server:   httptest.NewServer(web.NewServer(st, noopSender, testSessionSecret, observe.New())),
 	}
 }
 

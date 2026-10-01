@@ -14,7 +14,7 @@ func TestNewServerShouldReturnOKForTheHomePage(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Errorf("expected status 200, got %d", rec.Code)
@@ -48,7 +48,7 @@ func TestNewServerShouldLinkToTheGitHubDocsFromTheRulesTab(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if !strings.Contains(rec.Body.String(), rulesGitHubDocsLink) {
 		t.Errorf("expected the Rules tab to link to the GitHub docs, got %q", rec.Body.String())
@@ -62,7 +62,7 @@ func TestNewServerShouldRenderTheShellForEveryDestination(t *testing.T) {
 			req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 			rec := httptest.NewRecorder()
 
-			NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+			newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 			if rec.Code != 200 {
 				t.Fatalf("expected status 200, got %d", rec.Code)
@@ -147,7 +147,7 @@ func TestNewServerShouldRedirectToLoginForEveryShellDestinationWithNoSessionCook
 			req := httptest.NewRequest("GET", tt.path, nil)
 			rec := httptest.NewRecorder()
 
-			NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+			newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 			assertRedirectsToLoginWithNoCookie(t, rec)
 		})
@@ -165,7 +165,7 @@ func TestNewServerShouldRedirectToLoginForEveryShellDestinationWithAnIdleExpired
 			req.AddCookie(auth.IssueSessionCookieAt("basti", time.Now().UTC().Add(-31*time.Minute), testSecret))
 			rec := httptest.NewRecorder()
 
-			NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+			newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 			assertRedirectsToLoginWithNoCookie(t, rec)
 		})
@@ -189,7 +189,7 @@ func TestNewServerShouldRedirectToLoginForEveryShellDestinationWithATamperedSess
 			req.AddCookie(c)
 			rec := httptest.NewRecorder()
 
-			NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+			newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 			assertRedirectsToLoginWithNoCookie(t, rec)
 		})
@@ -205,7 +205,7 @@ func TestNewServerShouldRedirectToLoginForEveryShellDestinationWithAnEmptyPlayer
 			req.AddCookie(auth.IssueSessionCookieAt("", time.Now().UTC(), testSecret))
 			rec := httptest.NewRecorder()
 
-			NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+			newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 			assertRedirectsToLoginWithNoCookie(t, rec)
 		})
@@ -217,7 +217,7 @@ func TestNewServerShouldDegradeTheHeaderWithoutPanickingForAStalePlayerID(t *tes
 	req.AddCookie(auth.IssueSessionCookie("a-deleted-player-id", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200 (no crash) for a stale player id, got %d", rec.Code)
@@ -235,7 +235,7 @@ func TestNewServerShouldReturn404ForAnUnknownPath(t *testing.T) {
 	req := httptest.NewRequest("GET", "/unknown", nil)
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 404 {
 		t.Errorf("expected status 404 for an unknown path, got %d", rec.Code)

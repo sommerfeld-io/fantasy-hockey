@@ -13,6 +13,7 @@ import (
 	"github.com/cucumber/godog"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
@@ -112,7 +113,7 @@ func (s *handEditedResultsScenarioState) ensureReady() error {
 	}
 
 	send := func(_, _, _ string) error { return nil }
-	s.server = httptest.NewServer(web.NewServer(st, send, handEditedResultsSecret))
+	s.server = httptest.NewServer(web.NewServer(st, send, handEditedResultsSecret, observe.New()))
 	return nil
 }
 

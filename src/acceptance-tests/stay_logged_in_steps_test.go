@@ -10,6 +10,7 @@ import (
 	"github.com/cucumber/godog"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
@@ -31,7 +32,7 @@ type stayLoggedInScenarioState struct {
 
 func newStayLoggedInScenarioState() *stayLoggedInScenarioState {
 	return &stayLoggedInScenarioState{
-		server: httptest.NewServer(web.NewServer(newTempStore(), noopSender, testSessionSecret)),
+		server: httptest.NewServer(web.NewServer(newTempStore(), noopSender, testSessionSecret, observe.New())),
 	}
 }
 

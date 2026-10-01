@@ -33,7 +33,7 @@ func TestPredictShouldRenderBothSectionsWithEverySetsFields(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -89,7 +89,7 @@ func TestPredictShouldShowAnOpenPillChevronAndLinkForASetWithinItsWindow(t *test
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="status-pill status-pill--open">Open</span>`) {
@@ -120,7 +120,7 @@ func TestPredictShouldShowAClosedPillAndCountdownForASetPastItsDeadline(t *testi
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="status-pill status-pill--closed">Closed</span>`) {
@@ -159,7 +159,7 @@ predictions:
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `<a id="predict-row-cup" href="/predict/cup" class="set-row set-row--submitted">`) {
@@ -186,7 +186,7 @@ func TestPredictShouldDimAndLockAnUpcomingSetInsteadOfLinkingIt(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="status-pill status-pill--upcoming">Upcoming</span>`) {
@@ -220,7 +220,7 @@ func TestPredictShouldShowUpcomingForARoundGatedSetWithNoMatchupsRegardlessOfIts
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="status-pill status-pill--upcoming">Upcoming</span>`) {
@@ -266,7 +266,7 @@ func TestPredictShouldShowOpenForEveryRoundGatedSetOnceAMatchupIsRecorded(t *tes
 			req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 			rec := httptest.NewRecorder()
 
-			NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret).ServeHTTP(rec, req)
+			newTestServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender).ServeHTTP(rec, req)
 
 			body := rec.Body.String()
 			if !strings.Contains(body, `class="status-pill status-pill--open">Open</span>`) {
@@ -299,7 +299,7 @@ func TestPredictShouldShowClosedForARoundGatedSetWithAMatchupPastItsDeadline(t *
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="status-pill status-pill--closed">Closed</span>`) {
@@ -323,7 +323,7 @@ func TestPredictShouldLeaveR1UnaffectedByAbsentPlayoffMatchups(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="status-pill status-pill--open">Open</span>`) {
@@ -353,7 +353,7 @@ func TestPredictShouldLeaveR1UpcomingByItsOwnFlagEvenWithR1MatchupsRecorded(t *t
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="status-pill status-pill--upcoming">Upcoming</span>`) {
@@ -399,7 +399,7 @@ func TestPredictShouldUnlockOnlyTheRoundWhoseMatchupsAreRecorded(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, r2OnlyMatchupsYAML), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, r2OnlyMatchupsYAML), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `<a id="predict-row-r2" href="/predict/r2" class="set-row set-row--open">`) {
@@ -436,7 +436,7 @@ func TestPredictShouldLeaveANonRoundSetUnaffectedByPresentPlayoffMatchups(t *tes
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="status-pill status-pill--upcoming">Upcoming</span>`) {
@@ -464,7 +464,7 @@ func TestPredictShouldReadTodayAndTomorrowForNearDeadlines(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, "&middot; today") {
@@ -502,7 +502,7 @@ prediction_sets:
 	if err != nil {
 		t.Fatalf("store.New: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	for _, p := range []string{"/predict", "/predict/cup", "/predict/does-not-exist"} {
 		req := httptest.NewRequest("GET", p, nil)

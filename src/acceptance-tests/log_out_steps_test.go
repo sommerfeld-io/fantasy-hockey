@@ -12,6 +12,7 @@ import (
 	"github.com/cucumber/godog"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
 
@@ -41,7 +42,7 @@ func newLogOutScenarioState() *logOutScenarioState {
 		panic(fmt.Sprintf("create cookie jar: %v", err))
 	}
 	return &logOutScenarioState{
-		server: httptest.NewServer(web.NewServer(newTempStore(), noopSender, testSessionSecret)),
+		server: httptest.NewServer(web.NewServer(newTempStore(), noopSender, testSessionSecret, observe.New())),
 		client: &http.Client{
 			Jar:           jar,
 			CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },

@@ -164,7 +164,7 @@ func assertDivisionsSheetHasChipGroupsAndWinnerSelects(t *testing.T, body string
 func TestGetDivisionsSheetShouldRenderFourChipGroupsAndWinnerSelectsWithNothingCheckedWhenNoPriorPick(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getDivisionsSheet(t, handler)
 
@@ -200,7 +200,7 @@ func TestGetDivisionsSheetShouldPreselectSavedPicksAndReadUpdatePredictions(t *t
 	if err := st.SaveDivisionPicks("basti", validDivisionPicks(), validDivisionWinners(), now); err != nil {
 		t.Fatalf("seed SaveDivisionPicks: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getDivisionsSheet(t, handler)
 
@@ -231,7 +231,7 @@ func TestGetDivisionsSheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed
 	if err := st.SaveDivisionPicks("basti", validDivisionPicks(), validDivisionWinners(), time.Now().UTC().Add(-48*time.Hour)); err != nil {
 		t.Fatalf("seed SaveDivisionPicks: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getDivisionsSheet(t, handler)
 
@@ -264,7 +264,7 @@ func TestGetDivisionsSheetShouldRenderAReadOnlyBannerAndDisabledInputsWhenClosed
 func TestGetDivisionsSheetShouldNeverCreateARowMerelyByOpeningTheSheet(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	getDivisionsSheet(t, handler)
 
@@ -280,7 +280,7 @@ func TestPredictShouldShowOpenStatusForDivisionsBeforeAnyPickIsSaved(t *testing.
 	req := httptest.NewRequest("GET", "/predict", nil)
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	if !strings.Contains(rec.Body.String(), `<a id="predict-row-divisions" href="/predict/divisions" class="set-row set-row--open">`) {
 		t.Errorf("expected the divisions row to show Open before any pick is saved, got %q", rec.Body.String())
@@ -290,7 +290,7 @@ func TestPredictShouldShowOpenStatusForDivisionsBeforeAnyPickIsSaved(t *testing.
 func TestPostDivisionsSheetShouldSaveAllPicksAndRedirectToPredict(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postDivisionsForm(t, handler, validDivisionPicks(), validDivisionWinners())
 
@@ -334,7 +334,7 @@ func TestPostDivisionsSheetShouldSaveAllPicksAndRedirectToPredict(t *testing.T) 
 func TestPostDivisionsSheetShouldAcceptA53SplitWithinAConference(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	picks := validDivisionPicks()
 	picks["Atlantic"] = append(picks["Atlantic"], "MTL") // 5 teams (at the cap).
@@ -358,7 +358,7 @@ func TestPostDivisionsSheetShouldAcceptA53SplitWithinAConference(t *testing.T) {
 func TestPostDivisionsSheetShouldRejectWhenAConferenceTotalIsNotEightAndSaveNothing(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	picks := validDivisionPicks()
 	picks["Atlantic"] = picks["Atlantic"][:3] // Eastern conference now totals 7, not 8.
@@ -385,7 +385,7 @@ func TestPostDivisionsSheetShouldRejectWhenAConferenceTotalIsNotEightAndSaveNoth
 func TestPostDivisionsSheetShouldRejectADivisionExceedingFiveEvenWhenItsConferenceTotalsEight(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	picks := validDivisionPicks()
 	// Atlantic now has 6 (over its own 5-team cap); Metropolitan drops to 2 so
@@ -414,7 +414,7 @@ func TestPostDivisionsSheetShouldRejectADivisionExceedingFiveEvenWhenItsConferen
 func TestPostDivisionsSheetShouldTreatARepeatedTeamIDAsOneSelection(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	picks := map[string][]string{
 		"Atlantic":     {"BOS", "BOS", "BUF", "DET"}, // 4 raw values, 3 unique.
@@ -441,7 +441,7 @@ func TestPostDivisionsSheetShouldTreatARepeatedTeamIDAsOneSelection(t *testing.T
 func TestPostDivisionsSheetShouldRejectAForeignDivisionTeamIDAndNotInflateTheRenderedCount(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	picks := validDivisionPicks()
 	picks["Atlantic"] = append(picks["Atlantic"], "WSH") // WSH belongs to Metropolitan, not Atlantic.
@@ -470,7 +470,7 @@ func TestPostDivisionsSheetShouldRejectAForeignDivisionTeamIDAndNotInflateTheRen
 func TestPostDivisionsSheetShouldSaveNonEmptyWinnersAndSkipABlankOne(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	winners := validDivisionWinners()
 	winners["Pacific"] = ""
@@ -494,7 +494,7 @@ func TestPostDivisionsSheetShouldSaveNonEmptyWinnersAndSkipABlankOne(t *testing.
 func TestPostDivisionsSheetShouldRejectAnUnknownWinnerIDAndSaveNothing(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	winners := validDivisionWinners()
 	winners["Atlantic"] = "WSH" // WSH belongs to Metropolitan, not Atlantic.
@@ -518,7 +518,7 @@ func TestPostDivisionsSheetShouldRejectAnUnknownWinnerIDAndSaveNothing(t *testin
 func TestPostDivisionsSheetShouldRejectAfterTheDeadlineWithNoOverride(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postDivisionsForm(t, handler, validDivisionPicks(), validDivisionWinners())
 
@@ -533,7 +533,7 @@ func TestPostDivisionsSheetShouldRejectAfterTheDeadlineWithNoOverride(t *testing
 func TestPostDivisionsSheetShouldUpdateExistingPicksInPlaceOnResubmission(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithDivisionTeams(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	if rec := postDivisionsForm(t, handler, validDivisionPicks(), validDivisionWinners()); rec.Code != http.StatusFound {
 		t.Fatalf("expected the first submission to succeed, got %d: %s", rec.Code, rec.Body.String())
@@ -562,7 +562,7 @@ func TestPostDivisionsSheetShouldUpdateExistingPicksInPlaceOnResubmission(t *tes
 func TestPostDivisionsSheetShouldReturn500WhenTheStoreWriteFails(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st, dir := newTestStoreWithDivisionTeamsAndDir(t, divisionsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	// Remove the directory out from under the store so SaveDivisionPicks'
 	// atomic write-and-rename fails, mirroring

@@ -4,7 +4,7 @@ The presentation layer: serves the app shell (Predict/Leaderboard/Compare/Rules)
 
 ## Routes
 
-`NewServer(st *store.Store, send mailer.Sender, secret string) http.Handler` wires every route. Authenticated routes are registered on an inner `ServeMux` wrapped by `requireSession`; public routes sit directly on the outer mux.
+`NewServer(st *store.Store, send mailer.Sender, secret string, ob *observe.Observer) http.Handler` wires every route and wraps the mux in `ob.Middleware`. `GET /metrics` (anonymous, outside `requireSession`) serves `ob.Handler()`. Authenticated routes are registered on an inner `ServeMux` wrapped by `requireSession`; public routes sit directly on the outer mux.
 
 | Route                      | Auth | Behavior                                                                                                                                                                                                    |
 |----------------------------|------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

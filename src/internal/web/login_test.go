@@ -18,7 +18,7 @@ func TestGetLoginShouldRenderTheEmailEntryScreen(t *testing.T) {
 	req := httptest.NewRequest("GET", "/login", nil)
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -33,7 +33,7 @@ func TestGetLoginShouldRedirectToTheShellForAnAlreadyAuthenticatedSession(t *tes
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusFound {
 		t.Fatalf("expected status %d, got %d", http.StatusFound, rec.Code)
@@ -48,7 +48,7 @@ func TestGetLoginShouldRenderTheEmailEntryScreenForAnIdleExpiredSession(t *testi
 	req.AddCookie(auth.IssueSessionCookieAt("basti", time.Now().UTC().Add(-31*time.Minute), testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -63,7 +63,7 @@ func TestPostLoginShouldRenderTheCodeEntryScreenOnAMatch(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -77,12 +77,12 @@ func TestPostLoginShouldRenderAnIdenticalBodyRegardlessOfAMatch(t *testing.T) {
 	matchReq := httptest.NewRequest("POST", "/login", strings.NewReader("email=basti%40example.com"))
 	matchReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	matchRec := httptest.NewRecorder()
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(matchRec, matchReq)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(matchRec, matchReq)
 
 	noMatchReq := httptest.NewRequest("POST", "/login", strings.NewReader("email=unknown%40example.com"))
 	noMatchReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	noMatchRec := httptest.NewRecorder()
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(noMatchRec, noMatchReq)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(noMatchRec, noMatchReq)
 
 	if matchRec.Code != noMatchRec.Code {
 		t.Fatalf("expected identical status codes, got %d and %d", matchRec.Code, noMatchRec.Code)
@@ -114,7 +114,7 @@ players:
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 500 {
 		t.Errorf("expected status 500 when the store write fails, got %d", rec.Code)
@@ -126,7 +126,7 @@ func TestPostLoginShouldReturn500WhenTheRequestBodyIsMalformed(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 500 {
 		t.Errorf("expected status 500 for a malformed request body, got %d", rec.Code)
@@ -175,7 +175,7 @@ func TestPostLogoutShouldClearTheSessionCookieAndRedirectToLoginWithAValidSessio
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	assertClearsSessionCookieAndRedirectsToLogin(t, rec)
 }
@@ -184,7 +184,7 @@ func TestPostLogoutShouldClearTheSessionCookieAndRedirectToLoginWithNoSessionCoo
 	req := httptest.NewRequest("POST", "/logout", nil)
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	assertClearsSessionCookieAndRedirectsToLogin(t, rec)
 }
@@ -194,7 +194,7 @@ func TestPostLogoutShouldClearTheSessionCookieAndRedirectToLoginWithAnExpiredSes
 	req.AddCookie(auth.IssueSessionCookieAt("basti", time.Now().UTC().Add(-31*time.Minute), testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	assertClearsSessionCookieAndRedirectsToLogin(t, rec)
 }
@@ -212,7 +212,7 @@ func TestPostLogoutShouldClearTheSessionCookieAndRedirectToLoginWithATamperedSes
 	req.AddCookie(c)
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	assertClearsSessionCookieAndRedirectsToLogin(t, rec)
 }
@@ -222,7 +222,7 @@ func TestGetLogoutShouldNotClearTheSessionOrRedirect(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code == http.StatusFound {
 		t.Fatalf("expected GET /logout not to redirect like POST /logout does, got status %d", rec.Code)
@@ -257,7 +257,7 @@ func postCode(t *testing.T, handler http.Handler, code string) *httptest.Respons
 func TestPostLoginCodeShouldRedirectAndSetASessionCookieOnAValidCode(t *testing.T) {
 	st := newTestStoreWithLoginCode(t, "123456", time.Now().UTC())
 
-	rec := postCode(t, NewServer(st, noopSender, testSecret), "123456")
+	rec := postCode(t, newTestServer(st, noopSender), "123456")
 
 	if rec.Code != http.StatusFound {
 		t.Fatalf("expected status %d, got %d", http.StatusFound, rec.Code)
@@ -291,7 +291,7 @@ func TestPostLoginCodeShouldRedirectAndSetASessionCookieOnAValidCode(t *testing.
 func TestPostLoginCodeShouldMatchAWhitespacePaddedSubmittedCode(t *testing.T) {
 	st := newTestStoreWithLoginCode(t, "123456", time.Now().UTC())
 
-	rec := postCode(t, NewServer(st, noopSender, testSecret), " 123456\n")
+	rec := postCode(t, newTestServer(st, noopSender), " 123456\n")
 
 	if rec.Code != http.StatusFound {
 		t.Fatalf("expected status %d for a whitespace-padded code, got %d", http.StatusFound, rec.Code)
@@ -303,7 +303,7 @@ func TestPostLoginCodeShouldMatchAWhitespacePaddedSubmittedCode(t *testing.T) {
 
 func TestPostLoginCodeShouldMarkTheCodeUsed(t *testing.T) {
 	st := newTestStoreWithLoginCode(t, "123456", time.Now().UTC())
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	postCode(t, handler, "123456")
 	rec := postCode(t, handler, "123456")
@@ -319,7 +319,7 @@ func TestPostLoginCodeShouldMarkTheCodeUsed(t *testing.T) {
 func TestPostLoginCodeShouldShowTheGenericErrorAndRetainTheCodeOnAWrongCode(t *testing.T) {
 	st := newTestStoreWithLoginCode(t, "123456", time.Now().UTC())
 
-	rec := postCode(t, NewServer(st, noopSender, testSecret), "000000")
+	rec := postCode(t, newTestServer(st, noopSender), "000000")
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d", rec.Code)
@@ -345,7 +345,7 @@ func TestPostLoginCodeShouldShowTheGenericErrorWhenTheCodeFieldIsMissing(t *test
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401 for a missing code field, got %d", rec.Code)
@@ -359,11 +359,11 @@ func TestPostLoginCodeShouldShowTheIdenticalErrorForWrongExpiredAndUsedCodes(t *
 	wrongStore := newTestStoreWithLoginCode(t, "123456", time.Now().UTC())
 	expiredStore := newTestStoreWithLoginCode(t, "123456", time.Now().UTC().Add(-11*time.Minute))
 	usedStore := newTestStoreWithLoginCode(t, "123456", time.Now().UTC())
-	usedHandler := NewServer(usedStore, noopSender, testSecret)
+	usedHandler := newTestServer(usedStore, noopSender)
 	postCode(t, usedHandler, "123456")
 
-	wrongRec := postCode(t, NewServer(wrongStore, noopSender, testSecret), "000000")
-	expiredRec := postCode(t, NewServer(expiredStore, noopSender, testSecret), "123456")
+	wrongRec := postCode(t, newTestServer(wrongStore, noopSender), "000000")
+	expiredRec := postCode(t, newTestServer(expiredStore, noopSender), "123456")
 	usedRec := postCode(t, usedHandler, "123456")
 
 	if wrongRec.Code != expiredRec.Code || expiredRec.Code != usedRec.Code {
@@ -390,7 +390,7 @@ func TestPostLoginCodeShouldReturn500WhenTheRequestBodyIsMalformed(t *testing.T)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 500 {
 		t.Errorf("expected status 500 for a malformed request body, got %d", rec.Code)

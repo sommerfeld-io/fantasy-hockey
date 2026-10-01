@@ -645,7 +645,7 @@ func getCompare(t *testing.T, st *store.Store, playerID, path string) string {
 	req.AddCookie(auth.IssueSessionCookie(playerID, testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)

@@ -19,6 +19,7 @@ import (
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/mailer"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
@@ -54,6 +55,7 @@ func TestAcceptanceSuite(t *testing.T) {
 			InitializeLeaderboardScenario(ctx)
 			InitializeCompareScenario(ctx)
 			InitializeHandEditedResultsScenario(ctx)
+			InitializeMetricsEndpointScenario(ctx)
 		},
 		Options: &opts,
 	}
@@ -71,7 +73,7 @@ const testSessionSecret = "test-session-secret"
 // fresh in a temp directory) and a no-op mailer.Sender, for scenarios that
 // only need *a* server and don't care about login-code delivery.
 func newTestServer() http.Handler {
-	return web.NewServer(newTempStore(), noopSender, testSessionSecret)
+	return web.NewServer(newTempStore(), noopSender, testSessionSecret, observe.New())
 }
 
 // newTempStore bootstraps a fresh store.Store backed by a data file in a new

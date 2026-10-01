@@ -17,6 +17,7 @@ import (
 	"github.com/cucumber/godog"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
@@ -112,7 +113,7 @@ func (s *enterLoginCodeScenarioState) ensureReady() error {
 	}
 
 	send := func(_, _, _ string) error { return nil }
-	s.server = httptest.NewServer(web.NewServer(st, send, enterLoginCodeSecret))
+	s.server = httptest.NewServer(web.NewServer(st, send, enterLoginCodeSecret, observe.New()))
 	return nil
 }
 

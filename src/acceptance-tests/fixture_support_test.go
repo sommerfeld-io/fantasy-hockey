@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
@@ -368,7 +369,7 @@ func (f *lazyFixture) ensureReady() error {
 		}
 	}
 
-	f.server = httptest.NewServer(web.NewServer(st, noopSender, f.secret))
+	f.server = httptest.NewServer(web.NewServer(st, noopSender, f.secret, observe.New()))
 	return nil
 }
 

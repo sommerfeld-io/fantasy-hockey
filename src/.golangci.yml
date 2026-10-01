@@ -84,6 +84,17 @@ linters:
             - $gostd
             - github.com/google/uuid
             - go.yaml.in/yaml/v3
+        # internal/observe is the single home of Prometheus and audit logging
+        # (AD-31): only it may import client_golang, and it may import no
+        # other internal package than clock.
+        observe:
+          files:
+            - "**/internal/observe/*.go"
+            - "!**/internal/observe/*_test.go"
+          allow:
+            - $gostd
+            - github.com/sommerfeld-io/fantasy-hockey/internal/clock
+            - github.com/prometheus/client_golang
         # web's own file is excluded from the package-wide rule below: it
         # gets the more specific compare rule instead, so a violation there
         # reports once with compare's own reason, not twice.
@@ -95,6 +106,8 @@ linters:
           deny:
             - pkg: github.com/sommerfeld-io/fantasy-hockey/internal/scoring
               desc: "web may read points only through standings.Row"
+            - pkg: github.com/prometheus/client_golang
+              desc: "web reaches Prometheus only through internal/observe"
         compare:
           files:
             - "**/internal/web/compare.go"
@@ -103,6 +116,8 @@ linters:
               desc: "compare.go is display-only over the store"
             - pkg: github.com/sommerfeld-io/fantasy-hockey/internal/standings
               desc: "compare.go is display-only over the store"
+            - pkg: github.com/prometheus/client_golang
+              desc: "web reaches Prometheus only through internal/observe"
   exclusions:
     presets:
       - common-false-positives

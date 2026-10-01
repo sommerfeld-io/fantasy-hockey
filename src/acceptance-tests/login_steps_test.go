@@ -21,6 +21,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
@@ -162,7 +163,7 @@ func (s *loginScenarioState) startServer() error {
 
 	s.prevDefault = slog.Default()
 	slog.SetDefault(slog.New(slog.NewTextHandler(&syncWriter{mu: &s.mu, w: s.logs}, nil)))
-	s.server = httptest.NewServer(web.NewServer(st, send, testSessionSecret))
+	s.server = httptest.NewServer(web.NewServer(st, send, testSessionSecret, observe.New()))
 	return nil
 }
 

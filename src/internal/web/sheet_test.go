@@ -35,7 +35,7 @@ func TestGetPredictSheetShouldRenderTheStubPageForAKnownSet(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -72,7 +72,7 @@ func TestGetPredictSheetShouldRenderTheStubPageForAClosedSet(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -102,7 +102,7 @@ func TestGetPredictSheetShouldReturn404ForASetWithAnUnparseableDeadline(t *testi
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected status %d for a set with an unparseable deadline_utc, got %d", http.StatusNotFound, rec.Code)
@@ -113,7 +113,7 @@ func TestGetPredictSheetShouldRedirectToLoginWithNoSessionCookie(t *testing.T) {
 	req := httptest.NewRequest("GET", "/predict/cup", nil)
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	assertRedirectsToLoginWithNoCookie(t, rec)
 }
@@ -123,7 +123,7 @@ func TestGetPredictSheetShouldReturn404ForAnUnknownSetID(t *testing.T) {
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected status %d for an unknown prediction set id, got %d", http.StatusNotFound, rec.Code)
@@ -138,7 +138,7 @@ func TestGetPredictSheetShouldRenderThePickFormWithNoTeamPreselectedWhenNoPriorP
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	if rec.Code != 200 {
 		t.Fatalf("expected status 200, got %d", rec.Code)
@@ -175,7 +175,7 @@ func TestGetPredictSheetShouldPreselectTheSavedPickAndReadUpdatePredictions(t *t
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `<option value="TOR" selected>Toronto Maple Leafs</option>`) {
@@ -194,7 +194,7 @@ func TestGetPredictSheetShouldOrderOptgroupsAtlanticMetropolitanCentralPacific(t
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	assertMarkersInOrder(t, rec.Body.String(),
 		`<optgroup label="Atlantic">`, `<optgroup label="Metropolitan">`, `<optgroup label="Central">`, `<optgroup label="Pacific">`)
@@ -211,7 +211,7 @@ func TestGetPredictSheetShouldRenderAReadOnlyBannerAndDisabledSelectWhenClosed(t
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `<select name="team_id" aria-label="Cup champion pick" required disabled>`) {
@@ -238,7 +238,7 @@ func TestGetPredictSheetShouldNeverCreateAPredictionRowMerelyByOpeningTheSheet(t
 	req := httptest.NewRequest("GET", "/predict/cup", nil)
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	if _, ok := st.FindPrediction("basti", store.KindCupChampion); ok {
 		t.Error("expected no Prediction row to be force-created merely by opening the sheet")
@@ -260,7 +260,7 @@ func postSheet(t *testing.T, handler http.Handler, id, teamID string) *httptest.
 func TestPostPredictSheetShouldSaveAValidPickAndRedirectToPredict(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSheet(t, handler, "cup", "TOR")
 
@@ -287,7 +287,7 @@ func TestPostPredictSheetShouldSaveAValidPickAndRedirectToPredict(t *testing.T) 
 func TestPostPredictSheetShouldSaveAValidPickForPresidentsAndShowSubmittedOnReload(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, presidentsPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSheet(t, handler, "presidents", "VGK")
 
@@ -339,7 +339,7 @@ func TestPostPredictSheetShouldSaveAValidPickForPresidentsAndShowSubmittedOnRelo
 func TestPostPredictSheetShouldSaveAValidPickForPlayoffsCupAndShowSubmittedOnReload(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, playoffsCupPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSheet(t, handler, store.KindPlayoffsCup, "VGK")
 
@@ -394,7 +394,7 @@ func TestPostPredictSheetShouldNotOverwriteTheSeasonCupPickWhenSavingPlayoffsCup
 	if err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SavePrediction: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSheet(t, handler, store.KindPlayoffsCup, "VGK")
 
@@ -425,7 +425,7 @@ func TestPostPredictSheetShouldUpdateAnExistingPickInPlaceOnResubmission(t *test
 	if err := st.SavePrediction("basti", store.KindCupChampion, "TOR", time.Now().UTC()); err != nil {
 		t.Fatalf("seed SavePrediction: %v", err)
 	}
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSheet(t, handler, "cup", "VGK")
 
@@ -449,7 +449,7 @@ func TestPostPredictSheetShouldUpdateAnExistingPickInPlaceOnResubmission(t *test
 func TestPostPredictSheetShouldRejectAMissingTeamIDAndSaveNothing(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSheet(t, handler, "cup", "")
 
@@ -467,7 +467,7 @@ func TestPostPredictSheetShouldRejectAMissingTeamIDAndSaveNothing(t *testing.T) 
 func TestPostPredictSheetShouldRejectAnUnknownTeamIDAndSaveNothing(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSheet(t, handler, "cup", "ZZZ")
 
@@ -485,7 +485,7 @@ func TestPostPredictSheetShouldRejectAnUnknownTeamIDAndSaveNothing(t *testing.T)
 func TestPostPredictSheetShouldRejectAfterTheDeadlineWithNoOverride(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSheet(t, handler, "cup", "TOR")
 
@@ -499,7 +499,7 @@ func TestPostPredictSheetShouldRejectAfterTheDeadlineWithNoOverride(t *testing.T
 
 func TestPostPredictSheetShouldReturn404WhenThePickableIDHasNoMatchingSet(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	handler := NewServer(newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline)), noopSender, testSecret)
+	handler := newTestServer(newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline)), noopSender)
 
 	// "presidents" is a pickable kind, but this store only seeded "cup".
 	rec := postSheet(t, handler, "presidents", "TOR")
@@ -517,7 +517,7 @@ func TestPostPredictSheetShouldReturn404ForASetWithAnUnparseableDeadline(t *test
       phase: before_season
       upcoming: false
 `
-	handler := NewServer(newTestStoreWithPredictionSetsAndTeams(t, seed), noopSender, testSecret)
+	handler := newTestServer(newTestStoreWithPredictionSetsAndTeams(t, seed), noopSender)
 
 	rec := postSheet(t, handler, "cup", "TOR")
 
@@ -528,7 +528,7 @@ func TestPostPredictSheetShouldReturn404ForASetWithAnUnparseableDeadline(t *test
 
 func TestPostPredictSheetShouldReturn500ForAMalformedRequestBody(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
-	handler := NewServer(newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline)), noopSender, testSecret)
+	handler := newTestServer(newTestStoreWithPredictionSetsAndTeams(t, cupPredictionSetSeed(deadline)), noopSender)
 
 	req := httptest.NewRequest("POST", "/predict/cup", strings.NewReader("team_id=%zz"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -556,7 +556,7 @@ prediction_sets:
       division: Atlantic
 `
 	st, dir := newSeededStore(t, seed)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	// Remove the directory out from under the store so SavePrediction's
 	// atomic write-and-rename fails, simulating a disk write failure - the
@@ -587,7 +587,7 @@ func TestPostPredictSheetShouldReturn404ForANonPickableSetID(t *testing.T) {
       phase: playoffs
       upcoming: false
 `, deadline.Format(time.RFC3339))
-	handler := NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret)
+	handler := newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender)
 
 	rec := postSheet(t, handler, "mystery-set", "TOR")
 
@@ -597,7 +597,7 @@ func TestPostPredictSheetShouldReturn404ForANonPickableSetID(t *testing.T) {
 }
 
 func TestPostPredictSheetShouldReturn404ForAnUnknownSetID(t *testing.T) {
-	handler := NewServer(newTestStore(t), noopSender, testSecret)
+	handler := newTestServer(newTestStore(t), noopSender)
 
 	rec := postSheet(t, handler, "does-not-exist", "TOR")
 
@@ -611,7 +611,7 @@ func TestPostPredictSheetShouldRedirectToLoginWithNoSessionCookie(t *testing.T) 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	rec := httptest.NewRecorder()
 
-	NewServer(newTestStore(t), noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
 
 	assertRedirectsToLoginWithNoCookie(t, rec)
 }
@@ -627,7 +627,7 @@ func TestPredictShouldShowSubmittedStatusAndAccentAfterASavedPick(t *testing.T) 
 	req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
 	rec := httptest.NewRecorder()
 
-	NewServer(st, noopSender, testSecret).ServeHTTP(rec, req)
+	newTestServer(st, noopSender).ServeHTTP(rec, req)
 
 	body := rec.Body.String()
 	if !strings.Contains(body, `class="status-pill status-pill--submitted">Submitted</span>`) {
@@ -660,13 +660,13 @@ func getSheet(t *testing.T, handler http.Handler, id string) *httptest.ResponseR
 // indistinguishable from.
 func unknownSheetBody(t *testing.T) string {
 	t.Helper()
-	return getSheet(t, NewServer(newTestStore(t), noopSender, testSecret), "does-not-exist").Body.String()
+	return getSheet(t, newTestServer(newTestStore(t), noopSender), "does-not-exist").Body.String()
 }
 
 func TestGetPredictSheetShouldReturn404ForAnUpcomingSet(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, markUpcoming(cupPredictionSetSeed(deadline)))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getSheet(t, handler, "cup")
 
@@ -684,7 +684,7 @@ func TestGetPredictSheetShouldReturn404ForAnUpcomingSet(t *testing.T) {
 func TestPostPredictSheetShouldReturn404ForAnUpcomingSetAndSaveNothing(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, markUpcoming(cupPredictionSetSeed(deadline)))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := postSheet(t, handler, "cup", "TOR")
 
@@ -705,7 +705,7 @@ func TestPostPredictSheetShouldReturn404ForAnUpcomingSetAndSaveNothing(t *testin
 func TestPredictSheetShouldReturn404NotForbiddenForAnUpcomingSetPastItsDeadline(t *testing.T) {
 	deadline := time.Now().UTC().Add(-24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, markUpcoming(cupPredictionSetSeed(deadline)))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	getRec := getSheet(t, handler, "cup")
 	postRec := postSheet(t, handler, "cup", "TOR")
@@ -799,7 +799,7 @@ func TestPredictSheetShouldReturn404ForEveryUpcomingPickableKindAndSaveNothing(t
 	for _, tc := range upcomingGateCases {
 		t.Run(tc.id, func(t *testing.T) {
 			st := tc.newStore(t, markUpcoming(tc.seed(deadline)))
-			handler := NewServer(st, noopSender, testSecret)
+			handler := newTestServer(st, noopSender)
 
 			getRec := getSheet(t, handler, tc.id)
 			postRec := tc.post(t, handler)
@@ -822,7 +822,7 @@ func TestPredictSheetShouldStillServeAndSaveEveryNonUpcomingOpenPickableKind(t *
 	for _, tc := range upcomingGateCases {
 		t.Run(tc.id, func(t *testing.T) {
 			st := tc.newStore(t, tc.seed(deadline))
-			handler := NewServer(st, noopSender, testSecret)
+			handler := newTestServer(st, noopSender)
 
 			getRec := getSheet(t, handler, tc.id)
 			postRec := tc.post(t, handler)
@@ -852,7 +852,7 @@ func TestGetPredictSheetShouldReturn404ForAnUpcomingStubSet(t *testing.T) {
       upcoming: true
 `, deadline.Format(time.RFC3339))
 
-	rec := getSheet(t, NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret), "r1")
+	rec := getSheet(t, newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender), "r1")
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected status %d for an upcoming stub set, got %d", http.StatusNotFound, rec.Code)
@@ -875,7 +875,7 @@ func TestGetPredictSheetShouldReturn404ForARoundGatedSetWithNoMatchupsRecorded(t
       upcoming: false
 `, deadline.Format(time.RFC3339))
 
-	rec := getSheet(t, NewServer(newTestStoreWithPredictionSets(t, seed), noopSender, testSecret), "cf")
+	rec := getSheet(t, newTestServer(newTestStoreWithPredictionSets(t, seed), noopSender), "cf")
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("expected status %d for a round-gated set with no recorded matchups, got %d", http.StatusNotFound, rec.Code)
@@ -912,7 +912,7 @@ func TestGetPredictSheetShouldServeEveryRoundGatedSetOnceAMatchupIsRecorded(t *t
 `, tc.id, tc.title, deadline.Format(time.RFC3339))
 			matchups := fmt.Sprintf("    %s:\n        - key: s1\n          a: FLA\n          b: TOR\n", tc.id)
 
-			rec := getSheet(t, NewServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender, testSecret), tc.id)
+			rec := getSheet(t, newTestServer(newTestStoreWithPredictionSetsAndMatchups(t, seed, matchups), noopSender), tc.id)
 
 			if rec.Code != http.StatusOK {
 				t.Errorf("expected status %d for %q with a recorded matchup despite upcoming: true, got %d", http.StatusOK, tc.id, rec.Code)
@@ -934,7 +934,7 @@ func TestGetPredictSheetShouldServeEveryRoundGatedSetOnceAMatchupIsRecorded(t *t
 func TestSheetShouldReturn404ForAGatedRoundWhenOnlyAnotherRoundHasMatchups(t *testing.T) {
 	seed := gatedRoundsSeed(time.Now().UTC().Add(5 * 24 * time.Hour))
 	st := newTestStoreWithPredictionSetsAndMatchups(t, seed, r2OnlyMatchupsYAML)
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 
 	rec := getSheet(t, handler, store.ConferenceFinalsSetID)
 	if rec.Code != http.StatusNotFound {
@@ -961,7 +961,7 @@ func TestSheetShouldReturn404ForAGatedRoundWhenOnlyAnotherRoundHasMatchups(t *te
 func TestPostPredictSheetShouldReturn404ForAnUpcomingSetBeforeParsingTheForm(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithPredictionSetsAndTeams(t, markUpcoming(cupPredictionSetSeed(deadline)))
-	handler := NewServer(st, noopSender, testSecret)
+	handler := newTestServer(st, noopSender)
 	oversized := "team_id=TOR&pad=" + strings.Repeat("x", maxSheetFormBytes+1)
 
 	req := httptest.NewRequest("POST", "/predict/cup", strings.NewReader(oversized))

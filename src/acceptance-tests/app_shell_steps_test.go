@@ -11,6 +11,7 @@ import (
 	"github.com/cucumber/godog"
 
 	"github.com/sommerfeld-io/fantasy-hockey/internal/auth"
+	"github.com/sommerfeld-io/fantasy-hockey/internal/observe"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 	"github.com/sommerfeld-io/fantasy-hockey/internal/web"
 )
@@ -63,7 +64,7 @@ type appShellScenarioState struct {
 
 func newAppShellScenarioState() *appShellScenarioState {
 	return &appShellScenarioState{
-		server: httptest.NewServer(web.NewServer(newAppShellStore(), noopSender, testSessionSecret)),
+		server: httptest.NewServer(web.NewServer(newAppShellStore(), noopSender, testSessionSecret, observe.New())),
 	}
 }
 

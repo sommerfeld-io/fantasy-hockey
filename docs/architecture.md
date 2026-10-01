@@ -32,6 +32,7 @@ One dependency direction: presentation (`internal/web`) depends on domain packag
 | `internal/standings` | Live Leaderboard computation (Regular/Playoff/Total), reads `internal/scoring`                                                     |
 | `internal/store`     | The only package that reads or writes `fantasy-hockey.yml`                                                                         |
 | `internal/mailer`    | SMTP delivery, used by `internal/auth` and `internal/web`                                                                          |
+| `internal/observe`   | Prometheus registry, HTTP metrics middleware, `/metrics` handler, audit-log emitter; used by `internal/web` and `main.go`          |
 | `internal/clock`     | Current time, RFC3339 formatting                                                                                                   |
 | `internal/server`    | HTTP bootstrap: port resolution, graceful shutdown — no business logic                                                             |
 | `main.go`            | Wiring only: config, opens the data file, starts the server                                                                        |
