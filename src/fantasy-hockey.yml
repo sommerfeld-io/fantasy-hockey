@@ -723,9 +723,29 @@ predictions:
     player_id: sebastian
     kind: award
     team_id: ""
-    submitted_at: "2026-09-24T18:43:17Z"
+    submitted_at: "2026-10-02T16:39:06Z"
     award: hart
     finalist_slugs:
       - mcdavid-connor
       - mackinnon-nathan
       - kucherov-nikita
+  - id: 34ac48b7-52fa-4faf-bcb5-9697be35e240
+    player_id: sebastian
+    kind: award
+    team_id: ""
+    submitted_at: "2026-10-02T16:39:06Z"
+    award: norris
+    finalist_slugs:
+      - makar-cale
+      - dahlin-rasmus
+      - seider-moritz
+  - id: 764e761c-b267-4a71-ab52-b2a0a014132a
+    player_id: sebastian
+    kind: award
+    team_id: ""
+    submitted_at: "2026-10-02T16:39:06Z"
+    award: vezina
+    finalist_slugs:
+      - shesterkin-igor
+      - vasilevskiy-andrei
+      - hellebuyck-connor
