@@ -28,6 +28,22 @@ Feature: Player Awards Finalists
     And the player's saved finalists for "hart" are "mcdavid-connor,mackinnon-nathan,kucherov-nikita"
     And the player has no saved finalists for "vezina"
 
+  Scenario: A partly filled award is flagged while the other complete awards are saved
+    Given the awards Prediction Set has a deadline "in 5 days"
+    When the player submits valid finalists for all 5 awards but leaves one Hart slot blank
+    Then the award pick response status is 200
+    And the awards sheet shows "Pick all 3 finalists for this award, or clear it."
+    And the player has no saved finalists for "hart"
+    And the player's saved finalists for "norris" are "makar-cale,hughes-quinn,werenski-zach"
+
+  Scenario: Clearing one slot of an already saved award flags it and leaves the saved picks as they were
+    Given the awards Prediction Set has a deadline "in 5 days"
+    And the player already submitted valid finalists for all 5 awards
+    When the player submits valid finalists for all 5 awards but leaves one Hart slot blank
+    Then the award pick response status is 200
+    And the awards sheet shows "Pick all 3 finalists for this award, or clear it."
+    And the player's saved finalists for "hart" are "mcdavid-connor,mackinnon-nathan,kucherov-nikita"
+
   Scenario: A typed name that never resolves to a real NHL Player is rejected and nothing is saved
     Given the awards Prediction Set has a deadline "in 5 days"
     When the player submits valid finalists for all 5 awards but types an unresolved name for one Hart slot

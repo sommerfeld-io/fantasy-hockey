@@ -235,6 +235,14 @@ func (s *awardFinalistsScenarioState) thePlayerSubmitsValidFinalistsForAll5Award
 	return s.postAwardsForm(slots)
 }
 
+func (s *awardFinalistsScenarioState) thePlayerSubmitsValidFinalistsForAll5AwardsButLeavesOneHartSlotBlank() error {
+	slots := validAwardFinalistsFixture()
+	hart := slots["hart"]
+	hart[2] = awardFinalistSlotFixture{}
+	slots["hart"] = hart
+	return s.postAwardsForm(slots)
+}
+
 func (s *awardFinalistsScenarioState) theAwardsSheetShowsFiveTrophyGroups() error {
 	for _, award := range awardFinalistsOrder {
 		if !strings.Contains(s.lastBody, `data-award="`+award+`"`) {
@@ -410,6 +418,7 @@ func InitializeAwardFinalistsScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the player submits valid finalists for only the Hart and Norris awards$`, s.thePlayerSubmitsValidFinalistsForOnlyTheHartAndNorrisAwards)
 	ctx.Step(`^the player submits valid finalists for all 5 awards but types an unresolved name for one Hart slot$`, s.thePlayerSubmitsValidFinalistsForAll5AwardsButTypesAnUnresolvedNameForOneHartSlot)
 	ctx.Step(`^the player submits valid finalists for all 5 awards but submits a goalie's slug for a Hart slot$`, s.thePlayerSubmitsValidFinalistsForAll5AwardsButSubmitsAGoaliesSlugForAHartSlot)
+	ctx.Step(`^the player submits valid finalists for all 5 awards but leaves one Hart slot blank$`, s.thePlayerSubmitsValidFinalistsForAll5AwardsButLeavesOneHartSlotBlank)
 	ctx.Step(`^the awards sheet shows five trophy groups$`, s.theAwardsSheetShowsFiveTrophyGroups)
 	ctx.Step(`^the awards sheet shows no trophy group's green check$`, s.theAwardsSheetShowsNoTrophyGroupsGreenCheck)
 	ctx.Step(`^the awards sheet shows the button text "([^"]*)"$`, s.theAwardsSheetShowsTheButtonText)

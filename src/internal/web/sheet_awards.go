@@ -84,6 +84,12 @@ func awardFinalistSlugFieldName(award string, slot int) string {
 // submission.
 const invalidFinalistErrorText = "Pick a name from the suggestions."
 
+// incompleteAwardErrorText is the inline caption shown on the empty slots of
+// an award with only 1 or 2 of its 3 finalists filled (Story 2.7). Unlike
+// invalidFinalistErrorText it does not block the other awards in the same
+// submit - the incomplete award alone is left unsaved.
+const incompleteAwardErrorText = "Pick all 3 finalists for this award, or clear it."
+
 // finalistSlotPick is one award-finalist slot's rendered state: Text/Slug
 // are the visible text input's and paired hidden slug input's values;
 // TextField/SlugField are their submitted form field names. Error is
@@ -189,6 +195,21 @@ func awardSlotIsDuplicateSlug(slots [awardFinalistCount]awardSlotSubmission, i i
 	return false
 }
 
+// awardIsIncomplete reports whether slots has 1 or 2 (but not 0 or all 3)
+// non-blank slots - a fully blank award is simply not saved without any
+// flag (FR-11), while a half-entered one is flagged (Story 2.7). Callers
+// must already have passed awardsSubmissionHasAnInvalidSlot's gate, so
+// every non-blank slot is a valid, distinct pick.
+func awardIsIncomplete(slots [awardFinalistCount]awardSlotSubmission) bool {
+	filled := 0
+	for _, slot := range slots {
+		if slot.Text != "" {
+			filled++
+		}
+	}
+	return filled > 0 && filled < awardFinalistCount
+}
+
 // awardFinalistSlots resolves award's currently-rendered 3 slots: override's
 // own retained (invalid) submission when override is non-nil, otherwise
 // playerID's saved FindAwardFinalists row (blank slots when none is saved) -
@@ -226,11 +247,16 @@ func newAwardGroupPick(st *store.Store, playerID, award string, override map[str
 	rejected := override != nil
 
 	slots := awardFinalistSlots(st, playerID, award, override)
+	incomplete := rejected && awardIsIncomplete(slots)
 	for i, slot := range slots {
 		invalid := rejected && awardSlotInvalid(st, award, slots, i)
 		errText := ""
 		if invalid {
 			errText = invalidFinalistErrorText
+		}
+		if incomplete && slot.Text == "" {
+			invalid = true
+			errText = incompleteAwardErrorText
 		}
 		finalists[i] = finalistSlotPick{
 			Text:      slot.Text,
@@ -328,10 +354,24 @@ func awardsSubmissionHasAnInvalidSlot(st *store.Store, submission map[string][aw
 	return false
 }
 
+// awardsSubmissionHasAnIncompleteAward reports whether any award in
+// submission is half-entered (awardIsIncomplete) - the sheet is then
+// re-rendered with incompleteAwardErrorText instead of redirecting, after
+// every complete award has already been saved.
+func awardsSubmissionHasAnIncompleteAward(submission map[string][awardFinalistCount]awardSlotSubmission) bool {
+	for _, slots := range submission {
+		if awardIsIncomplete(slots) {
+			return true
+		}
+	}
+	return false
+}
+
 // awardFinalistSlugsToSave returns the subset of submission whose award has
 // all awardFinalistCount slots resolved to a slug valid for that award
 // (isValidAwardFinalist) - an award left partially or fully blank is simply
-// absent from the result (FR-11: scores zero, never blocks another award).
+// absent from the result and never blocks another award (FR-11; a partial
+// one is flagged separately, Story 2.7).
 // Callers must already have passed awardsSubmissionHasAnInvalidSlot's gate,
 // so every non-blank slot here is already known valid; this only counts
 // how many of the 3 actually resolved.
@@ -360,8 +400,9 @@ func awardFinalistSlugsToSave(st *store.Store, submission map[string][awardFinal
 // re-renders the sheet (200) with invalidFinalistErrorText on every
 // offending slot and saves nothing, including otherwise-complete awards. A
 // valid submission saves every award whose 3 slots are all filled via one
-// st.SaveAwardPicks call - a partially or fully blank award simply isn't
-// saved this submission (FR-11) - and redirects to /predict (302).
+// st.SaveAwardPicks call. A fully blank award simply isn't saved (FR-11) and
+// redirects to /predict (302); a half-entered award isn't saved either but
+// is flagged (Story 2.7) by re-rendering the sheet (200) with the input kept.
 func handleAwardsSubmit(w http.ResponseWriter, r *http.Request, st *store.Store, ob *observe.Observer, set store.PredictionSet, playerID string, now time.Time) {
 	submission := parseAwardsSubmission(r)
 
@@ -378,13 +419,19 @@ func handleAwardsSubmit(w http.ResponseWriter, r *http.Request, st *store.Store,
 		return
 	}
 
+	if awardsSubmissionHasAnIncompleteAward(submission) {
+		renderRejectedAwardsPick(w, r, st, set, playerID, now, submission)
+		return
+	}
+
 	http.Redirect(w, r, "/predict", http.StatusFound)
 }
 
 // renderRejectedAwardsPick re-renders the awardsSetID sheet (200) with
 // submission's own typed text/slug values retained per slot and every
-// offending slot marked Invalid (goal-border + inline caption) - nothing is
-// saved. err from newSheetData can only come from set.DeadlineUTC failing
+// offending slot marked Invalid (goal-border + inline caption). For an
+// invalid slot nothing is saved; for an incomplete award only the complete
+// awards were already saved by the caller. err from newSheetData can only come from set.DeadlineUTC failing
 // to parse, already parsed successfully by handleSheetSubmit moments
 // earlier.
 func renderRejectedAwardsPick(w http.ResponseWriter, r *http.Request, st *store.Store, set store.PredictionSet, playerID string, now time.Time, submission map[string][awardFinalistCount]awardSlotSubmission) {

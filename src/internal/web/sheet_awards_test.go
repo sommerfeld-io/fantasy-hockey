@@ -365,12 +365,11 @@ func TestPostAwardsSheetShouldSaveOnlyTheCompleteAwardsAndLeaveOthersUnsaved(t *
 	}
 }
 
-// TestPostAwardsSheetShouldAcceptAndSkipAPartiallyFilledAward covers the
-// spec's own boundary: "an award left partially or fully blank simply isn't
-// saved this submission" - a 2-of-3-filled award must be treated exactly
-// like a fully-blank one (accepted, not saved, no error), never rejected as
-// incomplete and never partially persisted.
-func TestPostAwardsSheetShouldAcceptAndSkipAPartiallyFilledAward(t *testing.T) {
+// TestPostAwardsSheetShouldFlagAPartiallyFilledAwardAndStillSaveTheCompleteOnes
+// covers Story 2.7: a 2-of-3-filled award is never saved and never silently
+// skipped - the sheet re-renders (200) with incompleteAwardErrorText while
+// every other complete award in the same submit is still saved.
+func TestPostAwardsSheetShouldFlagAPartiallyFilledAwardAndStillSaveTheCompleteOnes(t *testing.T) {
 	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
 	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
 	handler := newTestServer(st, noopSender)
@@ -382,14 +381,93 @@ func TestPostAwardsSheetShouldAcceptAndSkipAPartiallyFilledAward(t *testing.T) {
 
 	rec := postAwardsForm(t, handler, slots)
 
-	if rec.Code != http.StatusFound {
-		t.Fatalf("expected status %d (a partially-filled award must not block the rest of the submission), got %d: %s", http.StatusFound, rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d (the sheet re-renders with the flag), got %d", http.StatusOK, rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, incompleteAwardErrorText) {
+		t.Errorf("expected the incomplete-award caption, got %q", body)
+	}
+	if strings.Contains(body, invalidFinalistErrorText) {
+		t.Errorf("did not expect the unresolved-name caption for a merely incomplete award")
+	}
+	if !strings.Contains(body, "Connor McDavid") {
+		t.Error("expected the player's typed input to be kept on the re-rendered sheet")
 	}
 	if _, ok := st.FindAwardFinalists("basti", store.AwardHart); ok {
-		t.Error("expected the 2-of-3-filled Hart award to stay unsaved, same as a fully-blank award")
+		t.Error("expected the 2-of-3-filled Hart award to stay unsaved")
 	}
 	if _, ok := st.FindAwardFinalists("basti", store.AwardNorris); !ok {
 		t.Error("expected the complete Norris award to still be saved")
+	}
+}
+
+func TestPostAwardsSheetShouldNotFlagAFullyBlankAward(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
+	handler := newTestServer(st, noopSender)
+
+	slots := validAwardFinalistsForm()
+	slots[store.AwardHart] = [awardFinalistCount]awardSlotSubmission{}
+
+	rec := postAwardsForm(t, handler, slots)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected status %d (a blank award is simply not saved), got %d", http.StatusFound, rec.Code)
+	}
+	if _, ok := st.FindAwardFinalists("basti", store.AwardHart); ok {
+		t.Error("expected the blank Hart award to stay unsaved")
+	}
+	if _, ok := st.FindAwardFinalists("basti", store.AwardNorris); !ok {
+		t.Error("expected the complete Norris award to still be saved")
+	}
+}
+
+func TestPostAwardsSheetShouldLeaveASavedAwardUntouchedWhenASlotIsCleared(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
+	handler := newTestServer(st, noopSender)
+	postAwardsForm(t, handler, validAwardFinalistsForm())
+	before, ok := st.FindAwardFinalists("basti", store.AwardHart)
+	if !ok {
+		t.Fatal("expected the first submit to save Hart")
+	}
+
+	slots := validAwardFinalistsForm()
+	hart := slots[store.AwardHart]
+	hart[0] = awardSlot("", "")
+	slots[store.AwardHart] = hart
+	rec := postAwardsForm(t, handler, slots)
+
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), incompleteAwardErrorText) {
+		t.Fatalf("expected a 200 re-render with the incomplete caption, got %d", rec.Code)
+	}
+	after, _ := st.FindAwardFinalists("basti", store.AwardHart)
+	if strings.Join(after.FinalistSlugs, ",") != strings.Join(before.FinalistSlugs, ",") {
+		t.Errorf("expected the saved Hart picks unchanged, got %v want %v", after.FinalistSlugs, before.FinalistSlugs)
+	}
+}
+
+func TestPostAwardsSheetShouldStillRejectTheWholeSubmitForAnUnresolvedNameAlongsideAPartialAward(t *testing.T) {
+	deadline := time.Now().UTC().Add(5 * 24 * time.Hour)
+	st := newTestStoreWithAwardsRoster(t, awardsPredictionSetSeed(deadline))
+	handler := newTestServer(st, noopSender)
+
+	slots := validAwardFinalistsForm()
+	hart := slots[store.AwardHart]
+	hart[2] = awardSlot("", "")
+	slots[store.AwardHart] = hart
+	norris := slots[store.AwardNorris]
+	norris[1] = awardSlot("Not A Real Player", "")
+	slots[store.AwardNorris] = norris
+
+	rec := postAwardsForm(t, handler, slots)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if _, ok := st.FindAwardFinalists("basti", store.AwardVezina); ok {
+		t.Error("expected nothing saved when any slot is invalid, including complete awards")
 	}
 }
 

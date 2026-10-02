@@ -4,52 +4,50 @@
 
 ## Goal
 
-A player can browse all Prediction sets grouped by phase and status, then fill in and submit all four before-season predictions — Cup champion, Presidents' Trophy, Division picks (playoff teams + division winners), and Player awards finalists — before each set's own deadline. Any subset of a set's fields can be edited independently until it locks, and every pick persists centrally so it's visible and consistent across devices and players. This epic exists to close two of the three real failure modes the rebuild targets: deadline confusion and name-typo scoring gaps (award-finalist picks must resolve to a stable id, never free text).
+A player can browse all prediction sets, fill in and submit the four before-season predictions (Cup champion, Presidents' Trophy, division picks, player awards) before each deadline, edit any subset of fields until the set locks, and have it all persist and sync across devices. The epic also covers the 2026-10-01 change: an award with only some of its 3 finalists filled is flagged with an error instead of being silently dropped (Story 2.7).
 
 ## Stories
 
 - Story 2.1: Browse Prediction Sets by Phase and Status
 - Story 2.2: Load Season's Canonical Team List
 - Story 2.3: Cup Champion and Presidents' Trophy Picks
-- Story 2.4: Division Picks — Playoff Teams and Division Winners
+- Story 2.4: Division Picks - Playoff Teams and Division Winners
 - Story 2.5: Load Season's Canonical NHL Player List
 - Story 2.6: Player Awards Finalists
+- Story 2.7: Incomplete Award Picks Are Flagged
 
 ## Requirements & Constraints
 
-- Predict screen shows two sections ("Before the season" / "Playoffs"); each set shows title, subtitle, deadline (Europe/Berlin) with a relative countdown, and one status: Open, Submitted, Closed, or Upcoming. Deadlines are read directly from the data file per set — no shared/implied pattern across sets, no in-app settings page for them.
-- A set locks automatically at its deadline, with no grace period and no override for anyone; a locked set still opens but read-only.
-- A submitted-but-open set can be revised until its deadline; any subset of a set's fields saves independently — except a Series winner+game-count pair (Epic 3), which is the sole multi-field exception.
-- A pick left empty at its deadline scores zero for that item only and never blocks any other prediction.
-- Cup champion and Presidents' Trophy: single-team pick from all 32 teams grouped by division.
-- Division picks: choose playoff teams per division (each conference must total exactly 8, as a 4/4 or 5/3 split, capped live as it's selected) and one division winner per division (4 total), each dropdown scoped to that division's own teams. Submit is blocked with an explanatory message until both conferences are valid.
-- Player awards: 3 finalists for each of 5 awards, entered via autocomplete scoped by eligible position (skaters for Hart/Art Ross/Rocket Richard, defensemen for Norris, goalies for Vezina); a name not matching the season's NHL Player list is rejected, never silently accepted as free text.
-- The season's canonical team list and NHL Player candidate list must be available everywhere a pick is made, sourced from one place and reused consistently.
-- Success criterion (PRD SM-2): all three players complete every before-season set before its deadline without reverting to the previous Excel-based process — checkable at the first real deadline, not just season's end.
+- Sets are grouped by phase ("Before the season" / "Playoffs"), each showing title, subtitle, Europe/Berlin deadline with relative countdown, and a status (Open, Submitted, Closed, Upcoming). Deadlines come only from the data file; sets need not share a deadline.
+- A set locks automatically at its deadline: no grace period, no override, read-only for everyone including the author.
+- A Player may revise a submitted set until the deadline; any subset of fields saves independently.
+- A pick left empty at the deadline scores zero for that item and blocks nothing else.
+- Division picks: exactly 8 playoff teams per conference (4/4 or 5/3 split), at most 5 per division, plus one winner per division from that division's own teams.
+- Player awards: Hart, Norris, Vezina, Art Ross, Rocket Richard, 3 finalists each. Autocomplete is scoped by position (skaters for Hart/Art Ross/Rocket Richard, defensemen for Norris, goalies for Vezina).
+- Award completeness (Story 2.7): an award left entirely blank is fine and not saved, with no error. If any finalist of an award is filled, all 3 are required. An incomplete award is not saved and shows the inline caption "Pick all 3 finalists for this award, or clear it." on its empty slots. The sheet re-renders (200) with input kept, and fully filled awards in the same submit are still saved. Clearing a slot of an already-saved award flags it as incomplete and leaves its saved picks untouched.
+- A typed name that matches no suggestion, or a repeated name, still rejects the whole award submit and saves nothing.
+- Every team or NHL Player pick is stored by stable id (team abbreviation, player slug), never by display name, so typos cannot silently fail to score.
 
 ## Technical Decisions
 
-- Deadlines, the team list, and the NHL Player candidate list are all human-maintained directly in `fantasy-hockey.yml`; no code path in this epic ever writes any of them — `internal/store` only exposes read-only accessors for them.
-- `internal/store` holds one `Prediction` row per independently-saveable pick (one for Cup champion, one for Presidents' Trophy, one per division's playoff-team list, one per division winner, one per award's finalist trio), each carrying a `kind` discriminator; there is no single row or payload blob representing a whole set.
-- Every identity a player picks by name (team, NHL Player) is referenced everywhere by the same stable id — a team abbreviation or an NHL Player slug — never free-text display name. `store.AwardFinalist` is a real struct (`{Slug, DisplayName}`), scoped by position, not a bare string list; a slug is generated once when an NHL Player is first added and reused everywhere.
-- The team list and NHL Player list are embedded as JSON directly in the rendered page (shape `{"id": ..., "label": ...}`) for a shared vanilla-JS autocomplete widget — no dedicated `/api/...` endpoint. The widget always submits `id`, never `label`.
-- Presentation is server-rendered HTML (stdlib `html/template`/`net/http`); the only client-side JS in this epic is the autocomplete widget and the Division-picks live-cap disabling — both cosmetic-immediacy only, since the server independently re-validates and enforces every cap on submit regardless of what the client allowed.
-- All reads and writes against `internal/store`'s in-memory data are mutex-synchronized; a save triggers exactly one atomic write-and-rename of the whole file.
-- Every persisted/exchanged timestamp is RFC3339 via `internal/clock.NowTime().UTC().Format(time.RFC3339)`; errors are wrapped with `fmt.Errorf("context: %w", err)`.
+- Server-rendered HTML (stdlib `html/template`, `net/http` ServeMux). Client JS is limited to the autocomplete widget and the Division-pick live-cap disabling. The server re-validates every submit independently.
+- `internal/store` is the only package touching `fantasy-hockey.yml` and owns the entity structs. `AwardFinalist` is a struct `{slug, display_name}`, never a bare string list. Team and NHL Player lists, deadlines, and results are hand-maintained and read-only to app code; only predictions and login codes are written at runtime.
+- Autocomplete data is embedded as JSON in the page, with the identical shape `{"id": "<id>", "label": "<display name>"}` at every embedding site, and the shared widget always submits `id`. There is no JSON API endpoint.
+- Prediction row granularity: one row per independently-saveable pick (Cup champion, Presidents' Trophy, each division's playoff-team list, each division winner, each award's finalist trio). Runtime-created rows get UUIDs.
+- Timestamps are RFC3339 via `internal/clock`. Errors are wrapped with `fmt.Errorf("context: %w", err)`. Complexity limit 10 (gocyclo).
+- Persistence is a single YAML file with atomic write-and-rename, and store reads and writes are lock-synchronized.
+- Observability from Epic 9: each saved award counts and audits as one row. An incomplete award saves nothing and emits nothing.
 
 ## UX & Interaction Patterns
 
-- Set row: 3px left accent stripe by state (blue/green/red/faint), status pill naming the state in words (not color alone), subtitle, deadline+countdown line, chevron for actionable rows or a lock icon on dimmed, non-tappable Upcoming rows.
-- Prediction sheet: full-screen over the app frame, pinned header (back arrow, title, deadline+countdown), scrolling body, pinned action bar reading "Submit predictions" or "Update predictions" once already submitted; a Closed set shows a read-only banner with every input disabled and no action bar.
-- Single-team pick: one dropdown grouped by division; the label gets a green check the moment a team is chosen.
-- Division picks: team chips toggle with `sel` fill + `ice` border; each division shows a live n/5 counter and each conference a live n/8 indicator (check when valid, dot when not, always paired with the count text); once a scope hits its cap, remaining chips in that scope dim to 40% opacity and stop being tappable; an invalid state shows a red caption stating exactly what's missing.
-- Player awards: five trophy groups of three finalist text inputs; a rejected name shows a `goal`-colored border with an inline caption; a fully-filled award group's label gets a green check.
-- Winner/game-count-style controls (chip, number button) share one selected-state language — neutral fill + accent border — with no separate correctness coloring; validity is always communicated via captions/pills, not by recoloring picks.
-- Tap-only interaction, immediate local selection feedback with no page reload; live-cap validation at input time, disabled-button-plus-caption validation at submit time otherwise.
-- Accessibility floor: tap targets ≥32px, tabular numerals for any updating count, every form input labeled, color never the sole signal.
+- Predict screen: set rows with a 3px left accent stripe by state, status pill (Open blue, Submitted green, Closed red, Upcoming grey), chevron on tappable rows, and a dimmed, lock-icon, non-tappable Upcoming row.
+- Full-screen Prediction sheet: pinned header (back, title, deadline and countdown), scrolling body, pinned action bar. The button reads "Submit predictions", or "Update predictions" when editing. A closed set shows a read-only banner with no action bar.
+- Team picks are dropdowns grouped by division. Division chips use sel fill and an ice border, with live `n/5` and `n/8` counters (check or dot always paired with the count). Capped chips dim to 40% and become non-tappable. Submit stays disabled with a red caption naming what is missing.
+- Award groups show a green check when all 3 finalists are valid. Invalid names and incomplete awards use the `goal`-colored border plus an inline caption (the incomplete state is an [ASSUMPTION] pending product owner confirmation).
+- Tap-only interaction, with immediate local feedback and no reload for chip or dropdown picks. Tap targets are at least 32px and color is never the sole signal.
 
 ## Cross-Story Dependencies
 
-- Story 2.3 (Cup champion / Presidents' Trophy) and Story 2.4 (Division picks) both depend on Story 2.2's canonical team list for their team dropdowns/chips.
-- Story 2.6 (Player awards) depends on Story 2.5's canonical NHL Player list for autocomplete and validation.
-- Story 2.3's single-team-pick Prediction-sheet mechanics are reused as-is by Epic 3's Playoffs Cup pick (Story 3.1), which stores its pick separately without overwriting the season-opening Cup champion pick from this epic.
+- Story 2.3 depends on 2.2 (team list). Story 2.4 depends on 2.2. Story 2.6 depends on 2.5 (NHL Player list). Story 2.7 amends 2.6, whose "partial award is silently skipped" boundary is superseded.
+- Story 2.7 needs a Gherkin scenario in `src/acceptance-tests/features/` (award-finalists.feature) written first. It replaces the unit test `TestPostAwardsSheetShouldAcceptAndSkipAPartiallyFilledAward`, and the "Leaving some awards blank" scenario stays valid for fully blank awards only. It also requires regenerating the embedded game-rules copy (`task docs:embed-game-rules`).
+- Epic 3 (playoff predictions) reuses the sheet, status and deadline mechanics. Epic 4 scoring reads saved predictions, so partial awards are never persisted. Epic 9 counters and audit log hook into prediction saves.

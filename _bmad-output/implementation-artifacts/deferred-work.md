@@ -164,3 +164,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-epic-6-retro-item-44-correct-context-md-read-only-history.md`
   summary: Now that `epic-6-context.md` truthfully documents that repointing `DATA_FILE`/`--data-file` at an archived file makes it writable current state again with no OS-level guard, nothing actionable warns the human operator not to do it — `docs/operator-guide.md`'s rollover row just says "repoint `DATA_FILE`/`--data-file` at a fresh path, restart" with no caution against pointing at an *old* path.
   evidence: Verified real (blind-hunter): confirmed `docs/operator-guide.md:19` has no such warning. Pre-existing gap this build's wording correction makes more visible, not one it introduced; adding an explicit operator warning is a change to a different file with its own scope (an operator-facing safety note, not an internal planning-context wording fix) and belongs as its own action item rather than folded into item 44's narrow "correct the overstatement" ask.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-7-incomplete-award-picks-are-flagged.md`
+  summary: Show a confirmation that the complete awards were saved when the awards sheet re-renders with an incomplete-award flag.
+  evidence: the 200 re-render only shows the per-slot caption, so a player may assume nothing was saved (blind review).
