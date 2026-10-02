@@ -17,7 +17,7 @@ RUN task build
 
 
 
-FROM alpine:3.24.0 AS run
+FROM alpine:3.24.2 AS run
 LABEL maintainer="sebastian@sommerfeld.io"
 
 ARG USER_NAME=fantasy-hockey
