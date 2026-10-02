@@ -27,7 +27,7 @@ tasks:
     desc: Run golangci-lint to check code quality
     dir: *dir
     cmds:
-      - "{{ .GO_INSTALL }} github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2"
+      - "{{ .GO_INSTALL }} github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0"
       - "{{ .GO_PATH }} golangci-lint run --timeout 5m"
 
   complexity:
