@@ -16,8 +16,11 @@ jobs:
 
   update-release-notes:
     uses: sommerfeld-io/.github/.github/workflows/release.yml@main
+    secrets:
+      COPILOT_CLI_TOKEN: ${{ secrets.COPILOT_CLI_TOKEN }}
     permissions:
       contents: write
+      models: read
 
   upload-sbom:
     runs-on: ubuntu-latest
