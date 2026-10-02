@@ -9,6 +9,10 @@ inputDocuments:
   - _bmad-output/specs/spec-fantasy-hockey/SPEC.md
   - _bmad-output/specs/spec-fantasy-hockey/scoring-rules.md
   - _bmad-output/brainstorming/brainstorm-data-file-hygiene-2026-09-15/brainstorm-intent.md
+  - _bmad-output/brainstorming/brainstorm-ui-and-container-testing-2026-10-02/brainstorm-intent.md
+  - _bmad-output/specs/spec-ui-and-container-testing/SPEC.md
+  - _bmad-output/specs/spec-ui-and-container-testing/inspec-controls.md
+  - _bmad-output/specs/spec-ui-and-container-testing/pipeline-wiring.md
 ---
 
 # Fantasy Hockey - Epic Breakdown
@@ -100,6 +104,13 @@ NFR-11: Every identity a Player picks by name (Team, NHL Player) is referenced e
 - AwardFinalist is a real Go struct ({slug, display_name}), not a bare string list; NHL Player identity uses a human-readable slug generated once and reused everywhere it's referenced (Architecture AD-17, AD-24).
 - The shared autocomplete widget always submits the selected option's `id` (team abbreviation or NHL Player slug), never its display label (Architecture AD-19).
 - internal/standings may import internal/scoring (the one sanctioned feature-to-feature import) to consume computed point values for the Leaderboard, rather than re-deriving scoring logic independently (Architecture AD-8).
+- Epic 10 (UI and container regression safety nets): build the image once, test that exact artifact (the registry `:sha` image), and promote it by retagging; never rebuild. The pipeline gate blocks the edge push when a test fails.
+- Epic 10 tests must not be flaky: seed deadlines relative to now with generous margins; no production fake clock or test-only code path. The app loads the data file once at startup, so phased tests write results while the app is stopped and restart it; no reload endpoint.
+- Epic 10 Playwright suite: Node `@playwright/test` in `tests/playwright` with its own `package.json` and lockfile, one phone-viewport Chromium project, no desktop or device matrix. It complements GoDog and covers only browser-visible behaviour.
+- Epic 10 InSpec suite: Chef InSpec in `tests/inspec`, run in its own container against a running container of the app image via a `docker://` target, never installed in the app image and never bind-mounting the repo. The container under test runs the image's real `CMD` with `SESSION_SECRET` set; probes use busybox `wget` (`curl` is banned from the image). Needs docker socket access and `/bin/sh` in the image.
+- Epic 10 image bounds: the 6.5 MB size ceiling applies to the amd64 image under test (5.33 MB measured on arm64); the pinned-base control reads the version from the `Dockerfile` `FROM` line. Tests run amd64 only (NFR-8's arm64 target is exercised later, on the Raspberry Pi).
+- Epic 10 wiring: taskfiles in `tests/playwright` and `tests/inspec` are included from the root `taskfile.yml`, take an `IMAGE` variable, and are the commands the pipeline calls; linters cover `tests/`. Locally the suites run sequentially with a data-file reset; in GitHub Actions they run in parallel on separate workers.
+- Epic 10 changes `pipeline.yml` and `release.yml`, which are protected files: those stories need the user's explicit request at build time. The `Dockerfile` stays untouched. No GoDog acceptance tests for this epic (user decision).
 ```
 
 ### UX Design Requirements
@@ -206,6 +217,10 @@ A prospective or current player can learn how the game works without asking the 
 ### Epic 9: Public Access & Observability
 The person running the pool can put the app on a homelab host behind an nginx reverse proxy on port 80, using either the dev compose or a ready-to-adapt production example, and can see how the app behaves: metrics scrapable from the host only, an audit log of who logged in and who did what and when, and proxy access logs on stdout.
 **FRs covered:** FR-35, FR-36, FR-37, FR-38, FR-39, FR-40, FR-41, FR-42
+
+### Epic 10: UI & Image Regression Safety Nets
+The person running the pool can change the app or accept an automatic dependency bump and know that the UI still works in a phone browser and that the shipped image still contains only what it should. Both are checked by tests that run locally with one task each, and by the pipeline, which refuses to publish an edge image when either fails.
+**FRs covered:** None — infra and test work surfaced by a dedicated brainstorming session (see brainstorm-intent.md), not a PRD requirement.
 
 *(FR-22, deadline reminder emails, is explicitly deferred out of MVP per the PRD/UX/SPEC and has no epic.)*
 
@@ -991,3 +1006,283 @@ So that I have a ready-to-adapt file for running the app on the Raspberry Pi.
 **Then** it is a directory, not the single file (the store's atomic rename cannot replace a bind-mount point), and the example states the UID the non-root image runs as
 
 *References: PRD FR-36, §5 (no HTTPS/443 by decision); Architecture AD-14, AD-27, AD-32, AD-34 (same nginx behaviour as the dev compose, self-contained copy guarded by a drift test, directory mount); `docs/operator-guide.md` gets a pointer to the example. Infra and docs story: ask the human whether an acceptance test applies. Whether the loopback-only bind is the right choice is an `[ASSUMPTION]` in PRD §9.*
+
+## Epic 10: UI & Image Regression Safety Nets
+
+The person running the pool can change the app or accept an automatic dependency bump and know that the UI still works in a phone browser and that the shipped image still contains only what it should. Both are checked by tests that run locally with one task each, and by the pipeline, which refuses to publish an edge image when either fails.
+
+### Story 10.1: Image Controls on a Running Container
+
+As the person running the pool,
+I want InSpec to check a running container of the app image,
+So that a change that leaves source in the image, runs it as root, or breaks its startup is caught before the image ships.
+
+**Acceptance Criteria:**
+
+**Given** a locally built image of the app
+**When** I run the inspec task (included in the root `taskfile.yml` under the `inspec:` namespace)
+**Then** it starts a container from the image with its real `CMD` and `SESSION_SECRET` set, waits for startup, runs the profile from `tests/inspec` in a separate pinned InSpec container through a `docker://` target, and removes both containers afterwards, whether the controls pass or fail
+
+**Given** the running container
+**When** the profile runs
+**Then** the process user is not root (`fantasy-hockey`, uid 1000), and `/opt/fantasy-hockey/fantasy-hockey` exists and is executable
+
+**Given** the running container
+**When** the profile looks for source and build artifacts
+**Then** `/workspaces/fantasy-hockey/src` is absent, there is no `*.go`, `go.mod`, `go.sum`, `.git`, `taskfile.yml` or `Dockerfile` anywhere, and no Go toolchain is on the `PATH`
+
+**Given** the running container
+**When** the profile checks the base
+**Then** the OS is alpine and its version matches the one in the `Dockerfile`'s final-stage `FROM` line, and `curl` and `git` are absent
+
+**Given** the image
+**When** the profile reads its metadata through the `docker_image` resource
+**Then** the `maintainer` label equals `sebastian@sommerfeld.io`
+
+**Given** the running container
+**When** the profile requests `/metrics` from inside the container with busybox `wget`
+**Then** the app answers with a Prometheus-format response, which proves it starts and serves, not only that its files are present
+
+**Given** the task is run with an `IMAGE` variable set
+**When** it starts the container under test
+**Then** it uses that image instead of a locally built one, and without `IMAGE` it uses the locally built image
+
+**Given** a container that violates a control (for example one started with `--user root`)
+**When** the task runs
+**Then** it exits non-zero and the output names the failed control
+
+**Given** the InSpec runner
+**When** I read how it is started
+**Then** it is an ephemeral container (`--rm`) from a pinned image tag with the docker socket mounted, and the repo is not bind-mounted into the container under test
+
+**Given** the new `tests/inspec` folder
+**When** `task lint` runs
+**Then** the filename, folder and YAML linter configs cover it and the run passes
+
+*References: SPEC CAP-4, CAP-6; `inspec-controls.md`. Infra story: no GoDog acceptance test (user decision). The `Dockerfile` is protected and untouched: if a control exposes a real defect in the current image, stop and ask the user instead of editing it.*
+
+### Story 10.2: Image Bloat Guard: Allowlist and Size Ceiling
+
+As the person running the pool,
+I want InSpec to fail when the image holds an unexpected file or grows past a ceiling,
+So that image growth, which means a longer download and a larger attack surface, is always a conscious decision.
+
+**Acceptance Criteria:**
+
+**Given** the running container
+**When** the allowlist control runs
+**Then** the only files beyond the base OS are the app binary under `/opt/fantasy-hockey`, the files the app creates at startup (such as its bootstrapped data file), and a short documented list of other known paths
+
+**Given** an unexpected file in the container (for example one created with `docker exec` before the profile runs)
+**When** the control runs
+**Then** it fails and names the path
+
+**Given** the amd64 image
+**When** the size control reads its size through the `docker_image` resource
+**Then** it passes at or below 6.5 MB, and the story states the unit and how the size is measured
+
+**Given** an image larger than the ceiling
+**When** the control runs
+**Then** it fails and the output shows both the actual size and the ceiling, and raising the ceiling is a one-line change in one place
+
+**Given** the current amd64 image is already above 6.5 MB
+**When** I build the story
+**Then** I stop and ask the user, because the ceiling value is theirs to set (5.33 MB was measured on arm64)
+
+*References: SPEC CAP-5; `inspec-controls.md`; builds on Story 10.1. Infra story: no GoDog acceptance test (user decision). `Dockerfile` untouched.*
+
+### Story 10.3: Award Picks Journey in a Phone Browser
+
+As the person running the pool,
+I want a Playwright test that logs in with a code and submits player award picks in a phone-sized browser,
+So that a template or script change that breaks the awards form is caught before it ships.
+
+**Acceptance Criteria:**
+
+**Given** the repo
+**When** I look at `tests/playwright`
+**Then** it has its own `package.json` and lockfile with `@playwright/test` pinned, a single phone-emulated Chromium project and no desktop project, the root `package.json` is unchanged, and `node_modules` is git-ignored and excluded by the linters
+
+**Given** a locally built image of the app
+**When** I run the playwright task (included in the root `taskfile.yml` under the `playwright:` namespace)
+**Then** it starts the app from the image with a freshly seeded data file, runs the suite, tears the app down, and a second run starts from the same clean state
+
+**Given** the task is run with an `IMAGE` variable set
+**When** it starts the app
+**Then** it uses that image instead of a locally built one, and without `IMAGE` it uses the locally built image
+
+**Given** the seeded data file
+**When** the test starts
+**Then** it holds a known Player, a known unexpired login code, the awards prediction set open with a deadline set relative to now with a generous margin, and the season's finalist and NHL Player lists, and no email is sent
+
+**Given** the seeded login code
+**When** the test enters it on the code screen
+**Then** the Player is logged in and lands on Predict with their name and the season in the header
+
+**Given** the awards prediction set
+**When** the test fills only some of the award picks and submits
+**Then** the incomplete picks are flagged (Story 2.7) and the complete picks are shown as saved after a reload
+
+**Given** the partly filled awards
+**When** the test completes the remaining picks and submits
+**Then** the flag is gone and every pick is shown as saved after a reload
+
+**Given** the awards form's field name or the option data `awards.js` reads is deliberately broken
+**When** the test runs
+**Then** it fails at the awards step
+
+**Given** repeated consecutive runs
+**When** the suite runs unchanged
+**Then** it passes every time without retries and without fixed sleeps
+
+**Given** the new `tests/playwright` folder
+**When** `task lint` runs
+**Then** the linters cover it and the run passes
+
+*References: SPEC CAP-1, CAP-6; Stories 2.6 and 2.7; NFR-4 (the client-side JS this test exercises). Infra and test story: no GoDog acceptance test (user decision). Language choice (JavaScript or TypeScript) is made in the story; add no tooling beyond what the suite needs.*
+
+### Story 10.4: Navigation Walk Across Tabs and Prediction Pages
+
+As the person running the pool,
+I want a Playwright test that walks the main navigation and opens each prediction page,
+So that a template or CSS change that breaks navigation on a phone is caught before it ships.
+
+**Acceptance Criteria:**
+
+**Given** the seeded Player logged in on the phone viewport
+**When** the test clicks each of the four tabs (Predict, Leaderboard, Compare, Rules), found by role and accessible name
+**Then** the URL is `/predict`, `/leaderboard`, `/compare` and `/rules` in turn, the clicked tab has `aria-current="page"` and no other tab does
+
+**Given** the phone viewport
+**When** the test looks for each tab
+**Then** all four are visible within the viewport and tappable
+
+**Given** Predict with the seed's open prediction sets
+**When** the test opens each open set in turn
+**Then** the set page loads without error, and its back link returns to Predict with the Predict tab active
+
+**Given** a tab's route or link is deliberately broken
+**When** the test runs
+**Then** it fails and names the broken tab
+
+**Given** the suite
+**When** I read its locators
+**Then** they use roles and names, not CSS classes, and reuse the seeding and task from Story 10.3 without new reset logic
+
+*References: SPEC CAP-2; Story 1.5. Builds on Story 10.3. Infra and test story: no GoDog acceptance test (user decision).*
+
+### Story 10.5: Leaderboard Standings From Hand-Recorded Results
+
+As the person running the pool,
+I want a Playwright test that records results in the data file and checks the Leaderboard,
+So that a change to scoring or the Leaderboard page that shifts the standings is caught in the real browser.
+
+**Acceptance Criteria:**
+
+**Given** seeded Players with open prediction sets
+**When** the test logs in as each and submits their Cup and Presidents' Trophy picks through the UI
+**Then** the picks are saved, and no waiting for a deadline is needed
+
+**Given** the app is stopped
+**When** the harness writes the recorded results into the data file and restarts the app
+**Then** the Players' saved picks are still shown after the restart
+
+**Given** the restarted app
+**When** the test opens the Leaderboard
+**Then** one golden-path standings table matches the expected rank, Player, regular, playoff and total columns, with the leader in gold
+
+**Given** a scoring or Leaderboard change that shifts a total or a column
+**When** the test runs
+**Then** it fails
+
+**Given** `leaderboard.feature` already covers ranking, ties and gold
+**When** I read this test
+**Then** it asserts one table only and does not repeat that matrix
+
+*References: SPEC CAP-3; Stories 4.1 and 4.2; the app loads the data file once at startup, so results are written while it is stopped (Additional Requirements). Builds on Story 10.3. Infra and test story: no GoDog acceptance test (user decision).*
+
+### Story 10.6: Failing UI or Image Tests Block the Edge Publish
+
+As the person running the pool,
+I want the pipeline to run the UI and image tests on the exact image it built and publish edge only when both pass,
+So that a bump or refactor that breaks either never reaches Docker Hub as the edge image.
+
+**Acceptance Criteria:**
+
+**Given** `pipeline.yml` after `build-image`
+**When** a run reaches the test stage
+**Then** `playwright` and `inspec` jobs each need `build-image`, run in parallel on separate workers, pull the `:<sha>` image from the registry, and call the same taskfile commands as a local run with `IMAGE` set
+
+**Given** either test job fails
+**When** the run continues
+**Then** `publish-edge` does not run and no edge tag is pushed
+
+**Given** both test jobs pass
+**When** `publish-edge` runs
+**Then** it re-tags the tested `:<sha>` image as edge, with no rebuild
+
+**Given** `docker-scout`
+**When** the run executes
+**Then** it needs `build-image`, runs in parallel with the tests and reports only, and neither its result nor its being skipped for the Dependabot actor affects `publish-edge` or `release-code`
+
+**Given** `release-code`
+**When** I read its dependencies
+**Then** it needs only `publish-edge`
+
+**Given** `cleanup-dockerhub`
+**When** the run finishes, even after a test failure
+**Then** it needs `publish-edge` and `docker-scout`, keeps `if: always()`, and deletes the `:<sha>` tag only after the tests and Scout have finished
+
+**Given** a Dependabot pull request
+**When** it triggers the pipeline
+**Then** the Playwright and InSpec jobs run on it and report failures on the PR
+
+*References: SPEC CAP-7; `pipeline-wiring.md`. **Protected file:** `.github/workflows/pipeline.yml` may be changed only on the user's explicit request at build time. Infra story: no GoDog acceptance test (user decision). Verify manually with a throwaway branch carrying a deliberately failing test, which must stop `publish-edge`.*
+
+### Story 10.7: Release Verifies the Image Is Still the Tested One
+
+As the person running the pool,
+I want the release run to confirm that the released image is still the one the pipeline tested,
+So that a retag mix-up is noticed.
+
+**Acceptance Criteria:**
+
+**Given** `release.yml` after `publish-release`
+**When** the run executes
+**Then** an InSpec job needs `publish-release`, runs in parallel with `upload-sbom` and `docker-scout`, pulls the newly tagged `latest` image, and calls the same taskfile command as a local run with `IMAGE` set
+
+**Given** the InSpec job fails
+**When** the run finishes
+**Then** the job shows as failed, but the release run and the other jobs are not broken, and nobody is notified beyond GitHub's normal job status
+
+**Given** the newly tagged `latest` and `edge`
+**When** the digest compare runs
+**Then** it compares the digest of `latest` with the digest of `edge`, never a `:<sha>` tag, and a mismatch is reported in the same non-breaking way
+
+**Given** `release.yml`
+**When** I read its jobs
+**Then** none of them builds the image
+
+*References: SPEC CAP-8; `pipeline-wiring.md`. **Protected file:** `.github/workflows/release.yml` may be changed only on the user's explicit request at build time. Builds on Stories 10.1 and 10.6. Infra story: no GoDog acceptance test (user decision).*
+
+### Story 10.8: Dependabot Watches the Playwright Dependencies
+
+As the person running the pool,
+I want Dependabot to watch the Playwright test dependencies,
+So that a bump to them is proposed and gated by the pipeline like every other dependency.
+
+**Acceptance Criteria:**
+
+**Given** `.github/dependabot.yml`
+**When** I read it
+**Then** it has an `npm` entry for `/tests/playwright` with the same weekly schedule as the other entries, and the root `package.json` entry is left as it is
+
+**Given** the pinned InSpec runner image and any pinned Playwright image
+**When** I look at where they are defined
+**Then** each lives in a file that an existing Dependabot entry covers (for example `docker-compose.yml`), or gets its own entry
+
+**Given** a Dependabot pull request that bumps a Playwright dependency
+**When** the pipeline runs on it
+**Then** the Playwright job from Story 10.6 runs and reports the result on the PR
+
+*References: SPEC CAP-9. Builds on Stories 10.3 and 10.6. Infra story: no GoDog acceptance test (user decision). `.github/dependabot.yml` is not a protected file.*

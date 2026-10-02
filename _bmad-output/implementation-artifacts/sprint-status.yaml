@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 10-02-2026 09:00
+last_updated: 10-02-2026 20:19
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -93,6 +93,17 @@ development_status:
   9-5-the-proxy-hides-metrics: done
   9-6-example-production-compose: done
   epic-9-retrospective: done
+
+  epic-10: backlog
+  10-1-image-controls-on-a-running-container: backlog
+  10-2-image-bloat-guard-allowlist-and-size-ceiling: backlog
+  10-3-award-picks-journey-in-a-phone-browser: backlog
+  10-4-navigation-walk-across-tabs-and-prediction-pages: backlog
+  10-5-leaderboard-standings-from-hand-recorded-results: backlog
+  10-6-failing-ui-or-image-tests-block-the-edge-publish: backlog
+  10-7-release-verifies-the-image-is-still-the-tested-one: backlog
+  10-8-dependabot-watches-the-playwright-dependencies: backlog
+  epic-10-retrospective: optional
 
 action_items:
   - id: "epic-1-retro-item-1-add-a-regression-test-asserting-the-sess"
