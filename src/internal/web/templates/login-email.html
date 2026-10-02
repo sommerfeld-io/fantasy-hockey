@@ -1,0 +1,28 @@
+{{/*
+  Login - email step. Per mockups/login-email.html and EXPERIENCE.md's
+  Login (email) row: a single email field plus "Send code", and a neutral
+  hint that never confirms or denies whether the address is in the pool.
+*/}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fantasy Hockey - Log in</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<main class="screen">
+  <div class="brand">
+    <div class="title">Fantasy Hockey</div>
+    <div class="subtitle">NHL 2026&ndash;27</div>
+  </div>
+  <form class="card" method="post" action="/login">
+    <label for="email">Email address</label>
+    <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required>
+    <button type="submit">Send code</button>
+  </form>
+  <p class="hint">We'll email you a 6-digit code if you're part of this pool.</p>
+</main>
+</body>
+</html>

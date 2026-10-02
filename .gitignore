@@ -24,6 +24,5 @@ _bmad
 .claude/settings.local.json
 .claude/skills/bmad-*
 
-## Real secrets (DATABASE_URL, SESSION_SECRET, SMTP creds, participant
-## emails, Postgres creds) - never commit this file.
-.env.secrets
+# Pool data created by following docs/examples/docker-compose.yml
+docs/examples/data/

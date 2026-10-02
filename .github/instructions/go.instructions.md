@@ -30,6 +30,13 @@ Apply these instructions to all Go code in `src/`.
 - Use short, consistent receiver names.
 - Keep interface names small and idiomatic; define interfaces where they are consumed.
 
+## Magic values
+
+- Never repeat the same literal string, number, or other fixed value across multiple call sites as a "magic value." Give it one home — a package-level `const` or `var` — and reference that everywhere instead, so a future rename or change only requires editing one place.
+- Prefer a global variable or constant when the value itself is fixed and needs no computation (e.g. `store.DataFileName = "fantasy-hockey.yml"`, referenced by every Go file that needs that filename instead of hand-typing the string again).
+- Prefer a small getter function over a bare variable when there is even the slightest need for an automated test around how the value is produced (e.g. it's derived, environment-dependent, or has a fallback/default to verify).
+- Gherkin `.feature` files are a sanctioned exception: they describe behavior in prose, not Go code, so they may still reference a literal value like a filename directly.
+
 ## Functions and methods
 
 - Keep functions small and focused on one responsibility.
@@ -109,6 +116,12 @@ tests still make sense? If yes, the tests are coupled to behaviour. If not, they
 - `.feature` files define GoDog acceptance tests. They are **not** used to derive unit tests.
 - Step definitions live in `src/acceptance-tests/*_steps_test.go`.
 - Wire the GoDog suite in `src/acceptance-tests/suite_test.go`.
+- Before writing a new fixture helper (seeding pool players, writing a YAML section, embeddable
+  scenario state), check `src/acceptance-tests/fixture_support_test.go` first - a near-identical
+  pool-player fixture helper was independently duplicated across step files and flagged in 4
+  epics in a row before it was finally hoisted (epic-2 item 12, epic-3 item 22, epic-4 item 34,
+  epic-5 item 39) - and a hoisted helper isn't guaranteed to already generalize to a new scenario's
+  exact shape (e.g. `poolFixture.thePoolPlayersAre` only ever sets exactly three players).
 - Acceptance test Go code follows the same TDD discipline as production code. Any non-trivial
   helper extracted into a non-test file must have its own `*_test.go` unit tests.
 - Unit test coverage is measured with `go test ./internal/...` and written to `coverage.out`.

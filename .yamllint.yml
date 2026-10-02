@@ -5,6 +5,7 @@ ignore: |
   node_modules
   .vagrant
   target
+  src/fantasy-hockey.yml
 
 rules:
   line-length:

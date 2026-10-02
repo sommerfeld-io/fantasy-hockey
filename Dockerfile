@@ -10,8 +10,8 @@ RUN apk add --no-cache curl git \
 COPY .git /workspaces/fantasy-hockey/.git
 WORKDIR /workspaces/fantasy-hockey/src
 COPY src /workspaces/fantasy-hockey/src
+COPY docs/game-rules.md /workspaces/fantasy-hockey/docs/game-rules.md
 
-## see src/taskfile.yml
 RUN task build
 
 

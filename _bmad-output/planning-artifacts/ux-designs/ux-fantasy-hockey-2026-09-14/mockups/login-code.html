@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Key screen — Login (code)</title>
+<style>
+/*
+  Governs: EXPERIENCE.md "Information Architecture" (Login — code row),
+  "Component Patterns" (Login — code field row), "State Patterns"
+  (Login: wrong/expired/used code row), "Key Flows" Flow 1 steps 3-5 + failure note,
+  DESIGN.md Colors / Typography / Shapes / Components.
+  Two states shown side by side: at-rest and error.
+*/
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #05070a;
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  padding: 40px 16px;
+  flex-wrap: wrap;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.column { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.caption { font-size: 12px; color: #8b949e; }
+.device {
+  width: 390px;
+  height: 780px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 28px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px;
+  gap: 24px;
+}
+.brand { text-align: center; margin-bottom: 8px; }
+.brand .title { font-size: 16px; font-weight: 700; color: #e6edf3; }
+.brand .subtitle { font-size: 12px; color: #8b949e; margin-top: 4px; }
+.card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+label { font-size: 12px; font-weight: 600; color: #e6edf3; }
+input {
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 18px;
+  letter-spacing: 4px;
+  text-align: center;
+  color: #e6edf3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+input.error { border-color: #f85149; } /* colors.goal */
+button {
+  width: 100%;
+  background: #238636;
+  border: 1px solid #2ea043;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e6edf3;
+  font-family: inherit;
+}
+.hint { text-align: center; font-size: 12px; color: #6e7681; }
+.error-text { text-align: center; font-size: 12px; color: #f85149; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="column">
+    <div class="device">
+      <div class="screen">
+        <div class="brand">
+          <div class="title">Face-Off Pool</div>
+          <div class="subtitle">Check your email</div>
+        </div>
+        <div class="card">
+          <label for="code1">6-digit code</label>
+          <input id="code1" type="text" placeholder="000000" maxlength="6">
+          <button type="button">Log in</button>
+        </div>
+        <div class="hint">Sent to your email. Valid for 10 minutes.</div>
+      </div>
+    </div>
+    <div class="caption">At rest</div>
+  </div>
+  <div class="column">
+    <div class="device">
+      <div class="screen">
+        <div class="brand">
+          <div class="title">Face-Off Pool</div>
+          <div class="subtitle">Check your email</div>
+        </div>
+        <div class="card">
+          <label for="code2">6-digit code</label>
+          <input id="code2" class="error" type="text" value="483920" maxlength="6">
+          <button type="button">Log in</button>
+        </div>
+        <div class="error-text">That code didn't work — check it and try again.</div>
+      </div>
+    </div>
+    <div class="caption">Error (wrong / expired / used — identical copy)</div>
+  </div>
+</body>
+</html>

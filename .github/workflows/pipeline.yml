@@ -206,6 +206,7 @@ jobs:
     needs: [
       'build-image',
     ]
+    if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     permissions:
       contents: read
       pull-requests: write
@@ -265,6 +266,7 @@ jobs:
     uses: sommerfeld-io/.github/.github/workflows/lib-release-code.yml@main
     needs: [
       'publish-edge',
+      'docker-scout',
     ]
     if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     secrets:

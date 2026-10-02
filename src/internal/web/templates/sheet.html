@@ -1,0 +1,202 @@
+{{/*
+  Per-Prediction-Set sheet page: a back arrow to /predict, the set's title,
+  its formatted deadline+countdown, and one of five bodies - the static
+  "not available yet" stub (every id but the pickable ones, Story 2.1);
+  when .Pick is set (Story 2.3), a real single-team dropdown grouped by
+  division, sourced from Store.Teams(); when .DivisionPick is set
+  (Story 2.4), the checkbox-chip playoff-teams form plus four division-
+  winner selects; when .AwardsPick is set (Story 2.6), 5 trophy groups of 3
+  text/hidden-slug finalist-autocomplete pairs each; or, when .SeriesPick is
+  set (Story 3.3), one series card per recorded playoff_matchups entry,
+  grouped under a conference (or Stanley Cup Final) subheader, each with two
+  full-width team-winner buttons and four 4/5/6/7 game-count buttons - or,
+  when .SeriesPick has no Groups at all (a series-pickable set with no
+  matchups recorded yet, e.g. "r1" right after it opens), a "No series
+  recorded yet." placeholder in place of the form, mirroring the static
+  stub's own tone. Submitting POSTs to /predict/{id}; the button reads "Update predictions"
+  once .Pick.Submitted/.DivisionPick.Submitted/.AwardsPick.Submitted/
+  .SeriesPick.Submitted is true. Once .Closed, the inputs render disabled and
+  the action bar (button + hint) is replaced by a read-only banner - no
+  override for anyone, even the player who made the pick.
+*/}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fantasy Hockey - {{.Title}}</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="sheet">
+  <header class="sheet-header">
+    <a href="/predict" class="back-link" aria-label="Back to Predict"><svg class="back-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M15 6l-6 6 6 6"/></svg></a>
+    <span class="sheet-title">{{.Title}}</span>
+  </header>
+  <main class="sheet-content">
+    <div class="sheet-deadline"><svg class="row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg><span>{{.DeadlineText}}</span><span>&nbsp;&middot; {{.Countdown}}</span></div>
+    {{if .Pick}}
+    <form class="pick-form" method="post" action="/predict/{{.ID}}">
+      <select name="team_id" aria-label="{{.Title}} pick" required {{if .Closed}}disabled{{end}}>
+        <option value="" disabled {{if eq .Pick.SelectedTeamID ""}}selected{{end}}>Choose a team</option>
+        {{range .Pick.Divisions}}
+        <optgroup label="{{.Division}}">
+          {{range .Teams}}
+          <option value="{{.ID}}" {{if eq $.Pick.SelectedTeamID .ID}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </optgroup>
+        {{end}}
+      </select>
+      {{if .Pick.Error}}<p class="error-text">{{.Pick.Error}}</p>{{end}}
+      {{if .Closed}}
+      <p class="closed-banner">This Prediction Set is closed. No changes can be made.</p>
+      {{else}}
+      <button type="submit">{{if .Pick.Submitted}}Update predictions{{else}}Submit predictions{{end}}</button>
+      <p class="hint">Editable until the deadline.</p>
+      {{end}}
+    </form>
+    {{else if .DivisionPick}}
+    <form class="pick-form divisions-form" method="post" action="/predict/{{.ID}}" id="divisions-form" {{if .Closed}}data-closed{{end}}>
+      {{range .DivisionPick.Conferences}}
+      {{$conf := .}}
+      <fieldset class="conference-group" data-conference="{{.Conference}}">
+        <legend class="conference-title">{{.Conference}} playoff teams</legend>
+        {{range .Divisions}}
+        {{$div := .}}
+        <div class="division-group" data-division="{{.Division}}">
+          <div class="division-header">
+            <span class="division-name">{{.Division}}</span>
+            <span class="count-indicator" data-role="division-count">{{.SelectedCount}}/5</span>
+          </div>
+          <div class="chip-group">
+            {{range .Teams}}
+            <label class="chip">
+              <input type="checkbox" class="chip-input" name="{{$div.PlayoffTeamsField}}" value="{{.ID}}" {{if .Checked}}checked{{end}} {{if $.Closed}}disabled{{end}}>
+              <span class="chip-label">{{.Name}}</span>
+            </label>
+            {{end}}
+          </div>
+        </div>
+        {{end}}
+        <div class="count-indicator count-indicator--conference {{if $conf.Valid}}count-indicator--valid{{else}}count-indicator--invalid{{end}}" data-role="conference-count">
+          <svg class="count-icon icon-valid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 6L9 17l-5-5"/></svg>
+          <svg class="count-icon icon-invalid" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/></svg>
+          <span>{{$conf.Total}}/8 selected</span>
+        </div>
+      </fieldset>
+      {{end}}
+
+      <fieldset class="winners-group">
+        <legend class="conference-title">Division winners</legend>
+        {{range .DivisionPick.Conferences}}
+        {{range .Divisions}}
+        {{$div := .}}
+        <div class="winner-field">
+          <label for="winner-{{.Division}}" class="division-name">{{.Division}}</label>
+          <select id="winner-{{.Division}}" name="{{.WinnerField}}" aria-label="{{.Division}} winner" {{if $.Closed}}disabled{{end}}>
+            <option value="" {{if eq $div.Winner ""}}selected{{end}}>Pick a team</option>
+            {{range .WinnerTeams}}
+            <option value="{{.ID}}" {{if eq $div.Winner .ID}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+        </div>
+        {{end}}
+        {{end}}
+      </fieldset>
+
+      {{if .DivisionPick.Error}}<p class="error-text">{{.DivisionPick.Error}}</p>{{end}}
+      {{if .Closed}}
+      <p class="closed-banner">This Prediction Set is closed. No changes can be made.</p>
+      {{else}}
+      <button type="submit" id="divisions-submit" {{if not .DivisionPick.AllValid}}disabled{{end}}>{{if .DivisionPick.Submitted}}Update predictions{{else}}Submit predictions{{end}}</button>
+      <p class="hint">8 teams per conference — either a 4/4 split, or 5 in one division and 3 in the other.</p>
+      {{end}}
+    </form>
+    <script src="/static/divisions.js" defer></script>
+    {{else if .AwardsPick}}
+    <form class="pick-form awards-form" method="post" action="/predict/{{.ID}}" id="awards-form" {{if .Closed}}data-closed{{end}}>
+      {{range .AwardsPick.Groups}}
+      {{$group := .}}
+      <fieldset class="award-group {{if .Filled}}award-group--filled{{end}}" data-award="{{.Award}}">
+        <legend class="award-group-legend">
+          <span class="award-group-title">{{.Title}}</span>
+          <span class="award-check" data-role="award-check">
+            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 6L9 17l-5-5"/></svg>
+          </span>
+        </legend>
+        <p class="hint award-hint">Pick 3 finalists.</p>
+        <div class="finalist-slots">
+          {{range .Finalists}}
+          <div class="finalist-slot" data-position="{{$group.Position}}">
+            <input type="text" class="finalist-text {{if .Invalid}}error{{end}}" name="{{.TextField}}" value="{{.Text}}" placeholder="{{$group.Placeholder}}" aria-label="{{.AriaLabel}}" autocomplete="off" {{if $.Closed}}disabled{{end}}>
+            <input type="hidden" class="finalist-slug" name="{{.SlugField}}" value="{{.Slug}}">
+            {{if .Error}}<p class="error-text">{{.Error}}</p>{{end}}
+          </div>
+          {{end}}
+        </div>
+      </fieldset>
+      {{end}}
+
+      <script type="application/json" id="award-options-skater">{{.AwardsPick.SkaterOptionsJSON}}</script>
+      <script type="application/json" id="award-options-defenseman">{{.AwardsPick.DefensemanOptionsJSON}}</script>
+      <script type="application/json" id="award-options-goalie">{{.AwardsPick.GoalieOptionsJSON}}</script>
+
+      {{if .Closed}}
+      <p class="closed-banner">This Prediction Set is closed. No changes can be made.</p>
+      {{else}}
+      <button type="submit">{{if .AwardsPick.Submitted}}Update predictions{{else}}Submit predictions{{end}}</button>
+      <p class="hint">Editable until the deadline.</p>
+      {{end}}
+    </form>
+    <script src="/static/awards.js" defer></script>
+    {{else if .SeriesPick}}
+    {{if not .SeriesPick.Groups}}
+    <p class="sheet-placeholder">No series recorded yet.</p>
+    {{else}}
+    <form class="pick-form series-form" method="post" action="/predict/{{.ID}}" {{if .Closed}}data-closed{{end}}>
+      <p class="hint series-hint">For each series, tap the winner and how many games it takes.</p>
+      {{range .SeriesPick.Groups}}
+      <fieldset class="series-group">
+        <legend class="conference-title">{{.Label}}</legend>
+        {{range .Cards}}
+        {{$card := .}}
+        <div class="series-card {{if .Error}}series-card--invalid{{end}}" data-series="{{.Key}}">
+          <div class="series-teams">
+            <label class="series-btn series-team-btn">
+              <input type="radio" name="{{.TeamField}}" value="{{.TeamAID}}" aria-label="{{.TeamAName}}" {{if eq .SelectedTeamID .TeamAID}}checked{{end}} {{if $.Closed}}disabled{{end}}>
+              <span>{{.TeamAName}}</span>
+            </label>
+            <label class="series-btn series-team-btn">
+              <input type="radio" name="{{.TeamField}}" value="{{.TeamBID}}" aria-label="{{.TeamBName}}" {{if eq .SelectedTeamID .TeamBID}}checked{{end}} {{if $.Closed}}disabled{{end}}>
+              <span>{{.TeamBName}}</span>
+            </label>
+          </div>
+          <div class="series-games">
+            {{range $.SeriesPick.GameOptions}}
+            <label class="series-btn series-games-btn">
+              <input type="radio" name="{{$card.GamesField}}" value="{{.}}" aria-label="{{.}} games" {{if eq $card.SelectedGames .}}checked{{end}} {{if $.Closed}}disabled{{end}}>
+              <span>{{.}}</span>
+            </label>
+            {{end}}
+          </div>
+          {{if .Error}}<p class="error-text">{{.Error}}</p>{{end}}
+        </div>
+        {{end}}
+      </fieldset>
+      {{end}}
+
+      {{if .Closed}}
+      <p class="closed-banner">This Prediction Set is closed. No changes can be made.</p>
+      {{else}}
+      <button type="submit">{{if .SeriesPick.Submitted}}Update predictions{{else}}Submit predictions{{end}}</button>
+      <p class="hint">Editable until the deadline.</p>
+      {{end}}
+    </form>
+    {{end}}
+    {{else}}
+    <p class="sheet-placeholder">Not available yet.</p>
+    {{end}}
+  </main>
+</div>
+</body>
+</html>

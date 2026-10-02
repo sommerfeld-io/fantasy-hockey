@@ -1,0 +1,751 @@
+season: 2026-27
+players:
+  - id: sebastian
+    name: Sebastian
+    email: sebastian@sommerfeld.io
+login_codes: []
+prediction_sets:
+  - id: cup
+    title: Cup champion
+    subtitle: Your Stanley Cup winner
+    deadline_utc: "2026-10-06T17:00:00Z"
+    phase: before_season
+    upcoming: false
+  - id: presidents
+    title: Presidents' Trophy
+    subtitle: Best regular-season record
+    deadline_utc: "2026-10-06T17:00:00Z"
+    phase: before_season
+    upcoming: false
+  - id: divisions
+    title: Division picks
+    subtitle: Playoff teams & division winners
+    deadline_utc: "2026-10-06T17:00:00Z"
+    phase: before_season
+    upcoming: false
+  - id: awards
+    title: Player awards
+    subtitle: Hart, Norris, Vezina, Art Ross, Rocket
+    deadline_utc: "2026-10-06T17:00:00Z"
+    phase: before_season
+    upcoming: false
+  - id: playoffcup
+    title: Playoffs Cup pick
+    subtitle: Re-pick the Stanley Cup winner
+    deadline_utc: "2027-04-15T16:00:00Z"
+    phase: playoffs
+    upcoming: true
+  - id: r1
+    title: Playoff round 1
+    subtitle: 8 series — winner & length
+    deadline_utc: "2027-04-18T16:00:00Z"
+    phase: playoffs
+    upcoming: true
+  - id: r2
+    title: Playoff round 2
+    subtitle: Set once round 1 ends
+    deadline_utc: "2027-04-30T16:00:00Z"
+    phase: playoffs
+    upcoming: true
+  - id: cf
+    title: Conference finals
+    subtitle: Set once round 2 ends
+    deadline_utc: "2027-05-14T16:00:00Z"
+    phase: playoffs
+    upcoming: true
+  - id: scf
+    title: Stanley Cup final
+    subtitle: Set once the finalists are known
+    deadline_utc: "2027-05-28T16:00:00Z"
+    phase: playoffs
+    upcoming: true
+teams:
+  - id: BOS
+    name: Boston Bruins
+    conference: Eastern
+    division: Atlantic
+  - id: BUF
+    name: Buffalo Sabres
+    conference: Eastern
+    division: Atlantic
+  - id: DET
+    name: Detroit Red Wings
+    conference: Eastern
+    division: Atlantic
+  - id: FLA
+    name: Florida Panthers
+    conference: Eastern
+    division: Atlantic
+  - id: MTL
+    name: Montréal Canadiens
+    conference: Eastern
+    division: Atlantic
+  - id: OTT
+    name: Ottawa Senators
+    conference: Eastern
+    division: Atlantic
+  - id: TBL
+    name: Tampa Bay Lightning
+    conference: Eastern
+    division: Atlantic
+  - id: TOR
+    name: Toronto Maple Leafs
+    conference: Eastern
+    division: Atlantic
+  - id: CAR
+    name: Carolina Hurricanes
+    conference: Eastern
+    division: Metropolitan
+  - id: CBJ
+    name: Columbus Blue Jackets
+    conference: Eastern
+    division: Metropolitan
+  - id: NJD
+    name: New Jersey Devils
+    conference: Eastern
+    division: Metropolitan
+  - id: NYI
+    name: New York Islanders
+    conference: Eastern
+    division: Metropolitan
+  - id: NYR
+    name: New York Rangers
+    conference: Eastern
+    division: Metropolitan
+  - id: PHI
+    name: Philadelphia Flyers
+    conference: Eastern
+    division: Metropolitan
+  - id: PIT
+    name: Pittsburgh Penguins
+    conference: Eastern
+    division: Metropolitan
+  - id: WSH
+    name: Washington Capitals
+    conference: Eastern
+    division: Metropolitan
+  - id: CHI
+    name: Chicago Blackhawks
+    conference: Western
+    division: Central
+  - id: COL
+    name: Colorado Avalanche
+    conference: Western
+    division: Central
+  - id: DAL
+    name: Dallas Stars
+    conference: Western
+    division: Central
+  - id: MIN
+    name: Minnesota Wild
+    conference: Western
+    division: Central
+  - id: NSH
+    name: Nashville Predators
+    conference: Western
+    division: Central
+  - id: STL
+    name: St. Louis Blues
+    conference: Western
+    division: Central
+  - id: UTA
+    name: Utah Mammoth
+    conference: Western
+    division: Central
+  - id: WPG
+    name: Winnipeg Jets
+    conference: Western
+    division: Central
+  - id: ANA
+    name: Anaheim Ducks
+    conference: Western
+    division: Pacific
+  - id: CGY
+    name: Calgary Flames
+    conference: Western
+    division: Pacific
+  - id: EDM
+    name: Edmonton Oilers
+    conference: Western
+    division: Pacific
+  - id: LAK
+    name: Los Angeles Kings
+    conference: Western
+    division: Pacific
+  - id: SJS
+    name: San Jose Sharks
+    conference: Western
+    division: Pacific
+  - id: SEA
+    name: Seattle Kraken
+    conference: Western
+    division: Pacific
+  - id: VAN
+    name: Vancouver Canucks
+    conference: Western
+    division: Pacific
+  - id: VGK
+    name: Vegas Golden Knights
+    conference: Western
+    division: Pacific
+nhl_players:
+  - slug: mcdavid-connor
+    display_name: Connor McDavid
+    position: skater
+  - slug: kucherov-nikita
+    display_name: Nikita Kucherov
+    position: skater
+  - slug: mackinnon-nathan
+    display_name: Nathan MacKinnon
+    position: skater
+  - slug: celebrini-macklin
+    display_name: Macklin Celebrini
+    position: skater
+  - slug: scheifele-mark
+    display_name: Mark Scheifele
+    position: skater
+  - slug: suzuki-nick
+    display_name: Nick Suzuki
+    position: skater
+  - slug: pastrnak-david
+    display_name: David Pastrnak
+    position: skater
+  - slug: necas-martin
+    display_name: Martin Necas
+    position: skater
+  - slug: draisaitl-leon
+    display_name: Leon Draisaitl
+    position: skater
+  - slug: robertson-jason
+    display_name: Jason Robertson
+    position: skater
+  - slug: connor-kyle
+    display_name: Kyle Connor
+    position: skater
+  - slug: eichel-jack
+    display_name: Jack Eichel
+    position: skater
+  - slug: kaprizov-kirill
+    display_name: Kirill Kaprizov
+    position: skater
+  - slug: caufield-cole
+    display_name: Cole Caufield
+    position: skater
+  - slug: guentzel-jake
+    display_name: Jake Guentzel
+    position: skater
+  - slug: keller-clayton
+    display_name: Clayton Keller
+    position: skater
+  - slug: johnston-wyatt
+    display_name: Wyatt Johnston
+    position: skater
+  - slug: boldy-matt
+    display_name: Matt Boldy
+    position: skater
+  - slug: debrincat-alex
+    display_name: Alex DeBrincat
+    position: skater
+  - slug: panarin-artemi
+    display_name: Artemi Panarin
+    position: skater
+  - slug: stutzle-tim
+    display_name: Tim Stützle
+    position: skater
+  - slug: thompson-tage
+    display_name: Tage Thompson
+    position: skater
+  - slug: aho-sebastian
+    display_name: Sebastian Aho
+    position: skater
+  - slug: marner-mitch
+    display_name: Mitch Marner
+    position: skater
+  - slug: nylander-william
+    display_name: William Nylander
+    position: skater
+  - slug: zibanejad-mika
+    display_name: Mika Zibanejad
+    position: skater
+  - slug: hughes-jack
+    display_name: Jack Hughes
+    position: skater
+  - slug: rantanen-mikko
+    display_name: Mikko Rantanen
+    position: skater
+  - slug: raymond-lucas
+    display_name: Lucas Raymond
+    position: skater
+  - slug: bedard-connor
+    display_name: Connor Bedard
+    position: skater
+  - slug: forsberg-filip
+    display_name: Filip Forsberg
+    position: skater
+  - slug: crosby-sidney
+    display_name: Sidney Crosby
+    position: skater
+  - slug: hagel-brandon
+    display_name: Brandon Hagel
+    position: skater
+  - slug: o-reilly-ryan
+    display_name: Ryan O'Reilly
+    position: skater
+  - slug: schmaltz-nick
+    display_name: Nick Schmaltz
+    position: skater
+  - slug: stone-mark
+    display_name: Mark Stone
+    position: skater
+  - slug: guenther-dylan
+    display_name: Dylan Guenther
+    position: skater
+  - slug: kempe-adrian
+    display_name: Adrian Kempe
+    position: skater
+  - slug: slafkovsky-juraj
+    display_name: Juraj Slafkovský
+    position: skater
+  - slug: barzal-mathew
+    display_name: Mathew Barzal
+    position: skater
+  - slug: batherson-drake
+    display_name: Drake Batherson
+    position: skater
+  - slug: tavares-john
+    display_name: John Tavares
+    position: skater
+  - slug: bratt-jesper
+    display_name: Jesper Bratt
+    position: skater
+  - slug: ehlers-nikolaj
+    display_name: Nikolaj Ehlers
+    position: skater
+  - slug: svechnikov-andrei
+    display_name: Andrei Svechnikov
+    position: skater
+  - slug: gauthier-cutter
+    display_name: Cutter Gauthier
+    position: skater
+  - slug: vilardi-gabriel
+    display_name: Gabriel Vilardi
+    position: skater
+  - slug: konecny-travis
+    display_name: Travis Konecny
+    position: skater
+  - slug: geekie-morgan
+    display_name: Morgan Geekie
+    position: skater
+  - slug: carlsson-leo
+    display_name: Leo Carlsson
+    position: skater
+  - slug: bouchard-evan
+    display_name: Evan Bouchard
+    position: defenseman
+  - slug: werenski-zach
+    display_name: Zach Werenski
+    position: defenseman
+  - slug: makar-cale
+    display_name: Cale Makar
+    position: defenseman
+  - slug: hutson-lane
+    display_name: Lane Hutson
+    position: defenseman
+  - slug: hughes-quinn
+    display_name: Quinn Hughes
+    position: defenseman
+  - slug: dahlin-rasmus
+    display_name: Rasmus Dahlin
+    position: defenseman
+  - slug: raddysh-darren
+    display_name: Darren Raddysh
+    position: defenseman
+  - slug: karlsson-erik
+    display_name: Erik Karlsson
+    position: defenseman
+  - slug: heiskanen-miro
+    display_name: Miro Heiskanen
+    position: defenseman
+  - slug: mcavoy-charlie
+    display_name: Charlie McAvoy
+    position: defenseman
+  - slug: carlson-john
+    display_name: John Carlson
+    position: defenseman
+  - slug: chychrun-jakob
+    display_name: Jakob Chychrun
+    position: defenseman
+  - slug: seider-moritz
+    display_name: Moritz Seider
+    position: defenseman
+  - slug: sergachev-mikhail
+    display_name: Mikhail Sergachev
+    position: defenseman
+  - slug: schaefer-matthew
+    display_name: Matthew Schaefer
+    position: defenseman
+  - slug: lacombe-jackson
+    display_name: Jackson LaCombe
+    position: defenseman
+  - slug: josi-roman
+    display_name: Roman Josi
+    position: defenseman
+  - slug: morrissey-josh
+    display_name: Josh Morrissey
+    position: defenseman
+  - slug: sanderson-jake
+    display_name: Jake Sanderson
+    position: defenseman
+  - slug: fox-adam
+    display_name: Adam Fox
+    position: defenseman
+  - slug: faber-brock
+    display_name: Brock Faber
+    position: defenseman
+  - slug: gostisbehere-shayne
+    display_name: Shayne Gostisbehere
+    position: defenseman
+  - slug: hronek-filip
+    display_name: Filip Hronek
+    position: defenseman
+  - slug: dobson-noah
+    display_name: Noah Dobson
+    position: defenseman
+  - slug: andersson-rasmus
+    display_name: Rasmus Andersson
+    position: defenseman
+  - slug: dunn-vince
+    display_name: Vince Dunn
+    position: defenseman
+  - slug: byram-bowen
+    display_name: Bowen Byram
+    position: defenseman
+  - slug: samuelsson-mattias
+    display_name: Mattias Samuelsson
+    position: defenseman
+  - slug: ekholm-mattias
+    display_name: Mattias Ekholm
+    position: defenseman
+  - slug: faulk-justin
+    display_name: Justin Faulk
+    position: defenseman
+  - slug: malinski-sam
+    display_name: Sam Malinski
+    position: defenseman
+  - slug: clarke-brandt
+    display_name: Brandt Clarke
+    position: defenseman
+  - slug: theodore-shea
+    display_name: Shea Theodore
+    position: defenseman
+  - slug: hamilton-dougie
+    display_name: Dougie Hamilton
+    position: defenseman
+  - slug: ekman-larsson-oliver
+    display_name: Oliver Ekman-Larsson
+    position: defenseman
+  - slug: miller-k-andre
+    display_name: K'Andre Miller
+    position: defenseman
+  - slug: matheson-mike
+    display_name: Mike Matheson
+    position: defenseman
+  - slug: sanheim-travis
+    display_name: Travis Sanheim
+    position: defenseman
+  - slug: orlov-dmitry
+    display_name: Dmitry Orlov
+    position: defenseman
+  - slug: harley-thomas
+    display_name: Thomas Harley
+    position: defenseman
+  - slug: rielly-morgan
+    display_name: Morgan Rielly
+    position: defenseman
+  - slug: marino-john
+    display_name: John Marino
+    position: defenseman
+  - slug: hughes-luke
+    display_name: Luke Hughes
+    position: defenseman
+  - slug: deangelo-tony
+    display_name: Tony DeAngelo
+    position: defenseman
+  - slug: shea-ryan
+    display_name: Ryan Shea
+    position: defenseman
+  - slug: trouba-jacob
+    display_name: Jacob Trouba
+    position: defenseman
+  - slug: gavrikov-vladislav
+    display_name: Vladislav Gavrikov
+    position: defenseman
+  - slug: burns-brent
+    display_name: Brent Burns
+    position: defenseman
+  - slug: letang-kris
+    display_name: Kris Letang
+    position: defenseman
+  - slug: broberg-philip
+    display_name: Philip Broberg
+    position: defenseman
+  - slug: wedgewood-scott
+    display_name: Scott Wedgewood
+    position: goalie
+  - slug: vasilevskiy-andrei
+    display_name: Andrei Vasilevskiy
+    position: goalie
+  - slug: vladar-dan
+    display_name: Dan Vladar
+    position: goalie
+  - slug: desmith-casey
+    display_name: Casey DeSmith
+    position: goalie
+  - slug: thompson-logan
+    display_name: Logan Thompson
+    position: goalie
+  - slug: bussi-brandon
+    display_name: Brandon Bussi
+    position: goalie
+  - slug: shesterkin-igor
+    display_name: Igor Shesterkin
+    position: goalie
+  - slug: blackwood-mackenzie
+    display_name: Mackenzie Blackwood
+    position: goalie
+  - slug: luukkonen-ukko-pekka
+    display_name: Ukko-Pekka Luukkonen
+    position: goalie
+  - slug: forsberg-anton
+    display_name: Anton Forsberg
+    position: goalie
+  - slug: oettinger-jake
+    display_name: Jake Oettinger
+    position: goalie
+  - slug: schmid-akira
+    display_name: Akira Schmid
+    position: goalie
+  - slug: ingram-connor
+    display_name: Connor Ingram
+    position: goalie
+  - slug: greaves-jet
+    display_name: Jet Greaves
+    position: goalie
+  - slug: hofer-joel
+    display_name: Joel Hofer
+    position: goalie
+  - slug: wallstedt-jesper
+    display_name: Jesper Wallstedt
+    position: goalie
+  - slug: grubauer-philipp
+    display_name: Philipp Grubauer
+    position: goalie
+  - slug: sorokin-ilya
+    display_name: Ilya Sorokin
+    position: goalie
+  - slug: annunen-justus
+    display_name: Justus Annunen
+    position: goalie
+  - slug: gustavsson-filip
+    display_name: Filip Gustavsson
+    position: goalie
+  - slug: cooley-devin
+    display_name: Devin Cooley
+    position: goalie
+  - slug: swayman-jeremy
+    display_name: Jeremy Swayman
+    position: goalie
+  - slug: gibson-john
+    display_name: John Gibson
+    position: goalie
+  - slug: ullmark-linus
+    display_name: Linus Ullmark
+    position: goalie
+  - slug: allen-jake
+    display_name: Jake Allen
+    position: goalie
+  - slug: vejmelka-karel
+    display_name: Karel Vejmelka
+    position: goalie
+  - slug: rittich-david
+    display_name: David Rittich
+    position: goalie
+  - slug: lyon-alex
+    display_name: Alex Lyon
+    position: goalie
+  - slug: dobes-jakub
+    display_name: Jakub Dobes
+    position: goalie
+  - slug: kuemper-darcy
+    display_name: Darcy Kuemper
+    position: goalie
+  - slug: knight-spencer
+    display_name: Spencer Knight
+    position: goalie
+  - slug: hellebuyck-connor
+    display_name: Connor Hellebuyck
+    position: goalie
+  - slug: nedeljkovic-alex
+    display_name: Alex Nedeljkovic
+    position: goalie
+  - slug: skinner-stuart
+    display_name: Stuart Skinner
+    position: goalie
+  - slug: wolf-dustin
+    display_name: Dustin Wolf
+    position: goalie
+  - slug: daccord-joey
+    display_name: Joey Daccord
+    position: goalie
+  - slug: hill-adin
+    display_name: Adin Hill
+    position: goalie
+  - slug: tarasov-daniil
+    display_name: Daniil Tarasov
+    position: goalie
+  - slug: andersen-frederik
+    display_name: Frederik Andersen
+    position: goalie
+  - slug: markstrom-jacob
+    display_name: Jacob Markstrom
+    position: goalie
+  - slug: bobrovsky-sergei
+    display_name: Sergei Bobrovsky
+    position: goalie
+  - slug: silovs-arturs
+    display_name: Arturs Silovs
+    position: goalie
+  - slug: quick-jonathan
+    display_name: Jonathan Quick
+    position: goalie
+  - slug: dostal-lukas
+    display_name: Lukas Dostal
+    position: goalie
+  - slug: ersson-samuel
+    display_name: Samuel Ersson
+    position: goalie
+  - slug: comrie-eric
+    display_name: Eric Comrie
+    position: goalie
+  - slug: korpisalo-joonas
+    display_name: Joonas Korpisalo
+    position: goalie
+  - slug: saros-juuse
+    display_name: Juuse Saros
+    position: goalie
+  - slug: talbot-cam
+    display_name: Cam Talbot
+    position: goalie
+  - slug: stolarz-anthony
+    display_name: Anthony Stolarz
+    position: goalie
+playoff_matchups: {}
+predictions:
+  - id: 7056d8d8-738e-4605-bc5f-2e379c0323cb
+    player_id: sebastian
+    kind: cup
+    team_id: DET
+    submitted_at: "2026-09-16T18:59:33Z"
+  - id: f843f959-2210-4ebe-8c3b-6e2d083225a9
+    player_id: sebastian
+    kind: presidents
+    team_id: DET
+    submitted_at: "2026-09-16T18:59:53Z"
+  - id: 0e92d597-6f00-4ab9-9ac8-cd38b8e14b5b
+    player_id: sebastian
+    kind: division_playoff_teams
+    team_id: ""
+    submitted_at: "2026-09-18T08:05:30Z"
+    division: Atlantic
+    team_ids:
+      - BUF
+      - DET
+      - FLA
+      - MTL
+      - TOR
+  - id: ef2d1407-ef66-4e7a-9c43-197a40f417f7
+    player_id: sebastian
+    kind: division_playoff_teams
+    team_id: ""
+    submitted_at: "2026-09-18T08:05:30Z"
+    division: Metropolitan
+    team_ids:
+      - CAR
+      - PHI
+      - WSH
+  - id: 11975f61-9cf6-40b0-bf2a-d5b36abac7f2
+    player_id: sebastian
+    kind: division_playoff_teams
+    team_id: ""
+    submitted_at: "2026-09-18T08:05:30Z"
+    division: Central
+    team_ids:
+      - COL
+      - MIN
+      - NSH
+  - id: 9b121845-7a02-4e2e-b74b-3a65568f6954
+    player_id: sebastian
+    kind: division_playoff_teams
+    team_id: ""
+    submitted_at: "2026-09-18T08:05:30Z"
+    division: Pacific
+    team_ids:
+      - ANA
+      - CGY
+      - LAK
+      - SJS
+      - VGK
+  - id: 9c82314e-c0c9-4004-838d-2f6dab6fc34f
+    player_id: sebastian
+    kind: division_winner
+    team_id: CGY
+    submitted_at: "2026-09-18T08:05:30Z"
+    division: Pacific
+  - id: 700769dd-cb0d-42a2-ac16-675b225d3538
+    player_id: sebastian
+    kind: division_winner
+    team_id: DET
+    submitted_at: "2026-09-18T08:05:30Z"
+    division: Atlantic
+  - id: 6b001523-3ec3-4ea7-8356-3fd1ebf47d5c
+    player_id: sebastian
+    kind: division_winner
+    team_id: NYR
+    submitted_at: "2026-09-18T08:05:30Z"
+    division: Metropolitan
+  - id: 4396f7ed-1664-4089-8596-4d86da731796
+    player_id: sebastian
+    kind: division_winner
+    team_id: COL
+    submitted_at: "2026-09-18T08:05:30Z"
+    division: Central
+  - id: 4fdb0486-7af5-4bcf-a390-fab92138f733
+    player_id: sebastian
+    kind: award
+    team_id: ""
+    submitted_at: "2026-10-02T16:39:06Z"
+    award: hart
+    finalist_slugs:
+      - mcdavid-connor
+      - mackinnon-nathan
+      - kucherov-nikita
+  - id: 34ac48b7-52fa-4faf-bcb5-9697be35e240
+    player_id: sebastian
+    kind: award
+    team_id: ""
+    submitted_at: "2026-10-02T16:39:06Z"
+    award: norris
+    finalist_slugs:
+      - makar-cale
+      - dahlin-rasmus
+      - seider-moritz
+  - id: 764e761c-b267-4a71-ab52-b2a0a014132a
+    player_id: sebastian
+    kind: award
+    team_id: ""
+    submitted_at: "2026-10-02T16:39:06Z"
+    award: vezina
+    finalist_slugs:
+      - shesterkin-igor
+      - vasilevskiy-andrei
+      - hellebuyck-connor

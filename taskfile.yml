@@ -7,6 +7,7 @@ vars:
   COMPOSE_SERVICE: 'fantasy-hockey'
 
 includes:
+  bmad: .task/bmad/taskfile.yml
   cleanup: .task/cleanup/taskfile.yml
   common: .task/common/taskfile.yml
   go: src/taskfile.yml
@@ -26,30 +27,40 @@ tasks:
 
   # ===============================================================================================
 
+  docs:readme:
+    desc: Copy docs/index.md over README.md so the repo root stays in sync with the docs hub
+    cmds:
+      - task: common:copy
+        vars:
+          SRC: docs/index.md
+          DEST: README.md
+
+  docs:embed-game-rules:
+    desc: Copy the canonical docs/game-rules.md into src/ so the app can embed it
+    cmds:
+      - task: common:copy
+        vars:
+          SRC: docs/game-rules.md
+          DEST: src/internal/web/rules/game-rules.md
+
+  # ===============================================================================================
+
   github:repo:config:
     desc: Configure GitHub.com repository settings
     cmds:
       - gh auth login
       - gh repo edit --enable-discussions --enable-issues --enable-projects --enable-wiki=false
 
-  bmad:install:
-    desc: Install BMad Method (bmm module) for Claude Code if not already present. Use `--force` to update an existing installation.
-    status:
-      - test -d _bmad
-    vars:
-      ALLOW_DOWNLOAD: --yes
-      BMAD_HEADLESS_INSTALL: --yes
-    cmds:
-      - npx {{ .ALLOW_DOWNLOAD }} bmad-method install --directory . --modules bmm --tools claude-code {{ .BMAD_HEADLESS_INSTALL }}
-
   # ===============================================================================================
 
   lint:
     desc: Run all project linters outside of Dockerfile linters
     cmds:
-      - task: cleanup:filesystem
       - task: go:cleanup
+      - task: cleanup:filesystem
       - task: symlinks
+      - task: docs:readme
+      - task: docs:embed-game-rules
       - for: ['yaml', 'workflows', 'filenames', 'folders', 'gherkin', 'markdown-links']
         cmd: docker compose up lint-{{ .ITEM }} --exit-code-from lint-{{ .ITEM }}
       - task: go:complexity
@@ -67,6 +78,21 @@ tasks:
   docker:run:
     desc: Run container {{ .COMPOSE_SERVICE }}
     cmds:
-      - cp .env.secrets.example .env.secrets
       - task: docker:build
       - docker compose up {{ .COMPOSE_SERVICE }}
+
+  docker:run:with-proxy:
+    desc: Run container {{ .COMPOSE_SERVICE }} and reverse proxy
+    cmds:
+      - task: docker:build
+      - docker compose up nginx
+
+  docker:run:mailpit:
+    desc: Start the Mailpit SMTP sink in the background (web UI at http://localhost:8025)
+    cmds:
+      - docker compose up --detach mailpit
+
+  docker:down:
+    desc: Stop and remove container {{ .COMPOSE_SERVICE }}
+    cmds:
+      - docker compose down --remove-orphans --volumes
