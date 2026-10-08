@@ -168,3 +168,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-7-incomplete-award-picks-are-flagged.md`
   summary: Show a confirmation that the complete awards were saved when the awards sheet re-renders with an incomplete-award flag.
   evidence: the 200 re-render only shows the per-slot caption, so a player may assume nothing was saved (blind review).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-compare-page-badges.md`
+  summary: Add an automated browser or JS test for the Compare highlight in `static/compare.js`.
+  evidence: The godog suite only sees server-rendered markup, so the class name, row scoping and event wiring could break with all tests green; awards.js and divisions.js have the same gap.

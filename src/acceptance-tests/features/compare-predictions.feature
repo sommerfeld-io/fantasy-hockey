@@ -128,18 +128,50 @@ Feature: Compare Predictions Side by Side
     Then the Compare value "FLA" is tag-styled
     And the Compare value "TOR" is tag-styled
 
-  Scenario: Full team names never render as a tag
+  Scenario: Cup and Presidents' picks render as a badge
     Given "Sadl" picked "FLA" for the compare "cup" pick
     When "Basti" opens Compare with the set "cup"
-    Then the Compare value "Team FLA" is plain text
+    Then the Compare value "Team FLA" is tag-styled
+    And the Compare row "Stanley Cup winner" has 1 badge keyed "FLA"
 
-  Scenario: A series row shows the winner as a tag plus plain " in N" text
+  Scenario: Award finalists render as badges showing display names
+    Given "Basti" picked "mcdavid-connor, mackinnon-nathan" as the compare "hart" finalists
+    When "Basti" opens Compare with the set "awards"
+    Then the Compare value "Player mcdavid-connor" is tag-styled
+    And the Compare value "Player mackinnon-nathan" is tag-styled
+
+  Scenario: A series row shows the winner and the game count as two badges
     Given the round 1 matchups for compare are "s1: FLA vs TOR" and "s2: COL vs VGK"
     And "Sadl" picked "FLA" in 5 games for compare round 1 series "s1"
     When "Basti" opens Compare with the set "r1"
     Then the Compare value "FLA" is tag-styled
-    And the Compare value "in 5" is plain text
+    And the Compare value "in 5" is tag-styled
+    And the Compare row "Eastern · FLA vs TOR" has 1 badge keyed "FLA"
+    And the Compare row "Eastern · FLA vs TOR" has 1 badge keyed "in 5"
+
+  Scenario: Players who picked the same team share one match key in that row
+    Given "Basti" picked "DET" as the compare "Atlantic" division winner
+    And "Sadl" picked "DET" as the compare "Atlantic" division winner
+    And "Tobbi" picked "DET" as the compare "Atlantic" division winner
+    When "Basti" opens Compare with the set "divisions"
+    Then the Compare row "Atlantic — winner" has 3 badges keyed "DET"
+    And the Compare row "Atlantic — winner" has no badge keyed other than "DET"
+    And the Compare page loads the highlight script
+
+  Scenario: The same team in two rows keeps each row's badges separate
+    Given "Basti" picked "DET" as the compare "Atlantic" division winner
+    And "Sadl" picked "DET" as the compare "Atlantic" division winner
+    And "Sadl" picked "DET, FLA, TOR, BOS" as the compare "Atlantic" playoff teams
+    When "Basti" opens Compare with the set "divisions"
+    Then the Compare row "Atlantic — winner" has 2 badges keyed "DET"
+    And the Compare row "Atlantic — playoff teams" has 1 badge keyed "DET"
 
   Scenario: A value nobody entered renders as a faint em dash
     When "Basti" opens Compare with the set "cup"
     Then the Compare value "—" is faint
+    And the Compare value "—" is not a badge
+
+  Scenario: The own column is not drawn with an ice-blue border
+    When "Basti" opens Compare
+    Then only the Compare column for "Basti" is marked as the signed-in player's own
+    And the Compare stylesheet draws no ice-blue border on the table or its columns

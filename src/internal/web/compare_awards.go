@@ -5,7 +5,7 @@ import (
 )
 
 // awardCategories is one stacked row per award, in awardOrder, with each
-// finalist's display name, plain. awardOrder/awardTitle/displayNameForSlug
+// finalist's display name as a badge. awardOrder/awardTitle/displayNameForSlug
 // are defined in sheet_awards.go, shared with Predict's own award sheet -
 // not duplicated here.
 func awardCategories(st *store.Store) []compareCategory {
@@ -21,7 +21,7 @@ func awardCategories(st *store.Store) []compareCategory {
 				}
 				values := make([]compareValueView, 0, len(p.FinalistSlugs))
 				for _, slug := range p.FinalistSlugs {
-					values = append(values, plainValue(displayNameForSlug(st, slug)))
+					values = append(values, keyedTagValue(displayNameForSlug(st, slug), slug))
 				}
 				return values
 			},

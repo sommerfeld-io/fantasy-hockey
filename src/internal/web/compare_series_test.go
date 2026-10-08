@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestBuildCompareShouldTagTheSeriesWinnerAndKeepTheGamesCountPlain(t *testing.T) {
+func TestBuildCompareShouldBadgeTheSeriesWinnerAndTheGamesCountSeparately(t *testing.T) {
 	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
 		comparePick("sadl", "kind: series, series_key: r1.s1, team_id: FLA, games: \"5\""),
 	)
@@ -13,9 +13,12 @@ func TestBuildCompareShouldTagTheSeriesWinnerAndKeepTheGamesCountPlain(t *testin
 	v := buildCompare(st, "basti", "r1", compareNow)
 
 	got := cellValueViews(t, v.Table, "Eastern · FLA vs TOR")[0]
-	want := []string{compareValueTagCSS, compareValueCSS}
+	want := []string{compareValueTagCSS, compareValueTagCSS}
 	if !slices.Equal(valueCSS(got), want) {
-		t.Errorf("expected the winner tagged and games plain (%v), got %v", want, valueCSS(got))
+		t.Errorf("expected winner and games both tagged (%v), got %v", want, valueCSS(got))
+	}
+	if len(got) != 2 || got[0].Match != "FLA" || got[1].Match != "in 5" {
+		t.Errorf("expected independent match keys [FLA, \"in 5\"], got %+v", got)
 	}
 	if len(got) != 2 || got[0].Text != "FLA" || got[1].Text != "in 5" {
 		t.Errorf("expected [FLA, \"in 5\"], got %+v", got)

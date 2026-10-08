@@ -20,7 +20,7 @@ import (
 // division, declared under teams: so every id resolves to a canonical team.
 var compareTeams = map[string]string{
 	"FLA": "Atlantic", "TOR": "Atlantic", "BOS": "Atlantic", "TBL": "Atlantic",
-	"COL": "Central", "VGK": "Pacific",
+	"COL": "Central", "VGK": "Pacific", "DET": "Atlantic",
 }
 
 // compareNHLPlayers is every finalist slug the Compare scenarios pick.
@@ -39,7 +39,6 @@ const compareStalePlayerID = "ghost"
 // stop proving anything.
 const (
 	compareValueTagCSS   = "cmp-value cmp-tag"
-	compareValuePlainCSS = "cmp-value"
 	compareValueEmptyCSS = "cmp-value cmp-value--empty"
 )
 
@@ -56,7 +55,9 @@ var (
 	compareLabelPattern      = regexp.MustCompile(`<th colspan="\d+" scope="rowgroup" class="cmp-label">([^<]+)</th>`)
 	compareValueRowPattern   = regexp.MustCompile(`(?s)<tr class="cmp-values[^"]*">(.*?)</tr>`)
 	compareCellPattern       = regexp.MustCompile(`(?s)<td class="cmp-cell( cmp-cell--own)?">(.*?)</td>`)
-	compareCellValuePattern  = regexp.MustCompile(`<span class="([^"]*)">([^<]*)</span>`)
+	compareCellValuePattern  = regexp.MustCompile(`<span class="([^"]*)"(?: data-match="([^"]*)" tabindex="0")?>([^<]*)</span>`)
+	compareCSSRulePattern    = regexp.MustCompile(`([^{}]+)\{([^{}]*)\}`)
+	compareIceBorderPattern  = regexp.MustCompile(`border[a-z-]*\s*:[^;]*var\(--ice\)`)
 	compareSectionHeaderText = regexp.MustCompile(`<div class="section-header">.*?<span>([^<]+)</span></div>`)
 )
 
@@ -69,11 +70,16 @@ type compareSeedSet struct {
 
 // compareCell is one rendered table cell: its values and own-column flag.
 // compareCellValue is one rendered value within a cell: its text and
-// whether its class marks it tag-styled (cmp-tag).
+// whether its class marks it tag-styled (cmp-tag) and its data-match key
+// ("" when the value carries none).
 type compareCellValue struct {
-	text string
-	tag  bool
+	text  string
+	tag   bool
+	match string
 }
+
+// compareGamesBadgePattern is a series row's game-count badge text.
+var compareGamesBadgePattern = regexp.MustCompile(`^in \d+$`)
 
 type compareCell struct {
 	values []compareCellValue
@@ -316,7 +322,7 @@ func (s *compareScenarioState) renderedRows() (labels []string, rows [][]compare
 		for _, c := range compareCellPattern.FindAllStringSubmatch(m[1], -1) {
 			var values []compareCellValue
 			for _, v := range compareCellValuePattern.FindAllStringSubmatch(c[2], -1) {
-				values = append(values, compareCellValue{text: html.UnescapeString(v[2]), tag: strings.Contains(v[1], "cmp-tag")})
+				values = append(values, compareCellValue{text: html.UnescapeString(v[3]), tag: strings.Contains(v[1], "cmp-tag"), match: html.UnescapeString(v[2])})
 			}
 			cells = append(cells, compareCell{values: values, own: c[1] != ""})
 		}
@@ -326,14 +332,14 @@ func (s *compareScenarioState) renderedRows() (labels []string, rows [][]compare
 }
 
 // flattenCellValues joins a cell's rendered values into one string for the
-// feature table: a plain value immediately following a tag value (a series
-// row's "in N" suffix glued to its winner tag) joins with a single space,
-// while every other value is a distinct item and gets a ", " separator.
+// feature table: a game-count badge ("in N") joins its winner badge with a
+// single space, while every other value is a distinct item and gets a ", "
+// separator.
 func flattenCellValues(values []compareCellValue) string {
 	var b strings.Builder
 	for i, v := range values {
 		if i > 0 {
-			if values[i-1].tag && !v.tag {
+			if compareGamesBadgePattern.MatchString(v.text) {
 				b.WriteString(" ")
 			} else {
 				b.WriteString(", ")
@@ -429,10 +435,16 @@ func (s *compareScenarioState) noChipIsSelected() error {
 }
 
 // showsValueSpan reports whether s.lastBody contains a Compare value span
-// with exactly css as its class and text as its content - this suite's
-// mirror of theSheetShows's strings.Contains, scoped to one rendered value.
+// with exactly css as its class and text as its content, whatever its
+// data-match and tabindex attributes - this suite's mirror of
+// theSheetShows's strings.Contains, scoped to one rendered value.
 func (s *compareScenarioState) showsValueSpan(css, text string) bool {
-	return strings.Contains(s.lastBody, fmt.Sprintf(`<span class="%s">%s</span>`, css, html.EscapeString(text)))
+	for _, m := range compareCellValuePattern.FindAllStringSubmatch(s.lastBody, -1) {
+		if m[1] == css && html.UnescapeString(m[3]) == text {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *compareScenarioState) theValueIsTagStyled(text string) error {
@@ -442,16 +454,100 @@ func (s *compareScenarioState) theValueIsTagStyled(text string) error {
 	return nil
 }
 
-func (s *compareScenarioState) theValueIsPlainText(text string) error {
-	if !s.showsValueSpan(compareValuePlainCSS, text) {
-		return fmt.Errorf("expected %q as plain text, got %q", text, s.lastBody)
+func (s *compareScenarioState) theValueIsFaint(text string) error {
+	if !s.showsValueSpan(compareValueEmptyCSS, text) {
+		return fmt.Errorf("expected %q rendered faint, got %q", text, s.lastBody)
 	}
 	return nil
 }
 
-func (s *compareScenarioState) theValueIsFaint(text string) error {
-	if !s.showsValueSpan(compareValueEmptyCSS, text) {
-		return fmt.Errorf("expected %q rendered faint, got %q", text, s.lastBody)
+// theValueIsNotABadge checks text renders with no tag class, match key or
+// tab stop.
+func (s *compareScenarioState) theValueIsNotABadge(text string) error {
+	found := false
+	for _, m := range compareCellValuePattern.FindAllStringSubmatch(s.lastBody, -1) {
+		if html.UnescapeString(m[3]) != text {
+			continue
+		}
+		found = true
+		if m[2] != "" || strings.Contains(m[1], "cmp-tag") {
+			return fmt.Errorf("expected %q not to be a badge, got %q", text, m[0])
+		}
+	}
+	if !found {
+		return fmt.Errorf("no Compare value %q in %q", text, s.lastBody)
+	}
+	return nil
+}
+
+// rowBadgeKeys returns the match key of every keyed badge in the row
+// labelled label, across all columns.
+func (s *compareScenarioState) rowBadgeKeys(label string) ([]string, error) {
+	labels, rows := s.renderedRows()
+	for i, l := range labels {
+		if l != label || i >= len(rows) {
+			continue
+		}
+		var keys []string
+		for _, c := range rows[i] {
+			for _, v := range c.values {
+				if v.match != "" {
+					keys = append(keys, v.match)
+				}
+			}
+		}
+		return keys, nil
+	}
+	return nil, fmt.Errorf("no Compare row labelled %q in %q", label, s.lastBody)
+}
+
+func (s *compareScenarioState) theRowHasBadgesKeyed(label string, n int, key string) error {
+	keys, err := s.rowBadgeKeys(label)
+	if err != nil {
+		return err
+	}
+	got := 0
+	for _, k := range keys {
+		if k == key {
+			got++
+		}
+	}
+	if got != n {
+		return fmt.Errorf("expected %d badges keyed %q in row %q, got %d (keys %v)", n, key, label, got, keys)
+	}
+	return nil
+}
+
+func (s *compareScenarioState) theRowHasNoOtherKey(label, key string) error {
+	keys, err := s.rowBadgeKeys(label)
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		if k != key {
+			return fmt.Errorf("expected only badges keyed %q in row %q, got %v", key, label, keys)
+		}
+	}
+	return nil
+}
+
+func (s *compareScenarioState) thePageLoadsTheHighlightScript() error {
+	if !strings.Contains(s.lastBody, `<script src="/static/compare.js" defer></script>`) {
+		return fmt.Errorf("expected the Compare page to load compare.js, got %q", s.lastBody)
+	}
+	return nil
+}
+
+// theStylesheetHasNoIceBorder fetches styles.css and fails when any rule
+// whose selector targets a .cmp- class draws a border with var(--ice).
+func (s *compareScenarioState) theStylesheetHasNoIceBorder() error {
+	if err := s.get("/static/styles.css"); err != nil {
+		return err
+	}
+	for _, m := range compareCSSRulePattern.FindAllStringSubmatch(s.lastBody, -1) {
+		if strings.Contains(m[1], ".cmp-") && compareIceBorderPattern.MatchString(m[2]) {
+			return fmt.Errorf("expected no ice-blue border in %q, got %q", strings.TrimSpace(m[1]), m[2])
+		}
 	}
 	return nil
 }
@@ -515,7 +611,11 @@ func InitializeCompareScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^no Compare column is marked as the signed-in player's own$`, s.noColumnIsOwn)
 	ctx.Step(`^no chip is selected on Compare$`, s.noChipIsSelected)
 	ctx.Step(`^the Compare value "([^"]*)" is tag-styled$`, s.theValueIsTagStyled)
-	ctx.Step(`^the Compare value "([^"]*)" is plain text$`, s.theValueIsPlainText)
+	ctx.Step(`^the Compare value "([^"]*)" is not a badge$`, s.theValueIsNotABadge)
+	ctx.Step(`^the Compare row "([^"]*)" has (\d+) badges? keyed "([^"]*)"$`, s.theRowHasBadgesKeyed)
+	ctx.Step(`^the Compare row "([^"]*)" has no badge keyed other than "([^"]*)"$`, s.theRowHasNoOtherKey)
+	ctx.Step(`^the Compare page loads the highlight script$`, s.thePageLoadsTheHighlightScript)
+	ctx.Step(`^the Compare stylesheet draws no ice-blue border on the table or its columns$`, s.theStylesheetHasNoIceBorder)
 	ctx.Step(`^the Compare value "([^"]*)" is faint$`, s.theValueIsFaint)
 	ctx.Step(`^the Compare note reads "([^"]*)"$`, s.theNoteReads)
 }

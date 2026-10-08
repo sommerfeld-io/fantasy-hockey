@@ -45,13 +45,11 @@ const (
 	compareCellOwnCSS      = "cmp-cell cmp-cell--own"
 )
 
-// Compare value CSS classes (styles.css): a team abbreviation (playoff
-// team, division winner, series winner) gets the small cmp-tag treatment; a
-// full team name, an award finalist's display name, and a series row's
-// " in N" suffix are plain; an unfilled value renders faint instead of
+// Compare value CSS classes (styles.css): every entered value (team
+// abbreviation, full team name, award finalist, series game count) gets the
+// small cmp-tag badge treatment; an unfilled value renders faint instead of
 // blank.
 const (
-	compareValueCSS      = "cmp-value"
 	compareValueTagCSS   = "cmp-value cmp-tag"
 	compareValueEmptyCSS = "cmp-value cmp-value--empty"
 )
@@ -93,19 +91,29 @@ type compareColumnView struct {
 	CSS  string
 }
 
-// compareValueView is one value within a cell: its display text and
-// precomputed CSS (tag, plain, or empty - compareValueTagCSS/compareValueCSS/
-// compareValueEmptyCSS), mirroring the file's existing precomputed-CSS
-// pattern (compareCellCSS) instead of template-side conditionals.
+// compareValueView is one value within a cell: its display text, precomputed
+// CSS (tag or empty - compareValueTagCSS/compareValueEmptyCSS), mirroring the
+// file's existing precomputed-CSS pattern (compareCellCSS) instead of
+// template-side conditionals, and Match, the key compare.js uses to
+// highlight equal badges in one row. Match is empty for an unfilled value,
+// which is not a badge.
 type compareValueView struct {
-	Text string
-	CSS  string
+	Text  string
+	CSS   string
+	Match string
 }
 
-// tagValue is a team-abbreviation value (a playoff team, division winner,
-// or series winner), rendered with the shared small tag treatment.
+// tagValue is an entered value (team, finalist, game count), rendered as a
+// badge keyed by its own text.
 func tagValue(text string) compareValueView {
-	return compareValueView{Text: text, CSS: compareValueTagCSS}
+	return compareValueView{Text: text, CSS: compareValueTagCSS, Match: text}
+}
+
+// keyedTagValue is a badge showing text but matching on key, for values whose
+// display text can be shared by distinct picks (two finalists with one
+// name), so highlight follows the pick's identity, not its spelling.
+func keyedTagValue(text, key string) compareValueView {
+	return compareValueView{Text: text, CSS: compareValueTagCSS, Match: key}
 }
 
 // tagValues is every id in ids as a tagValue, in order.
@@ -115,12 +123,6 @@ func tagValues(ids []string) []compareValueView {
 		values = append(values, tagValue(id))
 	}
 	return values
-}
-
-// plainValue is a full team name, an award finalist's display name, or a
-// series row's " in N" suffix - never tagged.
-func plainValue(text string) compareValueView {
-	return compareValueView{Text: text, CSS: compareValueCSS}
 }
 
 // emptyCompareValue is what a Compare cell shows when a player has no value
@@ -391,7 +393,7 @@ func compareCategories(st *store.Store, setID string) []compareCategory {
 }
 
 // singleTeamCategory shows each player's pick for kind by full team name,
-// plain (never tagged - Boundaries: full team names stay plain text).
+// as a badge.
 func singleTeamCategory(st *store.Store, kind string) compareCategory {
 	teams := teamRoster(st)
 	return compareCategory{
@@ -401,7 +403,7 @@ func singleTeamCategory(st *store.Store, kind string) compareCategory {
 			if !ok || p.TeamID == "" {
 				return nil
 			}
-			return []compareValueView{plainValue(teamName(teams, p.TeamID))}
+			return []compareValueView{keyedTagValue(teamName(teams, p.TeamID), p.TeamID)}
 		},
 	}
 }
