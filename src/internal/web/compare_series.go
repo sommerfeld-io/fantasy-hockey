@@ -15,9 +15,8 @@ const (
 )
 
 // seriesCategories is one row per recorded matchup of setID, showing each
-// player's winner tagged plus a plain " in <games>" suffix (Boundaries:
-// series rows render the winner as a tag plus plain text, not one opaque
-// string). teamName/conferenceForMatchup/stanleyCupFinalLabel are defined
+// player's winner badge plus a separate " in <games>" badge, each matching
+// independently. teamName/conferenceForMatchup/stanleyCupFinalLabel are defined
 // in sheet_series.go, shared with Predict's own series sheet - not
 // duplicated here.
 func seriesCategories(st *store.Store, setID string) []compareCategory {
@@ -32,7 +31,7 @@ func seriesCategories(st *store.Store, setID string) []compareCategory {
 				if !ok || p.TeamID == "" {
 					return nil
 				}
-				return []compareValueView{tagValue(p.TeamID), plainValue(fmt.Sprintf(compareSeriesGamesSuffix, p.Games))}
+				return []compareValueView{tagValue(p.TeamID), tagValue(fmt.Sprintf(compareSeriesGamesSuffix, p.Games))}
 			},
 		})
 	}

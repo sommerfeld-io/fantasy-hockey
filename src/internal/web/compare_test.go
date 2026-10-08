@@ -601,7 +601,7 @@ func TestBuildCompareShouldNotMixTheSeasonAndPlayoffsCupPicks(t *testing.T) {
 	}
 }
 
-func TestBuildCompareShouldRenderFullTeamNamesPlain(t *testing.T) {
+func TestBuildCompareShouldBadgeFullTeamNamesKeyedByTeamID(t *testing.T) {
 	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
 		comparePick("sadl", "kind: cup, team_id: FLA"),
 	)
@@ -609,8 +609,11 @@ func TestBuildCompareShouldRenderFullTeamNamesPlain(t *testing.T) {
 	v := buildCompare(st, "basti", "cup", compareNow)
 
 	got := cellValueViews(t, v.Table, "Stanley Cup winner")[0]
-	if want := []string{compareValueCSS}; !slices.Equal(valueCSS(got), want) {
-		t.Errorf("expected the Cup pick plain (%v), got %v", want, valueCSS(got))
+	if want := []string{compareValueTagCSS}; !slices.Equal(valueCSS(got), want) {
+		t.Errorf("expected the Cup pick tagged (%v), got %v", want, valueCSS(got))
+	}
+	if got[0].Match != "FLA" {
+		t.Errorf("expected the match key to be the team id %q, got %q", "FLA", got[0].Match)
 	}
 }
 
@@ -620,8 +623,8 @@ func TestBuildCompareShouldRenderAnUnfilledValueFaint(t *testing.T) {
 	v := buildCompare(st, "basti", "cup", compareNow)
 
 	got := cellValueViews(t, v.Table, "Stanley Cup winner")[0]
-	if len(got) != 1 || got[0].Text != emptyCellValue || got[0].CSS != compareValueEmptyCSS {
-		t.Errorf("expected a faint empty value, got %+v", got)
+	if len(got) != 1 || got[0].Text != emptyCellValue || got[0].CSS != compareValueEmptyCSS || got[0].Match != "" {
+		t.Errorf("expected a faint empty value with no match key, got %+v", got)
 	}
 }
 
@@ -664,7 +667,7 @@ func TestCompareRouteShouldRenderTheRequestedSet(t *testing.T) {
 		"Everyone's picks.",
 		`<a id="compare-chip-presidents" href="/compare?set=presidents" class="chip compare-chip chip--selected" aria-current="true">`,
 		`<a id="compare-chip-cup" href="/compare?set=cup" class="chip compare-chip">`,
-		`<span class="cmp-value">Toronto Maple Leafs</span>`,
+		`<span class="cmp-value cmp-tag" data-match="TOR" tabindex="0">Toronto Maple Leafs</span>`,
 		`<th scope="col" class="cmp-player cmp-player--own"><span class="cmp-player-name">Basti</span><span class="cmp-you">You</span></th>`,
 		`<th scope="col" class="cmp-player"><span class="cmp-player-name">Sadl</span></th>`,
 		`<th colspan="3" scope="rowgroup" class="cmp-label">Presidents&#39; Trophy</th>`,
@@ -792,8 +795,9 @@ func TestCompareRouteShouldRenderTagAndFaintValueClasses(t *testing.T) {
 	body := getCompare(t, st, "basti", "/compare?set=divisions")
 
 	for _, want := range []string{
-		`<span class="cmp-value cmp-tag">FLA</span>`,
+		`<span class="cmp-value cmp-tag" data-match="FLA" tabindex="0">FLA</span>`,
 		`<span class="cmp-value cmp-value--empty">—</span>`,
+		`<script src="/static/compare.js" defer></script>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("expected the Compare page to contain %q, got %q", want, body)
@@ -810,5 +814,20 @@ func TestCompareRouteShouldRenderTheCountdown(t *testing.T) {
 	want := `<span class="compare-countdown">&nbsp;&middot; ` + clock.Countdown(deadline, time.Now()) + `</span>`
 	if !strings.Contains(body, want) {
 		t.Errorf("expected the countdown %q, got %q", want, body)
+	}
+}
+
+func TestBuildCompareShouldGiveSamePickedTeamsOneMatchKeyPerRow(t *testing.T) {
+	st := newCompareStore(t, compareDefaultSets, compareDefaultMatchups,
+		comparePick("basti", "kind: division_winner, division: Atlantic, team_id: FLA"),
+		comparePick("sadl", "kind: division_winner, division: Atlantic, team_id: FLA"),
+		comparePick("tobbi", "kind: division_winner, division: Atlantic, team_id: TOR"),
+	)
+
+	v := buildCompare(st, "basti", "divisions", compareNow)
+
+	got := cellValueViews(t, v.Table, "Atlantic — winner")
+	if len(got) != 3 || got[0][0].Match != "FLA" || got[1][0].Match != "FLA" || got[2][0].Match != "TOR" {
+		t.Errorf("expected keys [FLA FLA TOR], got %+v", got)
 	}
 }

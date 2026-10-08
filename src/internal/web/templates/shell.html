@@ -46,7 +46,7 @@
 {{end}}
 {{/*
   compare-table renders one compareTableView: a header of bold player names
-  (the signed-in player's marked with an ice border and a "You" label), then
+  (the signed-in player's marked with a "You" label), then
   per category its own <tbody> holding a full-width rowgroup label above
   one cell per player, so each value is tied to its category. Every
   value, class and the colspan are precomputed.
@@ -59,9 +59,10 @@
 </thead>
 {{$count := .ColumnCount}}{{range .Rows}}<tbody class="cmp-category">
 <tr class="cmp-label-row"><th colspan="{{$count}}" scope="rowgroup" class="cmp-label">{{.Label}}</th></tr>
-<tr class="cmp-values{{if .Stacked}} cmp-values--stacked{{end}}">{{range .Cells}}<td class="{{.CSS}}">{{range .Values}}<span class="{{.CSS}}">{{.Text}}</span>{{end}}</td>{{end}}</tr>
+<tr class="cmp-values{{if .Stacked}} cmp-values--stacked{{end}}">{{range .Cells}}<td class="{{.CSS}}">{{range .Values}}<span class="{{.CSS}}"{{if .Match}} data-match="{{.Match}}" tabindex="0"{{end}}>{{.Text}}</span>{{end}}</td>{{end}}</tr>
 </tbody>
 {{end}}</table>
+<script src="/static/compare.js" defer></script>
 {{end}}
 {{define "predict-row"}}
 {{if .Actionable}}<a id="predict-row-{{.ID}}" href="/predict/{{.ID}}" class="set-row {{.AccentCSS}}">{{else}}<div id="predict-row-{{.ID}}" class="set-row {{.AccentCSS}}">{{end}}<span class="set-row-body">

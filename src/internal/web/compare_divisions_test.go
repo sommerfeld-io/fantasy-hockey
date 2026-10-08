@@ -93,7 +93,7 @@ func TestBuildCompareShouldShowAnEmptyDashForASavedButEmptyDivisionPlayoffTeamsP
 	v := buildCompare(st, "basti", "divisions", compareNow)
 
 	got := cellValueViews(t, v.Table, "Atlantic — playoff teams")[0]
-	if len(got) != 1 || got[0].Text != emptyCellValue || got[0].CSS != compareValueEmptyCSS {
+	if len(got) != 1 || got[0].Text != emptyCellValue || got[0].CSS != compareValueEmptyCSS || got[0].Match != "" {
 		t.Errorf("expected a faint empty value for a saved-but-empty pick, got %+v", got)
 	}
 }

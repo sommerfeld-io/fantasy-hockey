@@ -1113,9 +1113,10 @@ select:disabled option {
 /*
   Compare (Story 5.1): a wrapping chip selector grouped by phase, the chosen
   set's deadline, and a side-by-side table - a raised heading row,
-  border-soft row dividers, and the signed-in player's column marked by an
-  ice border plus a "You" label (never colour alone, never a saturated
-  fill).
+  border-soft row dividers, neutral column separators, and the signed-in
+  player's column marked by a "You" label. Every entered value is a cmp-tag
+  badge; compare.js highlights equal badges in one row (cmp-tag--match).
+  Tap, hover and keyboard focus all trigger it.
 */
 
 .compare .section-header {
@@ -1219,8 +1220,8 @@ a.compare-chip {
 
 .cmp-player--own,
 .cmp-cell--own {
-  border-left: 2px solid var(--ice);
-  border-right: 2px solid var(--ice);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
 }
 
 .cmp-values .cmp-value {
@@ -1239,6 +1240,20 @@ a.compare-chip {
   background: var(--raised);
   color: var(--muted);
   font-weight: 600;
+}
+
+.cmp-tag--match {
+  background: var(--ice-deep);
+  color: var(--text);
+}
+
+.cmp-tag[tabindex] {
+  cursor: pointer;
+}
+
+.cmp-tag:focus-visible {
+  outline: 2px solid var(--ice);
+  outline-offset: 1px;
 }
 
 .cmp-value--empty {
