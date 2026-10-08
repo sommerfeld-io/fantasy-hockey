@@ -3,30 +3,36 @@ players:
   - id: sebastian
     name: Sebastian
     email: sebastian@sommerfeld.io
+  - id: yzerman
+    name: Yzerman
+    email: yzerman@example.com
+  - id: lidstrom
+    name: Lidstrom
+    email: lidstrom@example.com
 login_codes: []
 prediction_sets:
   - id: cup
     title: Cup champion
     subtitle: Your Stanley Cup winner
-    deadline_utc: "2026-10-06T17:00:00Z"
+    deadline_utc: "2026-10-31T23:59:59Z"
     phase: before_season
     upcoming: false
   - id: presidents
     title: Presidents' Trophy
     subtitle: Best regular-season record
-    deadline_utc: "2026-10-06T17:00:00Z"
+    deadline_utc: "2026-10-31T23:59:59Z"
     phase: before_season
     upcoming: false
   - id: divisions
     title: Division picks
     subtitle: Playoff teams & division winners
-    deadline_utc: "2026-10-06T17:00:00Z"
+    deadline_utc: "2026-10-31T23:59:59Z"
     phase: before_season
     upcoming: false
   - id: awards
     title: Player awards
     subtitle: Hart, Norris, Vezina, Art Ross, Rocket
-    deadline_utc: "2026-10-06T17:00:00Z"
+    deadline_utc: "2026-10-31T23:59:59Z"
     phase: before_season
     upcoming: false
   - id: playoffcup
@@ -263,6 +269,9 @@ nhl_players:
     position: skater
   - slug: nylander-william
     display_name: William Nylander
+    position: skater
+  - slug: matthews-auston
+    display_name: Auston Matthews
     position: skater
   - slug: zibanejad-mika
     display_name: Mika Zibanejad
@@ -749,3 +758,131 @@ predictions:
       - shesterkin-igor
       - vasilevskiy-andrei
       - hellebuyck-connor
+  - id: 888c1acc-4e62-4708-929c-8d06f3fa12fd
+    player_id: yzerman
+    kind: cup
+    team_id: DET
+    submitted_at: "2026-10-08T13:02:58Z"
+  - id: bec4848a-cafc-4780-9990-af5fdd68d981
+    player_id: yzerman
+    kind: presidents
+    team_id: EDM
+    submitted_at: "2026-10-08T13:03:06Z"
+  - id: f47d267f-8e10-41c3-927e-e3a06451744c
+    player_id: yzerman
+    kind: division_playoff_teams
+    team_id: ""
+    submitted_at: "2026-10-08T13:03:23Z"
+    division: Central
+    team_ids:
+      - CHI
+      - MIN
+      - NSH
+      - STL
+  - id: c21d563b-99dc-4af0-8338-6d1f2397d1df
+    player_id: yzerman
+    kind: division_playoff_teams
+    team_id: ""
+    submitted_at: "2026-10-08T13:03:23Z"
+    division: Pacific
+    team_ids:
+      - CGY
+      - SJS
+      - VAN
+      - VGK
+  - id: 7b871940-fb86-4288-ac37-d3503db5e735
+    player_id: yzerman
+    kind: division_playoff_teams
+    team_id: ""
+    submitted_at: "2026-10-08T13:03:23Z"
+    division: Atlantic
+    team_ids:
+      - BOS
+      - BUF
+      - DET
+      - MTL
+      - TOR
+  - id: aa15f0a4-5408-434c-b707-890d6702fe98
+    player_id: yzerman
+    kind: division_playoff_teams
+    team_id: ""
+    submitted_at: "2026-10-08T13:03:23Z"
+    division: Metropolitan
+    team_ids:
+      - CBJ
+      - NYI
+      - NYR
+  - id: cfd2834f-5aa2-4c92-9586-17d4d84709e5
+    player_id: yzerman
+    kind: division_winner
+    team_id: DET
+    submitted_at: "2026-10-08T13:03:23Z"
+    division: Atlantic
+  - id: b40d1f03-9a1e-48cc-87b4-e63dfe905115
+    player_id: yzerman
+    kind: division_winner
+    team_id: NJD
+    submitted_at: "2026-10-08T13:03:23Z"
+    division: Metropolitan
+  - id: 725d8cf1-af55-4350-a24b-fd9a85c66585
+    player_id: yzerman
+    kind: division_winner
+    team_id: MIN
+    submitted_at: "2026-10-08T13:03:23Z"
+    division: Central
+  - id: 4d7bda82-d8ea-4465-a89e-eee847ad088b
+    player_id: yzerman
+    kind: division_winner
+    team_id: SEA
+    submitted_at: "2026-10-08T13:03:23Z"
+    division: Pacific
+  - id: 9e1685d4-4a34-42cf-b9e7-6e6bc6db5c55
+    player_id: yzerman
+    kind: award
+    team_id: ""
+    submitted_at: "2026-10-08T13:04:44Z"
+    award: rocket_richard
+    finalist_slugs:
+      - mackinnon-nathan
+      - celebrini-macklin
+      - debrincat-alex
+  - id: 470c1cc9-3c22-48ea-b9ff-53c17990e847
+    player_id: yzerman
+    kind: award
+    team_id: ""
+    submitted_at: "2026-10-08T13:04:44Z"
+    award: hart
+    finalist_slugs:
+      - mcdavid-connor
+      - crosby-sidney
+      - kucherov-nikita
+  - id: 9478feb6-49b9-4f15-8644-a6bb1fc9125b
+    player_id: yzerman
+    kind: award
+    team_id: ""
+    submitted_at: "2026-10-08T13:04:44Z"
+    award: norris
+    finalist_slugs:
+      - makar-cale
+      - dahlin-rasmus
+      - seider-moritz
+  - id: 4eb4af8a-5b8d-4343-b866-196e571f200d
+    player_id: yzerman
+    kind: award
+    team_id: ""
+    submitted_at: "2026-10-08T13:04:44Z"
+    award: vezina
+    finalist_slugs:
+      - shesterkin-igor
+      - hellebuyck-connor
+      - grubauer-philipp
+  - id: f0921da4-076d-4c14-bf3c-53ad0b1147e4
+    player_id: yzerman
+    kind: award
+    team_id: ""
+    submitted_at: "2026-10-08T13:04:44Z"
+    award: art_ross
+    finalist_slugs:
+      - mcdavid-connor
+      - draisaitl-leon
+      - mackinnon-nathan
