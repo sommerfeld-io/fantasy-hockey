@@ -68,6 +68,9 @@ FR-39: `/metrics` includes low-cardinality counters for login outcomes and Playe
 FR-40: The app logs one structured line per login event (code requested, succeeded, failed, logout) and per prediction save, naming the Player by stable id and the action; never an email or raw login code; a rejected action does not log as a successful one.
 FR-41: The reverse proxy answers `/metrics` on port 80 with 404 and does not forward it to the app, in the dev compose and the example compose; every other path still reaches the app.
 FR-42: The reverse proxy writes its access log to stdout in nginx's standard "combined" format.
+FR-43: The outbound mail transport is chosen by one setting, `MAIL_TYPE`, with the values `SMTP` and `API`; the two are mutually exclusive, so exactly one is used at a time. Unset means `SMTP`, so existing deployments are unchanged; any other value stops the app at startup with an error naming the setting and the allowed values; settings that belong to the unselected transport are ignored and a startup warning names them.
+FR-44: With `MAIL_TYPE=API`, the app sends every email (login codes) through the Gmail API over HTTPS (`users.messages.send`), authorized by OAuth 2.0 credentials (client ID, client secret, refresh token) and sending as the authorized Gmail account. Missing credentials do not stop the app from starting; a send then fails with an error naming the missing setting. No error, log line or metric contains the recipient address, a credential or an access token.
+FR-45: The configuration table in `docs/index.md` documents `MAIL_TYPE` and every `GMAIL_*` setting, and a Gmail API setup guide in `docs/` walks through creating the Google Cloud project, enabling the Gmail API, creating the OAuth credentials and obtaining the refresh token, and links the YouTube walkthrough.
 ```
 
 ### NonFunctional Requirements
@@ -99,18 +102,22 @@ NFR-11: Every identity a Player picks by name (Team, NHL Player) is referenced e
 - Collection, shipping and visualization of telemetry are out of scope for this repo (another repo): the Alloy config to Grafana Cloud, a metrics dashboard, a proxy-access-log view. OpenTelemetry is a named follow-up, not in scope (PRD §5).
 - The reverse proxy is nginx (PRD addendum.md); it serves plain HTTP on port 80 only -- no TLS/443 by decision (PRD §5), so NFR-1's Secure cookie flag stays off. `/metrics` has no authentication; protection is network exposure only (loopback publish + the proxy's 404).
 - The Dockerfile and `.github/workflows/**` are protected files; no story in this scope may modify them. New-behavior stories (FR-37 to FR-40) need Gherkin features under src/acceptance-tests/features/; for infra stories (FR-35, FR-36, FR-41, FR-42) the human decides per story whether an acceptance test applies.
+- Epic 10 (Gmail API as a second mail transport): `internal/mailer` stays the only package that talks to a mail system and keeps the `Sender` func type (AD-3, AD-12); the transport is picked once at startup from `MAIL_TYPE`. The Gmail API cannot send mail with an API key: `users.messages.send` requires OAuth 2.0 user authorization, so the settings are `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` and `GMAIL_SENDER`. The existing API key in the Google Cloud project is not used.
+- Epic 10 (2026-10-19 update): the Gmail API is used in production only. There is no local or dev Gmail API setup: dev and every automated test stay on SMTP/Mailpit and the `httptest` fake. The OAuth 2.0 client already exists in the Google Cloud console; its client ID and secret, and the refresh token, are supplied by the user at build time into the production deployment's secret store. They are never written to the repo, to `.env`, to a test, to a doc or to a commit, and the build stops and asks the user for them rather than inventing placeholders that look real.
+- Epic 10 is test-first and user-decided to need both layers: unit tests are written before the implementation, and Gherkin acceptance scenarios (with step definitions) are written before the implementation and fail first. The Gmail endpoints are faked with `httptest` servers; no test calls Google. The sender constructor takes the API and token URLs as parameters (no environment override, no test-only path in production).
+- Epic 10 adds no dependency unless justified at build time: a plain `net/http` token refresh and send is small enough; if `golang.org/x/oauth2` is chosen instead, ask the human first. `Dockerfile` and `.github/workflows/**` stay untouched.
 - depguard import-boundary linting (Architecture AD-21) is specified but not yet configured in .golangci.yml -- a near-term build task, not yet real enforcement.
 - Prediction row granularity: one store.Prediction row per independently-saveable pick, with the Series winner+game-count pair as the sole multi-field exception (Architecture AD-28).
 - AwardFinalist is a real Go struct ({slug, display_name}), not a bare string list; NHL Player identity uses a human-readable slug generated once and reused everywhere it's referenced (Architecture AD-17, AD-24).
 - The shared autocomplete widget always submits the selected option's `id` (team abbreviation or NHL Player slug), never its display label (Architecture AD-19).
 - internal/standings may import internal/scoring (the one sanctioned feature-to-feature import) to consume computed point values for the Leaderboard, rather than re-deriving scoring logic independently (Architecture AD-8).
-- Epic 10 (UI and container regression safety nets): build the image once, test that exact artifact (the registry `:sha` image), and promote it by retagging; never rebuild. The pipeline gate blocks the edge push when a test fails.
-- Epic 10 tests must not be flaky: seed deadlines relative to now with generous margins; no production fake clock or test-only code path. The app loads the data file once at startup, so phased tests write results while the app is stopped and restart it; no reload endpoint.
-- Epic 10 Playwright suite: Node `@playwright/test` in `tests/playwright` with its own `package.json` and lockfile, one phone-viewport Chromium project, no desktop or device matrix. It complements GoDog and covers only browser-visible behaviour.
-- Epic 10 InSpec suite: Chef InSpec in `tests/inspec`, run in its own container against a running container of the app image via a `docker://` target, never installed in the app image and never bind-mounting the repo. The container under test runs the image's real `CMD` with `SESSION_SECRET` set; probes use busybox `wget` (`curl` is banned from the image). Needs docker socket access and `/bin/sh` in the image.
-- Epic 10 image bounds: the 6.5 MB size ceiling applies to the amd64 image under test (5.33 MB measured on arm64); the pinned-base control reads the version from the `Dockerfile` `FROM` line. Tests run amd64 only (NFR-8's arm64 target is exercised later, on the Raspberry Pi).
-- Epic 10 wiring: taskfiles in `tests/playwright` and `tests/inspec` are included from the root `taskfile.yml`, take an `IMAGE` variable, and are the commands the pipeline calls; linters cover `tests/`. Locally the suites run sequentially with a data-file reset; in GitHub Actions they run in parallel on separate workers.
-- Epic 10 changes `pipeline.yml` and `release.yml`, which are protected files: those stories need the user's explicit request at build time. The `Dockerfile` stays untouched. No GoDog acceptance tests for this epic (user decision).
+- Epic 11 (UI and container regression safety nets): build the image once, test that exact artifact (the registry `:sha` image), and promote it by retagging; never rebuild. The pipeline gate blocks the edge push when a test fails.
+- Epic 11 tests must not be flaky: seed deadlines relative to now with generous margins; no production fake clock or test-only code path. The app loads the data file once at startup, so phased tests write results while the app is stopped and restart it; no reload endpoint.
+- Epic 11 Playwright suite: Node `@playwright/test` in `tests/playwright` with its own `package.json` and lockfile, one phone-viewport Chromium project, no desktop or device matrix. It complements GoDog and covers only browser-visible behaviour.
+- Epic 11 InSpec suite: Chef InSpec in `tests/inspec`, run in its own container against a running container of the app image via a `docker://` target, never installed in the app image and never bind-mounting the repo. The container under test runs the image's real `CMD` with `SESSION_SECRET` set; probes use busybox `wget` (`curl` is banned from the image). Needs docker socket access and `/bin/sh` in the image.
+- Epic 11 image bounds: the 6.5 MB size ceiling applies to the amd64 image under test (5.33 MB measured on arm64); the pinned-base control reads the version from the `Dockerfile` `FROM` line. Tests run amd64 only (NFR-8's arm64 target is exercised later, on the Raspberry Pi).
+- Epic 11 wiring: taskfiles in `tests/playwright` and `tests/inspec` are included from the root `taskfile.yml`, take an `IMAGE` variable, and are the commands the pipeline calls; linters cover `tests/`. Locally the suites run sequentially with a data-file reset; in GitHub Actions they run in parallel on separate workers.
+- Epic 11 changes `pipeline.yml` and `release.yml`, which are protected files: those stories need the user's explicit request at build time. The `Dockerfile` stays untouched. No GoDog acceptance tests for this epic (user decision).
 ```
 
 ### UX Design Requirements
@@ -178,6 +185,9 @@ FR-39: Epic 9 - Login and action counters, no Player labels
 FR-40: Epic 9 - Audit log lines for logins and prediction saves
 FR-41: Epic 9 - Proxy answers /metrics on port 80 with 404
 FR-42: Epic 9 - Proxy access logs to stdout in combined format
+FR-43: Epic 10 - MAIL_TYPE selects SMTP or API, mutually exclusive
+FR-44: Epic 10 - Send login-code emails through the Gmail API over HTTPS
+FR-45: Epic 10 - Document MAIL_TYPE, the GMAIL_* settings and the Gmail API setup
 ```
 
 ## Epic List
@@ -218,7 +228,11 @@ A prospective or current player can learn how the game works without asking the 
 The person running the pool can put the app on a homelab host behind an nginx reverse proxy on port 80, using either the dev compose or a ready-to-adapt production example, and can see how the app behaves: metrics scrapable from the host only, an audit log of who logged in and who did what and when, and proxy access logs on stdout.
 **FRs covered:** FR-35, FR-36, FR-37, FR-38, FR-39, FR-40, FR-41, FR-42
 
-### Epic 10: UI & Image Regression Safety Nets
+### Epic 10: Gmail API as a Second Mail Transport
+The person running the pool can choose, with one setting, whether login-code emails go out over SMTP or through the Gmail API over HTTPS, and has a step-by-step guide for setting up the Gmail API.
+**FRs covered:** FR-43, FR-44, FR-45
+
+### Epic 11: UI & Image Regression Safety Nets
 The person running the pool can change the app or accept an automatic dependency bump and know that the UI still works in a phone browser and that the shipped image still contains only what it should. Both are checked by tests that run locally with one task each, and by the pipeline, which refuses to publish an edge image when either fails.
 **FRs covered:** None — infra and test work surfaced by a dedicated brainstorming session (see brainstorm-intent.md), not a PRD requirement.
 
@@ -1007,11 +1021,157 @@ So that I have a ready-to-adapt file for running the app on the Raspberry Pi.
 
 *References: PRD FR-36, §5 (no HTTPS/443 by decision); Architecture AD-14, AD-27, AD-32, AD-34 (same nginx behaviour as the dev compose, self-contained copy guarded by a drift test, directory mount); `docs/operator-guide.md` gets a pointer to the example. Infra and docs story: ask the human whether an acceptance test applies. Whether the loopback-only bind is the right choice is an `[ASSUMPTION]` in PRD §9.*
 
-## Epic 10: UI & Image Regression Safety Nets
+## Epic 10: Gmail API as a Second Mail Transport
+
+The person running the pool can choose, with one setting, whether login-code emails go out over SMTP or through the Gmail API over HTTPS, and has a step-by-step guide for setting up the Gmail API.
+
+### Story 10.1: Choose the Mail Transport With MAIL_TYPE
+
+As the person running the pool,
+I want one setting that selects SMTP or the web API as the way the app sends email,
+So that I can keep Mailpit and SMTP in development and switch a real deployment to the Gmail API without changing code.
+
+**Acceptance Criteria:**
+
+**Given** the unit tests for the transport selection are written first
+**When** I run `task go:test` before the implementation exists
+**Then** they fail (red), and they pass once the selection is implemented (green)
+
+**Given** `MAIL_TYPE` is unset or set to an empty string
+**When** the app starts
+**Then** it uses SMTP exactly as before, so the dev compose with Mailpit and every existing deployment keep working with no change
+
+**Given** `MAIL_TYPE=SMTP` (any letter case)
+**When** a login code is requested
+**Then** the mail goes through the SMTP sender built from `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME` and `SMTP_APP_PASSWORD`, and the Gmail API is never called
+
+**Given** `MAIL_TYPE=API` (any letter case)
+**When** a login code is requested
+**Then** the mail goes through the API sender from Story 10.2, and no SMTP connection is opened
+
+**Given** `MAIL_TYPE` holds any other value (for example `pigeon`)
+**When** the app starts
+**Then** it exits non-zero with an error that names `MAIL_TYPE` and lists `SMTP` and `API` as the allowed values, and it does not fall back to SMTP
+
+**Given** `MAIL_TYPE=API` and `SMTP_HOST` is also set (or `MAIL_TYPE=SMTP` and any `GMAIL_*` variable is set)
+**When** the app starts
+**Then** the unselected transport's settings are ignored, and one startup warning names the ignored variables, never their values
+
+**Given** the dev compose and the repo's `.env`
+**When** I read them after the change
+**Then** they are untouched: local development stays on SMTP and Mailpit, there is no local Gmail API setup, and no `GMAIL_*` variable appears in either file
+
+**Given** the example production compose `docs/examples/docker-compose.yml`
+**When** I read its `app` service environment
+**Then** it passes `MAIL_TYPE` and the four `GMAIL_*` variables through with empty placeholder values and a comment that real values come from the deployment's secret store, and the file still passes `docker compose config` (Story 9.6 decided on no drift test)
+
+**Given** the selection lives in `internal/mailer` (a constructor that takes the settings and returns a `Sender`)
+**When** I read `main.go`
+**Then** it reads the environment once and passes the values on; it contains no transport logic
+
+**Given** a Gherkin feature `src/acceptance-tests/features/mail-transport.feature` with step definitions, written before the implementation and failing first
+**When** `task go:test:acceptance` runs
+**Then** it covers: the default is SMTP; an explicit `SMTP` sends over SMTP; `MAIL_TYPE=API` opens no SMTP connection and warns about the ignored `SMTP_*` settings; an invalid value stops the startup with the named error (the scenario that `API` sends through the fake Gmail server belongs to Story 10.2, where the fake server exists)
+
+*References: PRD FR-43; Architecture AD-3, AD-12 (the `Sender` func type and the app starting with no mail settings stay as they are). New observable behavior: unit tests first, then the Gherkin feature, both written before the implementation (user decision). Depends on Story 10.2 for the API sender; build the selection with a fake API sender first, then wire in the real one.*
+
+### Story 10.2: Send Login Codes Through the Gmail API
+
+As the person running the pool,
+I want the app to send login-code emails through the Gmail API over HTTPS,
+So that mail works on a host where outbound SMTP is blocked or an app password is not an option.
+
+**Acceptance Criteria:**
+
+**Given** the unit tests for the API sender are written first
+**When** I run `task go:test` before the implementation exists
+**Then** they fail (red), and they pass once the sender is implemented (green)
+
+**Given** `MAIL_TYPE=API` with `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` and `GMAIL_SENDER` set
+**When** the app sends a login code
+**Then** it first exchanges the refresh token for an access token at the token URL, then POSTs to the Gmail `users.messages.send` endpoint over HTTPS with an `Authorization: Bearer` header and a JSON body whose `raw` field is the base64url-encoded RFC 5322 message
+
+**Given** the message in `raw`
+**When** I decode it
+**Then** it has `From` (the `GMAIL_SENDER` address), `To`, `Subject` and a plain-text body with the same login-code content the SMTP sender sends, with CRLF line endings, and a CR or LF in `to` or `subject` is rejected so no header can be injected
+
+**Given** a still-valid access token from an earlier send
+**When** the app sends another mail
+**Then** it reuses the token instead of calling the token URL again, and it fetches a new one once the old one has expired
+
+**Given** one or more of the four settings is missing
+**When** a send is attempted
+**Then** the app has still started, the send returns an error naming the first missing variable, and no HTTP request is made
+
+**Given** the token URL or the send URL answers with a non-2xx status or a transport error
+**When** the send runs
+**Then** it returns an error carrying the status and Google's error reason, with a request timeout so a hung connection cannot hold a login request open
+
+**Given** any error, log line, or metric from this path
+**When** I search it for the recipient address, the client secret, the refresh token or an access token
+**Then** none appears, including when Google echoes them in a response body (reuse the recipient redaction from the SMTP sender)
+
+**Given** the sender is built by a constructor that takes the settings plus the token URL and the send URL as parameters
+**When** a test builds it with `httptest` server URLs
+**Then** no test calls Google, and production code passes Google's real URLs from constants, with no environment override
+
+**Given** the Gherkin scenarios from Story 10.1 run against a fake Gmail server
+**When** a player requests a login code with `MAIL_TYPE=API`
+**Then** the fake server received exactly one send request addressed to that player, whose decoded body contains a 6-digit code that logs the player in
+
+**Given** the audit and metrics behavior from Epic 9
+**When** a code is sent through the API transport
+**Then** the same login events are logged and counted as for SMTP, with no new label and no Player identity in metrics
+
+*References: PRD FR-44; Architecture AD-12, AD-33. The Gmail API does not accept an API key for `users.messages.send`; it needs OAuth 2.0 with the `https://www.googleapis.com/auth/gmail.send` scope, so the API key already created in the Google Cloud project is not used and is not a setting. Unit tests and Gherkin scenarios are written before the implementation (user decision). Stdlib `net/http` and `encoding/json` unless a dependency is justified and approved at build time.*
+
+### Story 10.3: Document the Mail Settings and the Gmail API Setup
+
+As the person running the pool,
+I want the mail settings and the Gmail API setup written down,
+So that I can switch a deployment to the Gmail API from the docs alone, months from now.
+
+**Acceptance Criteria:**
+
+**Given** `docs/index.md`
+**When** I read its Configuration table
+**Then** it has rows for `MAIL_TYPE` (values `SMTP` or `API`, mutually exclusive, default `SMTP`), `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` and `GMAIL_SENDER`, each saying which transport uses it, and the existing `SMTP_*` rows say they apply only when `MAIL_TYPE` is `SMTP`
+
+**Given** the paragraph above the table that says login-code emails silently fail without `SMTP_*` settings
+**When** I read it after the change
+**Then** it covers both transports: what happens with no mail settings for each, and that an invalid `MAIL_TYPE` stops the app at startup
+
+**Given** a new guide `docs/gmail-api-setup.md`, written for production use only and linked from the Configuration section of `docs/index.md`
+**When** I follow it from a blank Google account
+**Then** it walks through, in order: creating the Google Cloud project, enabling the Gmail API, configuring the OAuth consent screen and adding the sending account as a test user, creating an OAuth client ID, obtaining a refresh token for the `gmail.send` scope, and setting the four `GMAIL_*` variables with `MAIL_TYPE=API` on the production host; it says dev stays on SMTP/Mailpit and needs no Gmail setup
+
+**Given** the guide
+**When** I read the start
+**Then** it states that the Gmail API cannot send with an API key, so the key is not needed, and that a consent screen left in Testing mode makes the refresh token expire after 7 days for an external account, with the way to avoid it (publish the app to production, or use a Workspace-internal app)
+
+**Given** the guide
+**When** I look for a video
+**Then** it links the YouTube walkthrough `https://youtu.be/LgcNxu79rwo`, worded as a helpful extra that may not match Google's current screens, not as the authority
+
+**Given** the guide
+**When** I look for secrets
+**Then** it contains none: it says never to commit the client secret or the refresh token, to put them in `.env` or the secret store of the deployment, and it does not name the real Cloud project or account
+
+**Given** the new file and the changed one
+**When** `task lint` runs
+**Then** markdownlint, the link checker and the filename linters pass
+
+**Given** `docs/operator-guide.md` and `README.md` mention the SMTP settings
+**When** I search them for stale statements
+**Then** each now points at the Configuration table instead of implying SMTP is the only transport
+
+*References: PRD FR-45; Epic 8 (docs conventions, `docs/` as the single place). Docs story: the user asked for the documentation explicitly, so no acceptance test applies. Depends on Stories 10.1 and 10.2 so the documented names are the final ones.*
+
+## Epic 11: UI & Image Regression Safety Nets
 
 The person running the pool can change the app or accept an automatic dependency bump and know that the UI still works in a phone browser and that the shipped image still contains only what it should. Both are checked by tests that run locally with one task each, and by the pipeline, which refuses to publish an edge image when either fails.
 
-### Story 10.1: Image Controls on a Running Container
+### Story 11.1: Image Controls on a Running Container
 
 As the person running the pool,
 I want InSpec to check a running container of the app image,
@@ -1061,7 +1221,7 @@ So that a change that leaves source in the image, runs it as root, or breaks its
 
 *References: SPEC CAP-4, CAP-6; `inspec-controls.md`. Infra story: no GoDog acceptance test (user decision). The `Dockerfile` is protected and untouched: if a control exposes a real defect in the current image, stop and ask the user instead of editing it.*
 
-### Story 10.2: Image Bloat Guard: Allowlist and Size Ceiling
+### Story 11.2: Image Bloat Guard: Allowlist and Size Ceiling
 
 As the person running the pool,
 I want InSpec to fail when the image holds an unexpected file or grows past a ceiling,
@@ -1089,9 +1249,9 @@ So that image growth, which means a longer download and a larger attack surface,
 **When** I build the story
 **Then** I stop and ask the user, because the ceiling value is theirs to set (5.33 MB was measured on arm64)
 
-*References: SPEC CAP-5; `inspec-controls.md`; builds on Story 10.1. Infra story: no GoDog acceptance test (user decision). `Dockerfile` untouched.*
+*References: SPEC CAP-5; `inspec-controls.md`; builds on Story 11.1. Infra story: no GoDog acceptance test (user decision). `Dockerfile` untouched.*
 
-### Story 10.3: Award Picks Journey in a Phone Browser
+### Story 11.3: Award Picks Journey in a Phone Browser
 
 As the person running the pool,
 I want a Playwright test that logs in with a code and submits player award picks in a phone-sized browser,
@@ -1141,7 +1301,7 @@ So that a template or script change that breaks the awards form is caught before
 
 *References: SPEC CAP-1, CAP-6; Stories 2.6 and 2.7; NFR-4 (the client-side JS this test exercises). Infra and test story: no GoDog acceptance test (user decision). Language choice (JavaScript or TypeScript) is made in the story; add no tooling beyond what the suite needs.*
 
-### Story 10.4: Navigation Walk Across Tabs and Prediction Pages
+### Story 11.4: Navigation Walk Across Tabs and Prediction Pages
 
 As the person running the pool,
 I want a Playwright test that walks the main navigation and opens each prediction page,
@@ -1167,11 +1327,11 @@ So that a template or CSS change that breaks navigation on a phone is caught bef
 
 **Given** the suite
 **When** I read its locators
-**Then** they use roles and names, not CSS classes, and reuse the seeding and task from Story 10.3 without new reset logic
+**Then** they use roles and names, not CSS classes, and reuse the seeding and task from Story 11.3 without new reset logic
 
-*References: SPEC CAP-2; Story 1.5. Builds on Story 10.3. Infra and test story: no GoDog acceptance test (user decision).*
+*References: SPEC CAP-2; Story 1.5. Builds on Story 11.3. Infra and test story: no GoDog acceptance test (user decision).*
 
-### Story 10.5: Leaderboard Standings From Hand-Recorded Results
+### Story 11.5: Leaderboard Standings From Hand-Recorded Results
 
 As the person running the pool,
 I want a Playwright test that records results in the data file and checks the Leaderboard,
@@ -1199,9 +1359,9 @@ So that a change to scoring or the Leaderboard page that shifts the standings is
 **When** I read this test
 **Then** it asserts one table only and does not repeat that matrix
 
-*References: SPEC CAP-3; Stories 4.1 and 4.2; the app loads the data file once at startup, so results are written while it is stopped (Additional Requirements). Builds on Story 10.3. Infra and test story: no GoDog acceptance test (user decision).*
+*References: SPEC CAP-3; Stories 4.1 and 4.2; the app loads the data file once at startup, so results are written while it is stopped (Additional Requirements). Builds on Story 11.3. Infra and test story: no GoDog acceptance test (user decision).*
 
-### Story 10.6: Failing UI or Image Tests Block the Edge Publish
+### Story 11.6: Failing UI or Image Tests Block the Edge Publish
 
 As the person running the pool,
 I want the pipeline to run the UI and image tests on the exact image it built and publish edge only when both pass,
@@ -1239,7 +1399,7 @@ So that a bump or refactor that breaks either never reaches Docker Hub as the ed
 
 *References: SPEC CAP-7; `pipeline-wiring.md`. **Protected file:** `.github/workflows/pipeline.yml` may be changed only on the user's explicit request at build time. Infra story: no GoDog acceptance test (user decision). Verify manually with a throwaway branch carrying a deliberately failing test, which must stop `publish-edge`.*
 
-### Story 10.7: Release Verifies the Image Is Still the Tested One
+### Story 11.7: Release Verifies the Image Is Still the Tested One
 
 As the person running the pool,
 I want the release run to confirm that the released image is still the one the pipeline tested,
@@ -1263,9 +1423,9 @@ So that a retag mix-up is noticed.
 **When** I read its jobs
 **Then** none of them builds the image
 
-*References: SPEC CAP-8; `pipeline-wiring.md`. **Protected file:** `.github/workflows/release.yml` may be changed only on the user's explicit request at build time. Builds on Stories 10.1 and 10.6. Infra story: no GoDog acceptance test (user decision).*
+*References: SPEC CAP-8; `pipeline-wiring.md`. **Protected file:** `.github/workflows/release.yml` may be changed only on the user's explicit request at build time. Builds on Stories 11.1 and 11.6. Infra story: no GoDog acceptance test (user decision).*
 
-### Story 10.8: Dependabot Watches the Playwright Dependencies
+### Story 11.8: Dependabot Watches the Playwright Dependencies
 
 As the person running the pool,
 I want Dependabot to watch the Playwright test dependencies,
@@ -1283,6 +1443,6 @@ So that a bump to them is proposed and gated by the pipeline like every other de
 
 **Given** a Dependabot pull request that bumps a Playwright dependency
 **When** the pipeline runs on it
-**Then** the Playwright job from Story 10.6 runs and reports the result on the PR
+**Then** the Playwright job from Story 11.6 runs and reports the result on the PR
 
-*References: SPEC CAP-9. Builds on Stories 10.3 and 10.6. Infra story: no GoDog acceptance test (user decision). `.github/dependabot.yml` is not a protected file.*
+*References: SPEC CAP-9. Builds on Stories 11.3 and 11.6. Infra story: no GoDog acceptance test (user decision). `.github/dependabot.yml` is not a protected file.*

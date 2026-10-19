@@ -235,7 +235,10 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/main' }}
     needs: [
-      'build-image', ## replace with test stages if there are any in the future
+      'docker-scout',
+      # inspec stage
+      # playwright stage
+      # maybe some other test stage
     ]
     permissions:
       contents: read
@@ -266,7 +269,6 @@ jobs:
     uses: sommerfeld-io/.github/.github/workflows/lib-release-code.yml@main
     needs: [
       'publish-edge',
-      'docker-scout',
     ]
     if: ${{ (github.actor != 'dependabot[bot]') && (github.ref == 'refs/heads/main') }}
     secrets:

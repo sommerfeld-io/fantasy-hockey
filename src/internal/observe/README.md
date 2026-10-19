@@ -10,7 +10,7 @@ The one home of the app's observability. An `*Observer` owns a dedicated Prometh
 | `Audit(event, playerID, …)` | The single audit emitter. Writes one `slog.Info("audit", "event", …, "player_id", …)` line (`player_id` omitted when empty) and increments the matching counter. Events: `login_code_requested`, `login_succeeded`, `login_failed`, `logout`, `prediction_saved`. |
 | `PreRegisterKinds(kinds…)`  | Creates one `fantasy_hockey_prediction_saves_total{kind}` series per kind at zero (`internal/web` passes `store.Kinds`).                                                                                                                                          |
 
-`fantasy_hockey_login_events_total{event}` (`login_code_requested`, `login_succeeded`, `login_failed`, `logout`) is pre-registered at zero in `New`. `fantasy_hockey_prediction_saves_total{kind}` is incremented by `Audit(EventPredictionSaved, …, "kind", k, …)`. Both are labelled by that one label only. `Audit` never takes an email or a login code.
+`fantasy_hockey_login_events_total{event}` (`login_code_requested`, `login_succeeded`, `login_failed`, `logout`) is pre-registered at zero in `New`. `fantasy_hockey_prediction_saves_total{kind}` is incremented by `Audit(EventPredictionSaved, …, "kind", k, …)`. `login_code_requested` means the code was persisted and a send attempted, not that the email was delivered. Both are labelled by that one label only. `Audit` never takes an email or a login code.
 
 The `route` label is the request's route pattern, or `unmatched` when no pattern matched, so a raw path never becomes a label. No Player, email or login code may appear in a label or metric.
 

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,15 +19,40 @@ import (
 	"github.com/sommerfeld-io/fantasy-hockey/internal/store"
 )
 
+// syncBuffer is a bytes.Buffer safe for the send goroutine that
+// RequestLoginCode starts to write to while a test reads.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func (b *syncBuffer) Len() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Len()
+}
+
 // captureLogs swaps slog's default logger for one writing to a buffer this
 // test can inspect, restoring the original default when the test ends.
-func captureLogs(t *testing.T) *bytes.Buffer {
+func captureLogs(t *testing.T) *syncBuffer {
 	t.Helper()
-	var buf bytes.Buffer
+	buf := &syncBuffer{}
 	previous := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	slog.SetDefault(slog.New(slog.NewTextHandler(buf, nil)))
 	t.Cleanup(func() { slog.SetDefault(previous) })
-	return &buf
+	return buf
 }
 
 // persistedDocument mirrors internal/store's on-disk shape closely enough
@@ -352,5 +378,56 @@ func TestRequestLoginCodeShouldDoNothingForAMalformedOrEmptyEmail(t *testing.T) 
 				t.Fatalf("expected no persisted login code, got %d", len(doc.LoginCodes))
 			}
 		})
+	}
+}
+
+func TestRequestLoginCodeShouldLogThePlayerIDAndNotTheEmailWhenSendingFails(t *testing.T) {
+	st, _ := newSeededStore(t)
+	logs := captureLogs(t)
+	done := make(chan struct{})
+	failingSend := func(_, _, _ string) error {
+		defer close(done)
+		return errors.New("smtp: connection refused")
+	}
+
+	id, err := auth.RequestLoginCode(st, failingSend, "basti@example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	<-done
+	deadline := time.Now().Add(2 * time.Second)
+	for !strings.Contains(logs.String(), "send login code") && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	out := logs.String()
+	if !strings.Contains(out, "send login code") || !strings.Contains(out, "player_id="+id) {
+		t.Errorf("expected an error line with player_id=%s, got %q", id, out)
+	}
+	if strings.Contains(out, "basti@example.com") {
+		t.Errorf("expected no email address in the log, got %q", out)
+	}
+}
+
+func TestRequestLoginCodeShouldNotLogWhenSendingSucceeds(t *testing.T) {
+	st, _ := newSeededStore(t)
+	logs := captureLogs(t)
+	done := make(chan struct{})
+	send := func(_, _, _ string) error {
+		defer close(done)
+		return nil
+	}
+
+	if _, err := auth.RequestLoginCode(st, send, "basti@example.com"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	<-done
+	time.Sleep(50 * time.Millisecond)
+
+	// The store's own "store write" info line is expected; a successful send
+	// must add no error line and no send-related line of its own.
+	out := logs.String()
+	if strings.Contains(out, "level=ERROR") || strings.Contains(out, "send login code") {
+		t.Errorf("expected no send-related log line after a successful send, got %q", out)
 	}
 }

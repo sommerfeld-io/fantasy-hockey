@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 10-02-2026 20:19
+last_updated: 10-19-2026 18:18
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -50,7 +50,7 @@ development_status:
   2-4-division-picks-playoff-teams-and-division-winners: done
   2-5-load-season-s-canonical-nhl-player-list: done
   2-6-player-awards-finalists: done
-  2-7-incomplete-award-picks-are-flagged: review
+  2-7-incomplete-award-picks-are-flagged: done
   epic-2-retrospective: done
 
   epic-3: done
@@ -94,16 +94,22 @@ development_status:
   9-6-example-production-compose: done
   epic-9-retrospective: done
 
-  epic-10: backlog
-  10-1-image-controls-on-a-running-container: backlog
-  10-2-image-bloat-guard-allowlist-and-size-ceiling: backlog
-  10-3-award-picks-journey-in-a-phone-browser: backlog
-  10-4-navigation-walk-across-tabs-and-prediction-pages: backlog
-  10-5-leaderboard-standings-from-hand-recorded-results: backlog
-  10-6-failing-ui-or-image-tests-block-the-edge-publish: backlog
-  10-7-release-verifies-the-image-is-still-the-tested-one: backlog
-  10-8-dependabot-watches-the-playwright-dependencies: backlog
-  epic-10-retrospective: optional
+  epic-10: in-progress
+  10-1-choose-the-mail-transport-with-mail-type: done
+  10-2-send-login-codes-through-the-gmail-api: done
+  10-3-document-the-mail-settings-and-the-gmail-api-setup: done
+  epic-10-retrospective: done
+
+  epic-11: backlog
+  11-1-image-controls-on-a-running-container: backlog
+  11-2-image-bloat-guard-allowlist-and-size-ceiling: backlog
+  11-3-award-picks-journey-in-a-phone-browser: backlog
+  11-4-navigation-walk-across-tabs-and-prediction-pages: backlog
+  11-5-leaderboard-standings-from-hand-recorded-results: backlog
+  11-6-failing-ui-or-image-tests-block-the-edge-publish: backlog
+  11-7-release-verifies-the-image-is-still-the-tested-one: backlog
+  11-8-dependabot-watches-the-playwright-dependencies: backlog
+  epic-11-retrospective: optional
 
 action_items:
   - id: "epic-1-retro-item-1-add-a-regression-test-asserting-the-sess"
@@ -665,7 +671,7 @@ action_items:
       that login_code_requested means persisted and send attempted, not delivered;
       consider an Info line on send success."
     owner: "next dev touching internal/auth"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-69-write-the-operator-observability-section"
     epic: 9
@@ -714,14 +720,14 @@ action_items:
     action: "Stop the flaky link check blocking commits: exclude the kroki.io diagram
       URLs in .lychee.toml and confirm a commit passes without retries."
     owner: "next dev touching .lychee.toml"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-75-lint-after-review-patches-before-committ"
     epic: 9
     action: "Lint after review patches before committing: run task lint or at least
       gocyclo after any post-review patch."
     owner: "whoever runs reviews"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-76-give-later-reviewers-the-earlier-review"
     epic: 9
@@ -750,3 +756,160 @@ action_items:
     owner: "next dev touching .golangci.yml or internal/store"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-10-code-review-item-79-redact-before-truncating-error-text"
+    epic: 10
+    action: "Redact the error text before truncating it so a secret cut by the limit
+      cannot leave a prefix (fixed in code review, with a test)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-80-fall-back-to-raw-body-for-empty-reason"
+    epic: 10
+    action: "Fall back to the raw response body when Google's error reason is null
+      or empty (fixed in code review, with a test)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-81-harden-the-acceptance-fake-gmail-server"
+    epic: 10
+    action: "Make the acceptance fake Gmail server reject a wrong grant, a missing
+      bearer token and malformed payloads (fixed in code review)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-82-unit-tests-for-token-response-reason-and-sender-linebreak"
+    epic: 10
+    action: "Add unit tests for a token response without access_token, googleReason
+      shapes, CR/LF in GMAIL_SENDER and the error text cap (done in code review)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-83-docs-name-the-required-settings-per-transport"
+    epic: 10
+    action: "Reword the no-mail-settings paragraph so it names the required settings
+      per transport instead of overclaiming for SMTP (fixed in code review)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-84-docs-offline-access-wording-and-sending-limits"
+    epic: 10
+    action: "Soften the unverified offline-access claim in the Gmail guide and mention
+      Gmail's daily sending limits (fixed in code review)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-85-decide-retry-once-after-a-401"
+    epic: 10
+    action: "Decide whether to retry the send once with a fresh token after a 401,
+      and make dropToken clear only the token that was used."
+    owner: "next dev touching internal/mailer or the docs"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-86-decide-startup-warning-for-missing-gmail-settings"
+    epic: 10
+    action: "Decide whether to log a startup warning naming the missing GMAIL_* variables
+      when MAIL_TYPE=API."
+    owner: "next dev touching internal/mailer or the docs"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-87-add-a-gmail-failure-acceptance-scenario"
+    epic: 10
+    action: "Add a Gmail failure acceptance scenario (for example invalid_grant):
+      the error is logged and no code is delivered."
+    owner: "next dev touching internal/mailer or the docs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-88-link-the-gmail-guide-from-index-after-merge"
+    epic: 10
+    action: "After the branch is merged to main, link docs/gmail-api-setup.md from
+      docs/index.md with its GitHub URL instead of a code span."
+    owner: "next dev touching internal/mailer or the docs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-89-encode-non-ascii-mail-content"
+    epic: 10
+    action: "Encode non-ASCII subjects, bodies and addresses in the Gmail message
+      and test them (already in deferred-work.md)."
+    owner: "next dev touching internal/mailer or the docs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-90-lower-priority-gmail-sender-hardening"
+    epic: 10
+    action: "Lower priority: single-recipient validation, whitespace-only settings,
+      expires_in clamp, one in-flight token refresh, strings.NewReplacer for redaction,
+      injected HTTP transport in the default-URL test."
+    owner: "next dev touching internal/mailer or the docs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-retro-item-91-run-the-first-real-production-send-and-c"
+    epic: 10
+    action: "Run the first real production send and confirm the whole chain: MAIL_TYPE=API,
+      the four GMAIL_* values from the secret store, a login code arriving from the
+      sender address. Nothing in Epic 10 ran against Google."
+    owner: "human"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-92-add-an-adversarial-boundary-test-for-the"
+    epic: 10
+    action: "Add an adversarial boundary test for the never-appears-in-errors guarantee:
+      secret and recipient at every cut position of a long echoed reason and across
+      the 64 KB read limit."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-93-add-an-automated-check-that-the-api-tran"
+    epic: 10
+    action: "Add an automated check that the API transport produces the same login_code_requested
+      audit line and metric as SMTP (Story 10.2 last criterion, currently observed
+      by hand only)."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-94-reconcile-story-10-3-ac-in-epics-md-from"
+    epic: 10
+    action: "Reconcile Story 10.3 AC in epics.md from linked from docs/index.md to
+      named in docs/index.md and linked once on main, with the evidence in the Epic
+      10 retro (human applies)."
+    owner: "human"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-95-record-epic-10-accepted-deviations-per-n"
+    epic: 10
+    action: "Record Epic 10 accepted deviations (per-needle regexp, redactedError
+      unwrapping to the cause, one http.DefaultTransport swap in a test, one 10 s
+      budget for token and send, access token redacted only after issuance, accessToken
+      holding the mutex during the call) in the standing list from Epic 9 item 76
+      and give that list plus earlier triage logs to every review layer."
+    owner: "whoever runs reviews"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-96-decide-whether-go-mod-go-directive-now-1"
+    epic: 10
+    action: "Decide whether go.mod go directive (now 1.26.9) should follow the Dockerfile
+      toolchain (Go 1.27.1); the govulncheck failure in Story 10.1 came from the lag."
+    owner: "human"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-97-when-a-verification-step-temporarily-mut"
+    epic: 10
+    action: "When a verification step temporarily mutates source, restore from a saved
+      copy in the same command and never pkill by command-line pattern (a pattern
+      kill left main.go mutated until the next command restored it)."
+    owner: "whoever runs builds"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-98-decide-whether-mail_type-smtp-should-als"
+    epic: 10
+    action: "Decide whether MAIL_TYPE=SMTP should also warn at startup about a missing
+      SMTP_HOST or SMTP_PORT, for parity with the Gmail startup warning."
+    owner: "human"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-make-mail-failures-visible.md"
+  - id: "epic-10-retro-item-99-make-the-acceptance-steps-for-both-start"
+    epic: 10
+    action: "Make the acceptance steps for both startup warnings assert the real log
+      line, for example by moving the newSender logic into internal/mailer so a step
+      can call it with a capturing logger."
+    owner: "next dev touching internal/mailer"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-make-mail-failures-visible.md"

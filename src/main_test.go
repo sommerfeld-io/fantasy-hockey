@@ -368,3 +368,163 @@ func TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath(t *testing.T) {
 		t.Errorf("expected archived file to be byte-for-byte unchanged, before=%q after=%q", before, after)
 	}
 }
+
+func TestNewSenderShouldWarnOnceNamingIgnoredVariablesButNotTheirValues(t *testing.T) {
+	env := map[string]string{"MAIL_TYPE": "API", "SMTP_HOST": "secret-host.example.com", "SMTP_PORT": "25",
+		"GMAIL_CLIENT_ID": "a", "GMAIL_CLIENT_SECRET": "b", "GMAIL_REFRESH_TOKEN": "c", "GMAIL_SENDER": "d"}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	_, err := newSender(func(k string) string { return env[k] }, logger)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := logs.String()
+	if got := strings.Count(out, "level=WARN"); got != 1 {
+		t.Fatalf("expected exactly one warning, got %d: %s", got, out)
+	}
+	if !strings.Contains(out, "SMTP_HOST") || !strings.Contains(out, "SMTP_PORT") {
+		t.Errorf("expected the warning to name the ignored variables, got %s", out)
+	}
+	if strings.Contains(out, "secret-host.example.com") {
+		t.Errorf("expected no value in the log, got %s", out)
+	}
+}
+
+func TestNewSenderShouldNotWarnWhenNothingIsIgnoredOrMissing(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	env := map[string]string{"SMTP_HOST": "h", "SMTP_PORT": "25"}
+
+	_, err := newSender(func(k string) string { return env[k] }, logger)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if logs.Len() != 0 {
+		t.Fatalf("expected no log output, got %s", logs.String())
+	}
+}
+
+func TestNewSenderShouldReturnAnErrorForAnInvalidMailType(t *testing.T) {
+	_, err := newSender(func(k string) string {
+		if k == "MAIL_TYPE" {
+			return "pigeon"
+		}
+		return ""
+	}, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
+
+	if err == nil || !strings.Contains(err.Error(), "MAIL_TYPE") {
+		t.Fatalf("expected an error naming MAIL_TYPE, got %v", err)
+	}
+}
+
+// TestRunShouldStopStartupOnAnInvalidMailType proves run() itself wires
+// newSender in and returns its error, which newSender's own tests cannot: a
+// run() that built the SMTP sender directly would still pass them.
+func TestRunShouldStopStartupOnAnInvalidMailType(t *testing.T) {
+	t.Setenv("SESSION_SECRET", "test-secret")
+	t.Setenv("DATA_FILE", filepath.Join(t.TempDir(), store.DataFileName))
+	t.Setenv("MAIL_TYPE", "pigeon")
+	prevArgs := os.Args
+	os.Args = []string{"fantasy-hockey"}
+	t.Cleanup(func() { os.Args = prevArgs })
+
+	err := run()
+
+	if err == nil || !strings.Contains(err.Error(), "MAIL_TYPE") {
+		t.Fatalf("run() = %v, want an error naming MAIL_TYPE", err)
+	}
+}
+
+func TestNewSenderShouldWarnOnceNamingMissingGmailVariablesButNotValues(t *testing.T) {
+	env := map[string]string{"MAIL_TYPE": "API", "GMAIL_CLIENT_SECRET": "very-secret-value", "GMAIL_SENDER": "sender@example.com", "GMAIL_REFRESH_TOKEN": "tok-value"}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	send, err := newSender(func(k string) string { return env[k] }, logger)
+
+	if err != nil || send == nil {
+		t.Fatalf("expected the app to start, got %v", err)
+	}
+	out := logs.String()
+	if got := strings.Count(out, "level=WARN"); got != 1 {
+		t.Fatalf("expected exactly one warning, got %d: %s", got, out)
+	}
+	if !strings.Contains(out, "GMAIL_CLIENT_ID") {
+		t.Errorf("expected the warning to name GMAIL_CLIENT_ID, got %s", out)
+	}
+	for _, set := range []string{"GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GMAIL_SENDER"} {
+		if strings.Contains(out, set) {
+			t.Errorf("expected the warning not to name the set variable %s, got %s", set, out)
+		}
+	}
+	for _, leaked := range []string{"very-secret-value", "sender@example.com", "tok-value"} {
+		if strings.Contains(out, leaked) {
+			t.Errorf("expected no value %q in the log, got %s", leaked, out)
+		}
+	}
+}
+
+func TestNewSenderShouldNotWarnAboutMissingGmailVariablesWhenSMTPIsSelected(t *testing.T) {
+	for _, mailType := range []string{"", "SMTP"} {
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		env := map[string]string{"MAIL_TYPE": mailType, "SMTP_HOST": "h", "SMTP_PORT": "25"}
+
+		_, err := newSender(func(k string) string { return env[k] }, logger)
+
+		if err != nil || logs.Len() != 0 {
+			t.Fatalf("MAIL_TYPE %q: err %v, logs %q", mailType, err, logs.String())
+		}
+	}
+}
+
+func TestNewSenderShouldWarnOnceNamingMissingSMTPHostAndPortWhenNothingIsSet(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	send, err := newSender(func(string) string { return "" }, logger)
+
+	if err != nil || send == nil {
+		t.Fatalf("expected the app to start, got %v", err)
+	}
+	out := logs.String()
+	if got := strings.Count(out, "level=WARN"); got != 1 {
+		t.Fatalf("expected exactly one warning, got %d: %s", got, out)
+	}
+	if !strings.Contains(out, "SMTP_HOST") || !strings.Contains(out, "SMTP_PORT") {
+		t.Errorf("expected the warning to name SMTP_HOST and SMTP_PORT, got %s", out)
+	}
+	for _, name := range []string{"SMTP_USERNAME", "SMTP_APP_PASSWORD", "GMAIL_"} {
+		if strings.Contains(out, name) {
+			t.Errorf("expected the warning not to name %s, got %s", name, out)
+		}
+	}
+}
+
+func TestNewSenderShouldNameOnlyTheMissingSMTPVariable(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	env := map[string]string{"SMTP_PORT": "1025"}
+
+	if _, err := newSender(func(k string) string { return env[k] }, logger); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := logs.String()
+	if !strings.Contains(out, "SMTP_HOST") || strings.Contains(out, "SMTP_PORT") || strings.Contains(out, "1025") {
+		t.Errorf("expected the warning to name only SMTP_HOST, got %s", out)
+	}
+}
+
+func TestNewSenderShouldNotWarnWhenAllGmailVariablesAreSet(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	env := map[string]string{"MAIL_TYPE": "API", "GMAIL_CLIENT_ID": "a", "GMAIL_CLIENT_SECRET": "b", "GMAIL_REFRESH_TOKEN": "c", "GMAIL_SENDER": "d"}
+	if _, err := newSender(func(k string) string { return env[k] }, logger); err != nil || logs.Len() != 0 {
+		t.Fatalf("err %v, logs %q", err, logs.String())
+	}
+}

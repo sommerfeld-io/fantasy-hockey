@@ -172,3 +172,24 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-compare-page-badges.md`
   summary: Add an automated browser or JS test for the Compare highlight in `static/compare.js`.
   evidence: The godog suite only sees server-rendered markup, so the class name, row scoping and event wiring could break with all tests green; awards.js and divisions.js have the same gap.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-1-choose-the-mail-transport-with-mail-type.md`
+  summary: Capture real log output in the mail-transport acceptance steps instead of asserting on `IgnoredVars`.
+  evidence: The "warned" steps never see the slog line; only the `newSender` unit tests do. Needs the sender wiring exposed to the acceptance package (for example `mailer.NewFromEnv(getenv, logger)`).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md`
+  summary: Encode non-ASCII subjects, bodies and addresses in the Gmail message (Content-Transfer-Encoding, RFC 2047 for headers) and test them.
+  evidence: The login mail is ASCII today, so nothing breaks; only the subject goes through `mime.QEncoding`, and no test sends non-ASCII content.
+
+## Deferred from: code review of stories 10.2 and 10.3 (2026-10-19)
+
+- Decide whether to retry once with a fresh token after a 401 from `users.messages.send`, and make `dropToken` clear only the token that was used (`spec-10-2-send-login-codes-through-the-gmail-api.md`).
+- Decide whether to log a startup warning naming missing `GMAIL_*` variables when `MAIL_TYPE=API`; today the first send fails with the named variable.
+- Add a Gmail failure acceptance scenario (for example `invalid_grant`): the login request succeeds, the error is logged, no code is delivered.
+- Lower priority hardening in `internal/mailer/gmail.go`: single-recipient validation, whitespace-only settings, `expires_in` clamp, one in-flight token refresh, `strings.NewReplacer` instead of a regexp per needle, an injected HTTP transport in the default-URL test.
+- After this branch is merged to main, link `docs/gmail-api-setup.md` from `docs/index.md` with its GitHub URL (`spec-10-3-document-the-mail-settings-and-the-gmail-api-setup.md`).
+
+## Deferred from: code review of spec-make-mail-failures-visible (2026-10-19)
+
+- Make the acceptance steps for both startup warnings (ignored settings, missing Gmail settings) assert the real log line, for example by moving the `newSender` logic into `internal/mailer` so a step can call it with a capturing logger (`spec-make-mail-failures-visible.md`).
+- Decide whether `MAIL_TYPE=SMTP` should also warn at startup about a missing `SMTP_HOST` or `SMTP_PORT`, for parity with the Gmail transport.

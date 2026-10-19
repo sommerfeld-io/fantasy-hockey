@@ -405,6 +405,32 @@ The reverse proxy writes its access log to stdout in a standard, widely parseabl
 **Out of Scope:**
 - Shipping metrics/logs, dashboards, OpenTelemetry (see §5).
 
+### 4.11 Outbound mail transport (added 2026-10-19)
+
+#### FR-43: Mail transport is chosen with `MAIL_TYPE`
+One setting, `MAIL_TYPE`, selects how the app sends email: `SMTP` or `API`. The two are mutually exclusive; exactly one is used.
+
+**Consequences (testable):**
+- `MAIL_TYPE` unset or empty behaves as `SMTP`, so existing deployments and the dev compose with Mailpit are unchanged.
+- The value is case-insensitive. Any other value stops the app at startup with an error naming `MAIL_TYPE` and the allowed values; there is no fallback.
+- Settings of the unselected transport are ignored, and a startup warning names them (never their values).
+
+#### FR-44: Send email through the Gmail API
+With `MAIL_TYPE=API` the app sends every email (login codes) through the Gmail API over HTTPS (`users.messages.send`), as the authorized Gmail account, using OAuth 2.0 credentials: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `GMAIL_SENDER`.
+
+**Consequences (testable):**
+- A login code requested with `MAIL_TYPE=API` reaches the Gmail send endpoint, never an SMTP server, and the player can log in with it.
+- Missing credentials do not stop the app from starting; a send fails with an error naming the missing setting.
+- No error, log line or metric contains the recipient address, a credential or an access token.
+
+**Out of Scope:**
+- API-key authentication: the Gmail API does not accept an API key for sending mail. The API key in the Google Cloud project is not used.
+- Other mail providers' web APIs.
+- A local or dev Gmail API setup: the Gmail API is used in production only; development and tests stay on SMTP/Mailpit.
+
+#### FR-45: Document the mail settings and the Gmail API setup
+`docs/index.md` documents `MAIL_TYPE` and every `GMAIL_*` setting, and a Gmail API setup guide in `docs/` covers project, API, consent screen, OAuth client and refresh token, and links the YouTube walkthrough (`https://youtu.be/LgcNxu79rwo`).
+
 ## 5. Non-Goals (Explicit)
 
 - **No admin/commissioner role or screen, anywhere.** Player is the only role the app has — no separate admin/scorekeeper account, no spectator/read-only account, and no approval step of any kind. Real-world results, each Prediction set's deadline, and each Playoff round's real matchups are maintained entirely by directly editing `fantasy-hockey.yml`, out of band. This resolves the click-dummy's own open "Commissioner/Admin (implied, not yet a real role)" question further than the click-dummy itself did.

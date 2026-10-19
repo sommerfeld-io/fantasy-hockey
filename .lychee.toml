@@ -19,7 +19,11 @@ exclude = [
     # Known-bad citation URLs in BMad research provenance (_bmad-output/): bot-blocked
     # or dead pages cited for their content at time of research, not meant to be fetched by CI.
     'https://www\.sports-reference\.com/(bot-traffic|termsofuse)\.html',
-    'https://rdrr\.io/cran/nhlscraper/man/nhl_api\.html'
+    'https://rdrr\.io/cran/nhlscraper/man/nhl_api\.html',
+    # Mermaid diagram render URLs in docs/architecture.md: long encoded links to a
+    # rendering service that regularly times out in CI and locally, which blocked
+    # commits (Epic 9 action item 74). The diagrams are images, not documentation links.
+    'https://kroki\.io/.*'
 ]
 
 format = 'detailed' # compact, detailed, json, markdown, raw

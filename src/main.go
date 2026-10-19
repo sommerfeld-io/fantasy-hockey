@@ -82,6 +82,25 @@ func openStore(path string, logger *slog.Logger) (*store.Store, error) {
 	return st, nil
 }
 
+// newSender reads the mail settings once, builds the selected transport and
+// logs one warning naming (never valuing) the settings it ignores and
+// another naming the required settings of the selected transport that are
+// missing. An invalid MAIL_TYPE is an error.
+func newSender(getenv func(string) string, logger *slog.Logger) (mailer.Sender, error) {
+	settings := mailer.SettingsFromEnv(getenv)
+	send, err := mailer.New(settings)
+	if err != nil {
+		return nil, err
+	}
+	if ignored := mailer.IgnoredVars(settings); len(ignored) > 0 {
+		logger.Warn("ignoring mail settings of the unselected transport", "variables", strings.Join(ignored, ", "))
+	}
+	if missing := mailer.MissingVars(settings); len(missing) > 0 {
+		logger.Warn("Mail settings of the selected transport are missing, so login codes will not be sent until they are set", "variables", strings.Join(missing, ", "))
+	}
+	return send, nil
+}
+
 func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -96,12 +115,10 @@ func run() error {
 		return err
 	}
 
-	send := mailer.NewSMTPSender(
-		os.Getenv("SMTP_HOST"),
-		os.Getenv("SMTP_PORT"),
-		os.Getenv("SMTP_USERNAME"),
-		os.Getenv("SMTP_APP_PASSWORD"),
-	)
+	send, err := newSender(os.Getenv, slog.Default())
+	if err != nil {
+		return err
+	}
 
 	return server.Run(ctx, cfg.port, web.NewServer(st, send, cfg.secret, observe.New()))
 }
