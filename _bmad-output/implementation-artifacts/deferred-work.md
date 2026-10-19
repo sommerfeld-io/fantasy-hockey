@@ -176,3 +176,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-10-1-choose-the-mail-transport-with-mail-type.md`
   summary: Capture real log output in the mail-transport acceptance steps instead of asserting on `IgnoredVars`.
   evidence: The "warned" steps never see the slog line; only the `newSender` unit tests do. Needs the sender wiring exposed to the acceptance package (for example `mailer.NewFromEnv(getenv, logger)`).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md`
+  summary: Encode non-ASCII subjects, bodies and addresses in the Gmail message (Content-Transfer-Encoding, RFC 2047 for headers) and test them.
+  evidence: The login mail is ASCII today, so nothing breaks; only the subject goes through `mime.QEncoding`, and no test sends non-ASCII content.

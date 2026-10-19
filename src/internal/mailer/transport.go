@@ -1,9 +1,9 @@
 package mailer
 
 import (
-	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Environment variable names for the mail settings. Each has one home here so
@@ -38,6 +38,11 @@ type Settings struct {
 	GmailClientSecret string
 	GmailRefreshToken string
 	GmailSender       string
+
+	// GmailTokenURL and GmailSendURL are never read from the environment.
+	// Empty means Google's real URLs; tests point them at httptest servers.
+	GmailTokenURL string
+	GmailSendURL  string
 }
 
 // SettingsFromEnv reads the mail settings through getenv (os.Getenv in
@@ -56,10 +61,6 @@ func SettingsFromEnv(getenv func(string) string) Settings {
 	}
 }
 
-// errAPINotImplemented is returned by the API sender until the Gmail API
-// transport exists (Story 10.2).
-var errAPINotImplemented = errors.New("mailer: MAIL_TYPE=API is not implemented yet")
-
 // New returns the Sender selected by s.MailType: SMTP (also when unset or
 // empty) or API. Any other value is an error, with no fallback to SMTP.
 func New(s Settings) (Sender, error) {
@@ -67,7 +68,7 @@ func New(s Settings) (Sender, error) {
 	case typeSMTP:
 		return NewSMTPSender(s.SMTPHost, s.SMTPPort, s.SMTPUsername, s.SMTPAppPassword), nil
 	case typeAPI:
-		return func(_, _, _ string) error { return errAPINotImplemented }, nil
+		return newGmailSender(s, gmailTimeout, time.Now), nil
 	default:
 		return nil, fmt.Errorf("mailer: invalid %s %q: allowed values are %s and %s",
 			EnvMailType, strings.TrimSpace(s.MailType), typeSMTP, typeAPI)

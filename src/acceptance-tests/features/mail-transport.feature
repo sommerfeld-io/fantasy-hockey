@@ -45,3 +45,24 @@ Feature: Choose the Mail Transport
     When the app starts
     Then startup fails with an error naming "MAIL_TYPE", "SMTP" and "API"
     And the fake SMTP server received no connection
+
+  Scenario: API sends through the fake Gmail server and not over SMTP
+    Given a fake Gmail server is running
+    And the Gmail settings point at the fake Gmail server
+    And the mail setting "MAIL_TYPE" is "API"
+    When the app starts
+    And the pool player asks for a login code
+    Then the fake Gmail server received exactly 1 send request addressed to "basti@example.com"
+    And the decoded message contains a 6-digit login code that logs the pool player in
+    And the fake SMTP server received no connection
+
+  Scenario: API with a missing Gmail setting fails the send without any request
+    Given a fake Gmail server is running
+    And the Gmail settings point at the fake Gmail server
+    And the mail setting "GMAIL_CLIENT_SECRET" is ""
+    And the mail setting "MAIL_TYPE" is "API"
+    When the app starts
+    And the pool player asks for a login code
+    Then the mail send failed with an error naming "GMAIL_CLIENT_SECRET"
+    And the fake Gmail server received no request
+    And the fake SMTP server received no connection

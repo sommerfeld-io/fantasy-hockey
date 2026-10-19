@@ -3,6 +3,8 @@ package acceptance_test
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -111,6 +113,55 @@ func (f *fakeSMTPServer) snapshot() (int, []fakeSMTPMessage) {
 	return f.conns, append([]fakeSMTPMessage(nil), f.messages...)
 }
 
+// fakeGmailServer stands in for Google's token and send endpoints and records
+// every request.
+type fakeGmailServer struct {
+	server *httptest.Server
+	mu     sync.Mutex
+	tokens int
+	sends  []string
+}
+
+func newFakeGmailServer() *fakeGmailServer {
+	f := &fakeGmailServer{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
+		f.mu.Lock()
+		f.tokens++
+		f.mu.Unlock()
+		_, _ = io.WriteString(w, `{"access_token":"fake-access-token","expires_in":3600,"token_type":"Bearer"}`)
+	})
+	mux.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Raw string `json:"raw"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		msg, _ := base64.RawURLEncoding.DecodeString(strings.TrimRight(payload.Raw, "="))
+		f.mu.Lock()
+		f.sends = append(f.sends, string(msg))
+		f.mu.Unlock()
+		_, _ = io.WriteString(w, `{"id":"fake"}`)
+	})
+	f.server = httptest.NewServer(mux)
+	return f
+}
+
+func (f *fakeGmailServer) snapshot() (int, []string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.tokens, append([]string(nil), f.sends...)
+}
+
+// gmailRecipient returns the To header of a decoded message.
+func gmailRecipient(msg string) string {
+	for _, line := range strings.Split(msg, "\r\n") {
+		if v, ok := strings.CutPrefix(line, "To: "); ok {
+			return v
+		}
+	}
+	return ""
+}
+
 // mailTransportState holds the fixtures and results of one mail-transport
 // scenario; a fresh one is created per scenario.
 type mailTransportState struct {
@@ -125,6 +176,8 @@ type mailTransportState struct {
 	sendDone chan struct{}
 	smtpHost string
 	dataFile string
+	gmail    *fakeGmailServer
+	sendErr  error
 }
 
 func newMailTransportState() *mailTransportState {
@@ -134,6 +187,9 @@ func newMailTransportState() *mailTransportState {
 func (s *mailTransportState) close() {
 	if s.server != nil {
 		s.server.Close()
+	}
+	if s.gmail != nil {
+		s.gmail.server.Close()
 	}
 	if s.smtp != nil {
 		_ = s.smtp.listener.Close()
@@ -163,6 +219,19 @@ func (s *mailTransportState) theSMTPSettingsPointAtTheFakeSMTPServer() error {
 	return nil
 }
 
+func (s *mailTransportState) aFakeGmailServerIsRunning() error {
+	s.gmail = newFakeGmailServer()
+	return nil
+}
+
+func (s *mailTransportState) theGmailSettingsPointAtTheFakeGmailServer() error {
+	s.env[mailer.EnvGmailClientID] = "acceptance-client-id"
+	s.env[mailer.EnvGmailClientSecret] = "acceptance-client-secret"
+	s.env[mailer.EnvGmailRefreshToken] = "acceptance-refresh-token"
+	s.env[mailer.EnvGmailSender] = "pool@example.com"
+	return nil
+}
+
 func (s *mailTransportState) aPoolPlayerWithEmail(name, email string) error {
 	s.name, s.email = name, email
 	return nil
@@ -179,6 +248,10 @@ func (s *mailTransportState) theMailSettingIs(name, value string) error {
 func (s *mailTransportState) theAppStarts() error {
 	settings := mailer.SettingsFromEnv(func(k string) string { return s.env[k] })
 	s.ignored = mailer.IgnoredVars(settings)
+	if s.gmail != nil {
+		settings.GmailTokenURL = s.gmail.server.URL + "/token"
+		settings.GmailSendURL = s.gmail.server.URL + "/send"
+	}
 
 	send, err := mailer.New(settings)
 	if err != nil {
@@ -211,7 +284,9 @@ func (s *mailTransportState) theAppStarts() error {
 			default:
 			}
 		}()
-		return send(to, subject, body)
+		err := send(to, subject, body)
+		s.sendErr = err
+		return err
 	}
 	s.server = httptest.NewServer(web.NewServer(st, s.sender, testSessionSecret, observe.New()))
 	return nil
@@ -261,6 +336,59 @@ func (s *mailTransportState) theMessageContainsASixDigitLoginCode() error {
 	}
 	if extractSixDigitCode(msgs[0].data) == "" {
 		return fmt.Errorf("no 6-digit code in message %q", msgs[0].data)
+	}
+	return nil
+}
+
+func (s *mailTransportState) theFakeGmailServerReceivedExactlyNSendRequestsAddressedTo(n int, email string) error {
+	_, sends := s.gmail.snapshot()
+	if len(sends) != n {
+		return fmt.Errorf("expected %d send request(s), got %d", n, len(sends))
+	}
+	for _, m := range sends {
+		if !strings.EqualFold(gmailRecipient(m), email) {
+			return fmt.Errorf("expected recipient %q, got %q", email, gmailRecipient(m))
+		}
+	}
+	return nil
+}
+
+// theDecodedMessageContainsALoginCodeThatLogsThePlayerIn submits the code
+// from the decoded Gmail message to POST /login/code and expects a session.
+func (s *mailTransportState) theDecodedMessageContainsALoginCodeThatLogsThePlayerIn() error {
+	_, sends := s.gmail.snapshot()
+	if len(sends) == 0 {
+		return fmt.Errorf("no message received")
+	}
+	code := extractSixDigitCode(sends[0])
+	if code == "" {
+		return fmt.Errorf("no 6-digit code in message %q", sends[0])
+	}
+	client := &http.Client{CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.PostForm(s.server.URL+"/login/code", url.Values{"code": {code}})
+	if err != nil {
+		return fmt.Errorf("post /login/code: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound || len(resp.Cookies()) == 0 {
+		return fmt.Errorf("expected a 302 with a session cookie, got %d and %d cookies", resp.StatusCode, len(resp.Cookies()))
+	}
+	return nil
+}
+
+func (s *mailTransportState) theMailSendFailedWithAnErrorNaming(name string) error {
+	if s.sendErr == nil {
+		return fmt.Errorf("expected a send error naming %q, got none", name)
+	}
+	if !strings.Contains(s.sendErr.Error(), name) {
+		return fmt.Errorf("expected a send error naming %q, got %w", name, s.sendErr)
+	}
+	return nil
+}
+
+func (s *mailTransportState) theFakeGmailServerReceivedNoRequest() error {
+	if tokens, sends := s.gmail.snapshot(); tokens+len(sends) != 0 {
+		return fmt.Errorf("expected no Gmail request, got %d token and %d send", tokens, len(sends))
 	}
 	return nil
 }
@@ -343,6 +471,12 @@ func InitializeMailTransportScenario(ctx *godog.ScenarioContext) {
 
 	ctx.Step(`^a fake SMTP server is running$`, s.aFakeSMTPServerIsRunning)
 	ctx.Step(`^the SMTP settings point at the fake SMTP server$`, s.theSMTPSettingsPointAtTheFakeSMTPServer)
+	ctx.Step(`^a fake Gmail server is running$`, s.aFakeGmailServerIsRunning)
+	ctx.Step(`^the Gmail settings point at the fake Gmail server$`, s.theGmailSettingsPointAtTheFakeGmailServer)
+	ctx.Step(`^the fake Gmail server received exactly (\d+) send requests? addressed to "([^"]*)"$`, s.theFakeGmailServerReceivedExactlyNSendRequestsAddressedTo)
+	ctx.Step(`^the decoded message contains a 6-digit login code that logs the pool player in$`, s.theDecodedMessageContainsALoginCodeThatLogsThePlayerIn)
+	ctx.Step(`^the mail send failed with an error naming "([^"]*)"$`, s.theMailSendFailedWithAnErrorNaming)
+	ctx.Step(`^the fake Gmail server received no request$`, s.theFakeGmailServerReceivedNoRequest)
 	ctx.Step(`^a pool player "([^"]*)" with email "([^"]*)"$`, s.aPoolPlayerWithEmail)
 	ctx.Step(`^the mail setting "([^"]*)" is "([^"]*)"$`, s.theMailSettingIs)
 	ctx.Step(`^the app starts$`, s.theAppStarts)

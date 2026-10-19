@@ -57,8 +57,8 @@ func TestNewShouldSelectAPIWithoutTouchingSMTP(t *testing.T) {
 
 			sendErr := send("p@example.com", "s", "b")
 
-			if sendErr == nil || !strings.Contains(sendErr.Error(), "not implemented yet") {
-				t.Fatalf("expected a not-implemented error, got %v", sendErr)
+			if sendErr == nil || !strings.Contains(sendErr.Error(), EnvGmailClientID) {
+				t.Fatalf("expected a missing-%s error, got %v", EnvGmailClientID, sendErr)
 			}
 			if strings.Contains(sendErr.Error(), "send mail") {
 				t.Fatalf("API sender must not use SMTP, got %v", sendErr)
