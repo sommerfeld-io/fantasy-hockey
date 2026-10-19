@@ -370,7 +370,8 @@ func TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath(t *testing.T) {
 }
 
 func TestNewSenderShouldWarnOnceNamingIgnoredVariablesButNotTheirValues(t *testing.T) {
-	env := map[string]string{"MAIL_TYPE": "API", "SMTP_HOST": "secret-host.example.com", "SMTP_PORT": "25"}
+	env := map[string]string{"MAIL_TYPE": "API", "SMTP_HOST": "secret-host.example.com", "SMTP_PORT": "25",
+		"GMAIL_CLIENT_ID": "a", "GMAIL_CLIENT_SECRET": "b", "GMAIL_REFRESH_TOKEN": "c", "GMAIL_SENDER": "d"}
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 
@@ -433,5 +434,62 @@ func TestRunShouldStopStartupOnAnInvalidMailType(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "MAIL_TYPE") {
 		t.Fatalf("run() = %v, want an error naming MAIL_TYPE", err)
+	}
+}
+
+func TestNewSenderShouldWarnOnceNamingMissingGmailVariablesButNotValues(t *testing.T) {
+	env := map[string]string{"MAIL_TYPE": "API", "GMAIL_CLIENT_SECRET": "very-secret-value", "GMAIL_SENDER": "sender@example.com", "GMAIL_REFRESH_TOKEN": "tok-value"}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	send, err := newSender(func(k string) string { return env[k] }, logger)
+
+	if err != nil || send == nil {
+		t.Fatalf("expected the app to start, got %v", err)
+	}
+	out := logs.String()
+	if got := strings.Count(out, "level=WARN"); got != 1 {
+		t.Fatalf("expected exactly one warning, got %d: %s", got, out)
+	}
+	if !strings.Contains(out, "GMAIL_CLIENT_ID") {
+		t.Errorf("expected the warning to name GMAIL_CLIENT_ID, got %s", out)
+	}
+	for _, set := range []string{"GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GMAIL_SENDER"} {
+		if strings.Contains(out, set) {
+			t.Errorf("expected the warning not to name the set variable %s, got %s", set, out)
+		}
+	}
+	for _, leaked := range []string{"very-secret-value", "sender@example.com", "tok-value"} {
+		if strings.Contains(out, leaked) {
+			t.Errorf("expected no value %q in the log, got %s", leaked, out)
+		}
+	}
+}
+
+func TestNewSenderShouldNotWarnAboutMissingGmailVariablesUnlessAPIIsSelected(t *testing.T) {
+	for _, mailType := range []string{"", "SMTP"} {
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+		_, err := newSender(func(k string) string {
+			if k == "MAIL_TYPE" {
+				return mailType
+			}
+			return ""
+		}, logger)
+
+		if err != nil || logs.Len() != 0 {
+			t.Fatalf("MAIL_TYPE %q: err %v, logs %q", mailType, err, logs.String())
+		}
+	}
+}
+
+func TestNewSenderShouldNotWarnWhenAllGmailVariablesAreSet(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	env := map[string]string{"MAIL_TYPE": "API", "GMAIL_CLIENT_ID": "a", "GMAIL_CLIENT_SECRET": "b", "GMAIL_REFRESH_TOKEN": "c", "GMAIL_SENDER": "d"}
+	if _, err := newSender(func(k string) string { return env[k] }, logger); err != nil || logs.Len() != 0 {
+		t.Fatalf("err %v, logs %q", err, logs.String())
 	}
 }

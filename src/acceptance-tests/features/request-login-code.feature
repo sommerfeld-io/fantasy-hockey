@@ -29,6 +29,7 @@ Feature: Request a Login Code
     When a visitor requests a login code for "basti@example.com"
     Then the response status is 200
     And an error was logged
+    And the logged error carries the player id "basti" and not the email address "basti@example.com"
 
   Scenario: An already-logged-in player visiting the login page is sent straight to the shell
     Given the player has an active session

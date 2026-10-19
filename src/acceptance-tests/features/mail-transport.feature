@@ -66,3 +66,15 @@ Feature: Choose the Mail Transport
     Then the mail send failed with an error naming "GMAIL_CLIENT_SECRET"
     And the fake Gmail server received no request
     And the fake SMTP server received no connection
+
+  Scenario: API with a missing Gmail setting warns at startup and still starts
+    Given the mail setting "MAIL_TYPE" is "API"
+    And the mail setting "GMAIL_CLIENT_SECRET" is "some-client-secret"
+    When the app starts
+    Then the app started without error
+    And the app warned about the missing Gmail settings "GMAIL_CLIENT_ID", "GMAIL_REFRESH_TOKEN" and "GMAIL_SENDER"
+    And the missing-settings warning does not contain the value "some-client-secret"
+
+  Scenario: SMTP gives no missing Gmail settings warning
+    When the app starts
+    Then the app did not warn about missing Gmail settings

@@ -188,3 +188,8 @@
 - Add a Gmail failure acceptance scenario (for example `invalid_grant`): the login request succeeds, the error is logged, no code is delivered.
 - Lower priority hardening in `internal/mailer/gmail.go`: single-recipient validation, whitespace-only settings, `expires_in` clamp, one in-flight token refresh, `strings.NewReplacer` instead of a regexp per needle, an injected HTTP transport in the default-URL test.
 - After this branch is merged to main, link `docs/gmail-api-setup.md` from `docs/index.md` with its GitHub URL (`spec-10-3-document-the-mail-settings-and-the-gmail-api-setup.md`).
+
+## Deferred from: code review of spec-make-mail-failures-visible (2026-10-19)
+
+- Make the acceptance steps for both startup warnings (ignored settings, missing Gmail settings) assert the real log line, for example by moving the `newSender` logic into `internal/mailer` so a step can call it with a capturing logger (`spec-make-mail-failures-visible.md`).
+- Decide whether `MAIL_TYPE=SMTP` should also warn at startup about a missing `SMTP_HOST` or `SMTP_PORT`, for parity with the Gmail transport.

@@ -129,3 +129,30 @@ func TestNewShouldSelectAPIWhenMailTypeHasSurroundingWhitespace(t *testing.T) {
 		t.Fatalf("expected the API sender, got %v", sendErr)
 	}
 }
+
+func TestMissingVarsShouldListUnsetGmailVariablesInStableOrderWhenAPIIsSelected(t *testing.T) {
+	cases := map[string]struct {
+		s    Settings
+		want []string
+	}{
+		"none set":    {Settings{MailType: "api"}, []string{EnvGmailClientID, EnvGmailClientSecret, EnvGmailRefreshToken, EnvGmailSender}},
+		"some set":    {Settings{MailType: " API ", GmailClientSecret: "s", GmailSender: "g"}, []string{EnvGmailClientID, EnvGmailRefreshToken}},
+		"all set":     {Settings{MailType: "API", GmailClientID: "a", GmailClientSecret: "b", GmailRefreshToken: "c", GmailSender: "d"}, nil},
+		"only client": {Settings{MailType: "API", GmailClientID: "a"}, []string{EnvGmailClientSecret, EnvGmailRefreshToken, EnvGmailSender}},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := MissingVars(c.s); !reflect.DeepEqual(got, c.want) {
+				t.Errorf("expected %v, got %v", c.want, got)
+			}
+		})
+	}
+}
+
+func TestMissingVarsShouldBeEmptyWhenAPIIsNotSelected(t *testing.T) {
+	for _, mailType := range []string{"", "SMTP", "smtp", "pigeon"} {
+		if got := MissingVars(Settings{MailType: mailType}); len(got) != 0 {
+			t.Errorf("MAIL_TYPE %q: expected none, got %v", mailType, got)
+		}
+	}
+}

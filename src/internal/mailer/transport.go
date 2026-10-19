@@ -79,17 +79,12 @@ func New(s Settings) (Sender, error) {
 // transport, in a stable order. It returns names only, never values, and
 // nothing for an invalid MAIL_TYPE since startup fails there anyway.
 func IgnoredVars(s Settings) []string {
-	var candidates []struct{ name, value string }
+	var candidates []namedValue
 	switch selectedType(s) {
 	case typeSMTP:
-		candidates = []struct{ name, value string }{
-			{EnvGmailClientID, s.GmailClientID},
-			{EnvGmailClientSecret, s.GmailClientSecret},
-			{EnvGmailRefreshToken, s.GmailRefreshToken},
-			{EnvGmailSender, s.GmailSender},
-		}
+		candidates = gmailVars(s)
 	case typeAPI:
-		candidates = []struct{ name, value string }{
+		candidates = []namedValue{
 			{EnvSMTPHost, s.SMTPHost},
 			{EnvSMTPPort, s.SMTPPort},
 			{EnvSMTPUsername, s.SMTPUsername},
@@ -106,6 +101,21 @@ func IgnoredVars(s Settings) []string {
 	return names
 }
 
+// MissingVars names the unset GMAIL_* variables, in a stable order, when the
+// API transport is selected, and nothing otherwise. Names only, never values.
+func MissingVars(s Settings) []string {
+	if selectedType(s) != typeAPI {
+		return nil
+	}
+	var names []string
+	for _, v := range gmailVars(s) {
+		if v.value == "" {
+			names = append(names, v.name)
+		}
+	}
+	return names
+}
+
 // selectedType normalizes MAIL_TYPE: empty means SMTP, valid values are
 // upper-cased, and anything else is returned as-is for New to reject.
 func selectedType(s Settings) string {
@@ -114,4 +124,19 @@ func selectedType(s Settings) string {
 		return typeSMTP
 	}
 	return v
+}
+
+// namedValue pairs a setting's environment variable name with its value.
+type namedValue struct{ name, value string }
+
+// gmailVars lists the four Gmail settings in the order that errors and
+// warnings report them. It is the one list behind the send-time check and
+// the startup warning, so the two cannot drift apart.
+func gmailVars(s Settings) []namedValue {
+	return []namedValue{
+		{EnvGmailClientID, s.GmailClientID},
+		{EnvGmailClientSecret, s.GmailClientSecret},
+		{EnvGmailRefreshToken, s.GmailRefreshToken},
+		{EnvGmailSender, s.GmailSender},
+	}
 }

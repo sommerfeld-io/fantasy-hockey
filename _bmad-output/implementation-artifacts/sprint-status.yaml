@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 10-19-2026 17:29
+last_updated: 10-19-2026 17:41
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -671,7 +671,7 @@ action_items:
       that login_code_requested means persisted and send attempted, not delivered;
       consider an Info line on send success."
     owner: "next dev touching internal/auth"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-69-write-the-operator-observability-section"
     epic: 9
@@ -810,7 +810,7 @@ action_items:
     action: "Decide whether to log a startup warning naming the missing GMAIL_* variables
       when MAIL_TYPE=API."
     owner: "next dev touching internal/mailer or the docs"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
   - id: "epic-10-code-review-item-87-add-a-gmail-failure-acceptance-scenario"
     epic: 10
@@ -898,3 +898,18 @@ action_items:
     owner: "whoever runs builds"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-98-decide-whether-mail_type-smtp-should-als"
+    epic: 10
+    action: "Decide whether MAIL_TYPE=SMTP should also warn at startup about a missing
+      SMTP_HOST or SMTP_PORT, for parity with the Gmail startup warning."
+    owner: "human"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-make-mail-failures-visible.md"
+  - id: "epic-10-retro-item-99-make-the-acceptance-steps-for-both-start"
+    epic: 10
+    action: "Make the acceptance steps for both startup warnings assert the real log
+      line, for example by moving the newSender logic into internal/mailer so a step
+      can call it with a capturing logger."
+    owner: "next dev touching internal/mailer"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-make-mail-failures-visible.md"

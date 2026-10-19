@@ -83,7 +83,8 @@ func openStore(path string, logger *slog.Logger) (*store.Store, error) {
 }
 
 // newSender reads the mail settings once, builds the selected transport and
-// logs one warning naming (never valuing) the settings it ignores. An invalid
+// logs one warning naming (never valuing) the settings it ignores and
+// another naming the Gmail settings missing under MAIL_TYPE=API. An invalid
 // MAIL_TYPE is an error.
 func newSender(getenv func(string) string, logger *slog.Logger) (mailer.Sender, error) {
 	settings := mailer.SettingsFromEnv(getenv)
@@ -93,6 +94,9 @@ func newSender(getenv func(string) string, logger *slog.Logger) (mailer.Sender, 
 	}
 	if ignored := mailer.IgnoredVars(settings); len(ignored) > 0 {
 		logger.Warn("ignoring mail settings of the unselected transport", "variables", strings.Join(ignored, ", "))
+	}
+	if missing := mailer.MissingVars(settings); len(missing) > 0 {
+		logger.Warn("Gmail API settings are missing, so login codes will not be sent until they are set", "variables", strings.Join(missing, ", "))
 	}
 	return send, nil
 }

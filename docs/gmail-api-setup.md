@@ -49,10 +49,11 @@ Gmail applies daily sending limits to the sending account. A small pool sending 
 | `GMAIL_REFRESH_TOKEN` | Refresh token from step 5                                                                                                                         |
 | `GMAIL_SENDER`        | Gmail address of the sending account, used as `From`; it must be the account that authorized the refresh token, or a verified Send-as alias of it |
 
-Never commit these values. Keep them in the host's secret store, and see the Configuration table in the [README](../README.md#configuration) for all mail settings. When `MAIL_TYPE` is `API`, the `SMTP_*` variables are ignored with a startup warning. If any of the four `GMAIL_*` variables is missing, the app still starts, but each send fails with an error naming the first missing variable.
+Never commit these values. Keep them in the host's secret store, and see the Configuration table in the [README](../README.md#configuration) for all mail settings. When `MAIL_TYPE` is `API`, the `SMTP_*` variables are ignored with a startup warning. If any of the four `GMAIL_*` variables is missing, the app still starts and logs one startup warning naming the unset variables (never their values), but each send fails with an error naming the first missing variable.
 
 ## Troubleshooting
 
+- Startup warning "Gmail API settings are missing" or login codes that never arrive: one or more of the four `GMAIL_*` variables is unset on the host. The warning names them, never their values. Set them and restart the app.
 - `invalid_grant` in the logs: the refresh token has expired or been revoked (often the 7-day Testing-mode expiry). Publish the app, revoke the app's access at [Google Account permissions](https://myaccount.google.com/permissions), and repeat step 5.
 - No refresh token in step 5: Google only returns one on first consent. Revoke the app's access at the same page and repeat step 5.
 - Mail arrives with a different sender, or is rejected: `GMAIL_SENDER` is not the authorizing account or one of its verified Send-as aliases.

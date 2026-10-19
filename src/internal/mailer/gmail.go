@@ -96,14 +96,9 @@ func (g *gmailSender) send(to, subject, body string) error {
 }
 
 func (g *gmailSender) checkSettings() error {
-	for _, c := range []struct{ name, value string }{
-		{EnvGmailClientID, g.s.GmailClientID},
-		{EnvGmailClientSecret, g.s.GmailClientSecret},
-		{EnvGmailRefreshToken, g.s.GmailRefreshToken},
-		{EnvGmailSender, g.s.GmailSender},
-	} {
-		if c.value == "" {
-			return fmt.Errorf("mailer: %s is not set", c.name)
+	for _, v := range gmailVars(g.s) {
+		if v.value == "" {
+			return fmt.Errorf("mailer: %s is not set", v.name)
 		}
 	}
 	return nil

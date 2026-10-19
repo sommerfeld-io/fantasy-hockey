@@ -188,6 +188,7 @@ type mailTransportState struct {
 	sender   mailer.Sender
 	startErr error
 	ignored  []string
+	missing  []string
 	server   *httptest.Server
 	sendDone chan struct{}
 	smtpHost string
@@ -264,6 +265,7 @@ func (s *mailTransportState) theMailSettingIs(name, value string) error {
 func (s *mailTransportState) theAppStarts() error {
 	settings := mailer.SettingsFromEnv(func(k string) string { return s.env[k] })
 	s.ignored = mailer.IgnoredVars(settings)
+	s.missing = mailer.MissingVars(settings)
 	if s.gmail != nil {
 		settings.GmailTokenURL = s.gmail.server.URL + "/token"
 		settings.GmailSendURL = s.gmail.server.URL + "/send"
@@ -451,6 +453,35 @@ func (s *mailTransportState) theWarningDoesNotContain(value string) error {
 	return nil
 }
 
+func (s *mailTransportState) theAppStartedWithoutError() error {
+	if s.startErr != nil {
+		return fmt.Errorf("expected the app to start, got %w", s.startErr)
+	}
+	return nil
+}
+
+func (s *mailTransportState) theAppWarnedAboutTheMissingGmailSettings(a, b, c string) error {
+	want := []string{a, b, c}
+	if strings.Join(s.missing, ",") != strings.Join(want, ",") {
+		return fmt.Errorf("expected the missing settings %v, got %v", want, s.missing)
+	}
+	return nil
+}
+
+func (s *mailTransportState) theAppDidNotWarnAboutMissingGmailSettings() error {
+	if len(s.missing) != 0 {
+		return fmt.Errorf("expected no missing settings warning, got %v", s.missing)
+	}
+	return nil
+}
+
+func (s *mailTransportState) theMissingSettingsWarningDoesNotContain(value string) error {
+	if strings.Contains(strings.Join(s.missing, " "), value) {
+		return fmt.Errorf("missing-settings warning %v must not contain %q", s.missing, value)
+	}
+	return nil
+}
+
 func (s *mailTransportState) startupFailsWithAnErrorNaming(a, b, c string) error {
 	if s.startErr == nil {
 		return fmt.Errorf("expected startup to fail")
@@ -505,5 +536,9 @@ func InitializeMailTransportScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the app warned about ignoring "([^"]*)"$`, s.theAppWarnedAboutIgnoringOne)
 	ctx.Step(`^the warning does not contain the SMTP host value$`, s.theWarningDoesNotContainTheSMTPHostValue)
 	ctx.Step(`^the warning does not contain the value "([^"]*)"$`, s.theWarningDoesNotContain)
+	ctx.Step(`^the app started without error$`, s.theAppStartedWithoutError)
+	ctx.Step(`^the app warned about the missing Gmail settings "([^"]*)", "([^"]*)" and "([^"]*)"$`, s.theAppWarnedAboutTheMissingGmailSettings)
+	ctx.Step(`^the app did not warn about missing Gmail settings$`, s.theAppDidNotWarnAboutMissingGmailSettings)
+	ctx.Step(`^the missing-settings warning does not contain the value "([^"]*)"$`, s.theMissingSettingsWarningDoesNotContain)
 	ctx.Step(`^startup fails with an error naming "([^"]*)", "([^"]*)" and "([^"]*)"$`, s.startupFailsWithAnErrorNaming)
 }

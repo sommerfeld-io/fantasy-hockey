@@ -450,6 +450,24 @@ func (s *loginScenarioState) anErrorWasLogged() error {
 	return nil
 }
 
+func (s *loginScenarioState) theLoggedErrorCarriesThePlayerIDAndNotTheEmail(id, email string) error {
+	var out string
+	err := s.waitUntil("the send error to be logged", func() bool { return strings.Contains(s.logs.String(), "send login code") })
+	s.mu.Lock()
+	out = s.logs.String()
+	s.mu.Unlock()
+	if err != nil {
+		return fmt.Errorf("expected a send login code error line, got logs: %q", out)
+	}
+	if !strings.Contains(out, "player_id="+id) {
+		return fmt.Errorf("expected player_id=%s in the logs, got %q", id, out)
+	}
+	if strings.Contains(out, email) {
+		return fmt.Errorf("expected no email address in the logs, got %q", out)
+	}
+	return nil
+}
+
 // InitializeLoginScenario registers the request-a-login-code step
 // definitions with GoDog.
 func InitializeLoginScenario(ctx *godog.ScenarioContext) {
@@ -470,6 +488,7 @@ func InitializeLoginScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^(\d+) login codes are persisted$`, s.nLoginCodesArePersisted)
 	ctx.Step(`^the first login code is unchanged$`, s.theFirstLoginCodeIsUnchanged)
 	ctx.Step(`^an error was logged$`, s.anErrorWasLogged)
+	ctx.Step(`^the logged error carries the player id "([^"]*)" and not the email address "([^"]*)"$`, s.theLoggedErrorCarriesThePlayerIDAndNotTheEmail)
 	ctx.Step(`^the player has an active session$`, s.thePlayerHasAnActiveSession)
 	ctx.Step(`^the player visits the login page$`, s.thePlayerVisitsTheLoginPage)
 	ctx.Step(`^the login-page response redirects to "([^"]*)"$`, s.theLoginPageResponseRedirectsTo)
