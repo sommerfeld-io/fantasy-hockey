@@ -77,4 +77,23 @@ Feature: Choose the Mail Transport
 
   Scenario: SMTP gives no missing Gmail settings warning
     When the app starts
-    Then the app did not warn about missing Gmail settings
+    Then the app did not warn about missing mail settings
+
+  Scenario: SMTP without host or port warns at startup and still starts
+    Given the mail setting "SMTP_HOST" is ""
+    And the mail setting "SMTP_PORT" is ""
+    When the app starts
+    Then the app started without error
+    And the app warned about the missing mail settings "SMTP_HOST" and "SMTP_PORT"
+
+  Scenario: A stale Gmail access token is replaced and the send retried once
+    Given a fake Gmail server is running
+    And the fake Gmail server rejects the first send with 401
+    And the Gmail settings point at the fake Gmail server
+    And the mail setting "MAIL_TYPE" is "API"
+    When the app starts
+    And the pool player asks for a login code
+    Then the fake Gmail server rejected exactly 1 send request
+    And the fake Gmail server received exactly 1 send request addressed to "basti@example.com"
+    And the fake Gmail server issued exactly 2 access tokens
+    And the decoded message contains a 6-digit login code that logs the pool player in

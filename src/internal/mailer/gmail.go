@@ -104,33 +104,50 @@ func (g *gmailSender) checkSettings() error {
 	return nil
 }
 
+// post sends the message. Google answers 401 for a stale or revoked access
+// token, so that one case retries once with a fresh token. Other failures are
+// not retried: a 5xx or 429 may still have sent the message, and a second
+// try would then mail the player a duplicate code.
 func (g *gmailSender) post(ctx context.Context, to, subject, body string) error {
-	token, err := g.accessToken(ctx)
+	status, respBody, err := g.postOnce(ctx, to, subject, body)
+	if err == nil && status == http.StatusUnauthorized {
+		status, respBody, err = g.postOnce(ctx, to, subject, body)
+	}
 	if err != nil {
 		return err
 	}
+	if status < 200 || status > 299 {
+		return fmt.Errorf("mailer: gmail send failed: status %d: %s", status, googleReason(respBody))
+	}
+	return nil
+}
+
+// postOnce makes one send request with the current access token and drops
+// that token when Google rejects it with a 401.
+func (g *gmailSender) postOnce(ctx context.Context, to, subject, body string) (int, []byte, error) {
+	token, err := g.accessToken(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
 	payload, err := json.Marshal(map[string]string{"raw": g.rawMessage(to, subject, body)})
 	if err != nil {
-		return fmt.Errorf("mailer: encode gmail message: %w", err)
+		return 0, nil, fmt.Errorf("mailer: encode gmail message: %w", err)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, g.s.GmailSendURL, bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("mailer: build gmail send request: %w", err)
+		return 0, nil, fmt.Errorf("mailer: build gmail send request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
 	status, respBody, err := g.do(req)
 	if err != nil {
-		return fmt.Errorf("mailer: gmail send: %w", err)
+		return 0, nil, fmt.Errorf("mailer: gmail send: %w", err)
 	}
-	if status < 200 || status > 299 {
-		if status == http.StatusUnauthorized {
-			g.dropToken()
-		}
-		return fmt.Errorf("mailer: gmail send failed: status %d: %s", status, googleReason(respBody))
+	if status == http.StatusUnauthorized {
+		g.dropToken(token)
 	}
-	return nil
+	return status, respBody, nil
 }
 
 // accessToken returns the cached token, or exchanges the refresh token for a
@@ -175,10 +192,14 @@ func (g *gmailSender) accessToken(ctx context.Context) (string, error) {
 	return g.token, nil
 }
 
-func (g *gmailSender) dropToken() {
+// dropToken forgets the cached token only when it is the one that was used,
+// so a send that fails late cannot discard a newer token another send cached.
+func (g *gmailSender) dropToken(used string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.token = ""
+	if g.token == used {
+		g.token = ""
+	}
 }
 
 func (g *gmailSender) do(req *http.Request) (int, []byte, error) {

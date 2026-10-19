@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 10-19-2026 17:41
+last_updated: 10-19-2026 18:18
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -720,7 +720,7 @@ action_items:
     action: "Stop the flaky link check blocking commits: exclude the kroki.io diagram
       URLs in .lychee.toml and confirm a commit passes without retries."
     owner: "next dev touching .lychee.toml"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-75-lint-after-review-patches-before-committ"
     epic: 9
@@ -803,7 +803,7 @@ action_items:
     action: "Decide whether to retry the send once with a fresh token after a 401,
       and make dropToken clear only the token that was used."
     owner: "next dev touching internal/mailer or the docs"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
   - id: "epic-10-code-review-item-86-decide-startup-warning-for-missing-gmail-settings"
     epic: 10
@@ -888,7 +888,7 @@ action_items:
     action: "Decide whether go.mod go directive (now 1.26.9) should follow the Dockerfile
       toolchain (Go 1.27.1); the govulncheck failure in Story 10.1 came from the lag."
     owner: "human"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
   - id: "epic-10-retro-item-97-when-a-verification-step-temporarily-mut"
     epic: 10
@@ -903,7 +903,7 @@ action_items:
     action: "Decide whether MAIL_TYPE=SMTP should also warn at startup about a missing
       SMTP_HOST or SMTP_PORT, for parity with the Gmail startup warning."
     owner: "human"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/spec-make-mail-failures-visible.md"
   - id: "epic-10-retro-item-99-make-the-acceptance-steps-for-both-start"
     epic: 10

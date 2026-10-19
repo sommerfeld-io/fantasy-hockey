@@ -35,6 +35,11 @@ type fakeGoogle struct {
 	sendBody    string
 	expiresIn   int
 	server      *httptest.Server
+
+	// sendQueue holds the statuses for the next sends; tokenFailAfter makes
+	// every token call after that many succeed answer 500 (0 means never).
+	sendQueue      []int
+	tokenFailAfter int
 }
 
 type fakeSendCall struct {
@@ -53,6 +58,9 @@ func newFakeGoogle(t *testing.T) *fakeGoogle {
 		g.tokenCalls = append(g.tokenCalls, r.PostForm)
 		status, body := g.tokenStatus, g.tokenBody
 		expires := g.expiresIn
+		if g.tokenFailAfter > 0 && len(g.tokenCalls) > g.tokenFailAfter {
+			status, body = http.StatusInternalServerError, `{"error":"server_error"}`
+		}
 		g.mu.Unlock()
 		w.WriteHeader(status)
 		if body == "" {
@@ -70,6 +78,9 @@ func newFakeGoogle(t *testing.T) *fakeGoogle {
 			auth: r.Header.Get("Authorization"), contentType: r.Header.Get("Content-Type"), raw: payload.Raw,
 		})
 		status, body := g.sendStatus, g.sendBody
+		if len(g.sendQueue) > 0 {
+			status, g.sendQueue = g.sendQueue[0], g.sendQueue[1:]
+		}
 		g.mu.Unlock()
 		w.WriteHeader(status)
 		if body == "" {
@@ -453,21 +464,88 @@ func TestGmailSenderShouldSendToGoogleWhenNoURLsAreSet(t *testing.T) {
 	}
 }
 
+// sendStatuses makes the fake answer successive sends with the given statuses,
+// then 200.
+func (g *fakeGoogle) sendStatuses(statuses ...int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.sendQueue = statuses
+}
+
+func TestGmailSenderShouldRetryOnceWithAFreshTokenAfterA401(t *testing.T) {
+	g := newFakeGoogle(t)
+	g.sendStatuses(http.StatusUnauthorized)
+	send := newTestSender(t, g.settings())
+
+	if err := send(testRecipient, "s", "b"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if tokens, sends := g.counts(); tokens != 2 || sends != 2 {
+		t.Fatalf("expected 2 token and 2 send calls, got %d and %d", tokens, sends)
+	}
+}
+
+func TestGmailSenderShouldFailWithStatus401AfterASecond401(t *testing.T) {
+	g := newFakeGoogle(t)
+	g.sendStatuses(http.StatusUnauthorized, http.StatusUnauthorized, http.StatusUnauthorized)
+	send := newTestSender(t, g.settings())
+
+	err := send(testRecipient, "s", "b")
+
+	if err == nil || !strings.Contains(err.Error(), "status 401") {
+		t.Fatalf("expected a status 401 error, got %v", err)
+	}
+	if _, sends := g.counts(); sends != 2 {
+		t.Fatalf("expected exactly 2 send calls, got %d", sends)
+	}
+	assertNoneOf(t, err.Error(), testClientSecret, testRefreshToken, testAccessToken, testRecipient)
+}
+
+func TestGmailSenderShouldNotRetryOnAnythingButA401(t *testing.T) {
+	for _, status := range []int{http.StatusInternalServerError, http.StatusTooManyRequests, http.StatusForbidden, http.StatusBadRequest} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			g := newFakeGoogle(t)
+			g.sendStatuses(status)
+			send := newTestSender(t, g.settings())
+
+			err := send(testRecipient, "s", "b")
+
+			if err == nil {
+				t.Fatal("expected an error")
+			}
+			if tokens, sends := g.counts(); tokens != 1 || sends != 1 {
+				t.Fatalf("expected 1 token and 1 send call, got %d and %d", tokens, sends)
+			}
+		})
+	}
+}
+
+func TestGmailSenderShouldNotRetryWhenTheTokenEndpointFails(t *testing.T) {
+	g := newFakeGoogle(t)
+	g.sendStatuses(http.StatusUnauthorized)
+	g.mu.Lock()
+	g.tokenFailAfter = 1
+	g.mu.Unlock()
+	send := newTestSender(t, g.settings())
+
+	err := send(testRecipient, "s", "b")
+
+	if err == nil || !strings.Contains(err.Error(), "token request failed") {
+		t.Fatalf("expected a token error, got %v", err)
+	}
+	if tokens, sends := g.counts(); tokens != 2 || sends != 1 {
+		t.Fatalf("expected 2 token calls and 1 send call, got %d and %d", tokens, sends)
+	}
+}
+
 func TestGmailSenderShouldRefetchTheTokenAfterGoogleRejectsIt(t *testing.T) {
 	g := newFakeGoogle(t)
+	g.sendStatuses(http.StatusOK, http.StatusUnauthorized)
 	send := newTestSender(t, g.settings())
 	if err := send(testRecipient, "s", "b"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	g.mu.Lock()
-	g.sendStatus = http.StatusUnauthorized
-	g.mu.Unlock()
-	if err := send(testRecipient, "s", "b"); err == nil {
-		t.Fatal("expected an error")
-	}
-	g.mu.Lock()
-	g.sendStatus = http.StatusOK
-	g.mu.Unlock()
 
 	if err := send(testRecipient, "s", "b"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -475,6 +553,26 @@ func TestGmailSenderShouldRefetchTheTokenAfterGoogleRejectsIt(t *testing.T) {
 
 	if tokens, _ := g.counts(); tokens != 2 {
 		t.Fatalf("expected the token to be fetched again, got %d token calls", tokens)
+	}
+}
+
+func TestGmailSenderDropTokenShouldKeepANewerToken(t *testing.T) {
+	g := &gmailSender{token: "newer", now: time.Now, expires: time.Now().Add(time.Hour)}
+
+	g.dropToken("older")
+
+	if g.token != "newer" {
+		t.Fatalf("expected the newer token to stay, got %q", g.token)
+	}
+}
+
+func TestGmailSenderDropTokenShouldClearTheTokenThatWasUsed(t *testing.T) {
+	g := &gmailSender{token: "used", now: time.Now, expires: time.Now().Add(time.Hour)}
+
+	g.dropToken("used")
+
+	if g.token != "" {
+		t.Fatalf("expected the token to be cleared, got %q", g.token)
 	}
 }
 

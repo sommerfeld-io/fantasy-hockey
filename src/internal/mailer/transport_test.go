@@ -149,10 +149,46 @@ func TestMissingVarsShouldListUnsetGmailVariablesInStableOrderWhenAPIIsSelected(
 	}
 }
 
-func TestMissingVarsShouldBeEmptyWhenAPIIsNotSelected(t *testing.T) {
-	for _, mailType := range []string{"", "SMTP", "smtp", "pigeon"} {
-		if got := MissingVars(Settings{MailType: mailType}); len(got) != 0 {
-			t.Errorf("MAIL_TYPE %q: expected none, got %v", mailType, got)
+func TestMissingVarsShouldListUnsetSMTPHostAndPortWhenSMTPIsSelected(t *testing.T) {
+	cases := map[string]struct {
+		s    Settings
+		want []string
+	}{
+		"unset type, nothing set": {Settings{}, []string{EnvSMTPHost, EnvSMTPPort}},
+		"smtp, nothing set":       {Settings{MailType: "smtp"}, []string{EnvSMTPHost, EnvSMTPPort}},
+		"host unset":              {Settings{SMTPPort: "25"}, []string{EnvSMTPHost}},
+		"port unset":              {Settings{SMTPHost: "h"}, []string{EnvSMTPPort}},
+		"both set":                {Settings{SMTPHost: "h", SMTPPort: "25"}, nil},
+		"credentials never named": {Settings{SMTPHost: "h", SMTPPort: "25", SMTPUsername: "", SMTPAppPassword: ""}, nil},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := MissingVars(c.s); !reflect.DeepEqual(got, c.want) {
+				t.Errorf("expected %v, got %v", c.want, got)
+			}
+		})
+	}
+}
+
+func TestMissingVarsShouldNotNameGmailVariablesWhenSMTPIsSelected(t *testing.T) {
+	got := MissingVars(Settings{MailType: "SMTP"})
+	for _, name := range got {
+		if strings.HasPrefix(name, "GMAIL_") {
+			t.Errorf("unexpected %s in %v", name, got)
+		}
+	}
+}
+
+func TestMissingVarsShouldBeEmptyForAnInvalidMailType(t *testing.T) {
+	if got := MissingVars(Settings{MailType: "pigeon"}); len(got) != 0 {
+		t.Errorf("expected none, got %v", got)
+	}
+}
+
+func TestMissingVarsShouldNotNameSMTPVariablesWhenAPIIsSelected(t *testing.T) {
+	for _, name := range MissingVars(Settings{MailType: "API"}) {
+		if strings.HasPrefix(name, "SMTP_") {
+			t.Errorf("unexpected %s", name)
 		}
 	}
 }

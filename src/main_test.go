@@ -392,11 +392,12 @@ func TestNewSenderShouldWarnOnceNamingIgnoredVariablesButNotTheirValues(t *testi
 	}
 }
 
-func TestNewSenderShouldNotWarnWhenNothingIsIgnored(t *testing.T) {
+func TestNewSenderShouldNotWarnWhenNothingIsIgnoredOrMissing(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	env := map[string]string{"SMTP_HOST": "h", "SMTP_PORT": "25"}
 
-	_, err := newSender(func(string) string { return "" }, logger)
+	_, err := newSender(func(k string) string { return env[k] }, logger)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -466,21 +467,55 @@ func TestNewSenderShouldWarnOnceNamingMissingGmailVariablesButNotValues(t *testi
 	}
 }
 
-func TestNewSenderShouldNotWarnAboutMissingGmailVariablesUnlessAPIIsSelected(t *testing.T) {
+func TestNewSenderShouldNotWarnAboutMissingGmailVariablesWhenSMTPIsSelected(t *testing.T) {
 	for _, mailType := range []string{"", "SMTP"} {
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		env := map[string]string{"MAIL_TYPE": mailType, "SMTP_HOST": "h", "SMTP_PORT": "25"}
 
-		_, err := newSender(func(k string) string {
-			if k == "MAIL_TYPE" {
-				return mailType
-			}
-			return ""
-		}, logger)
+		_, err := newSender(func(k string) string { return env[k] }, logger)
 
 		if err != nil || logs.Len() != 0 {
 			t.Fatalf("MAIL_TYPE %q: err %v, logs %q", mailType, err, logs.String())
 		}
+	}
+}
+
+func TestNewSenderShouldWarnOnceNamingMissingSMTPHostAndPortWhenNothingIsSet(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	send, err := newSender(func(string) string { return "" }, logger)
+
+	if err != nil || send == nil {
+		t.Fatalf("expected the app to start, got %v", err)
+	}
+	out := logs.String()
+	if got := strings.Count(out, "level=WARN"); got != 1 {
+		t.Fatalf("expected exactly one warning, got %d: %s", got, out)
+	}
+	if !strings.Contains(out, "SMTP_HOST") || !strings.Contains(out, "SMTP_PORT") {
+		t.Errorf("expected the warning to name SMTP_HOST and SMTP_PORT, got %s", out)
+	}
+	for _, name := range []string{"SMTP_USERNAME", "SMTP_APP_PASSWORD", "GMAIL_"} {
+		if strings.Contains(out, name) {
+			t.Errorf("expected the warning not to name %s, got %s", name, out)
+		}
+	}
+}
+
+func TestNewSenderShouldNameOnlyTheMissingSMTPVariable(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	env := map[string]string{"SMTP_PORT": "1025"}
+
+	if _, err := newSender(func(k string) string { return env[k] }, logger); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := logs.String()
+	if !strings.Contains(out, "SMTP_HOST") || strings.Contains(out, "SMTP_PORT") || strings.Contains(out, "1025") {
+		t.Errorf("expected the warning to name only SMTP_HOST, got %s", out)
 	}
 }
 

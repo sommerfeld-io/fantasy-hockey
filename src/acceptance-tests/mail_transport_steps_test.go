@@ -120,6 +120,10 @@ type fakeGmailServer struct {
 	mu     sync.Mutex
 	tokens int
 	sends  []string
+
+	// rejectFirst makes the first send answer 401, as a revoked token does.
+	rejectFirst bool
+	rejected    int
 }
 
 func newFakeGmailServer() *fakeGmailServer {
@@ -136,30 +140,42 @@ func newFakeGmailServer() *fakeGmailServer {
 		f.mu.Unlock()
 		_, _ = io.WriteString(w, `{"access_token":"fake-access-token","expires_in":3600,"token_type":"Bearer"}`)
 	})
-	mux.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer fake-access-token" {
-			http.Error(w, `{"error":{"message":"missing or wrong bearer token"}}`, http.StatusUnauthorized)
-			return
-		}
-		var payload struct {
-			Raw string `json:"raw"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			http.Error(w, `{"error":{"message":"bad json"}}`, http.StatusBadRequest)
-			return
-		}
-		msg, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(payload.Raw, "="))
-		if err != nil {
-			http.Error(w, `{"error":{"message":"bad base64"}}`, http.StatusBadRequest)
-			return
-		}
-		f.mu.Lock()
-		f.sends = append(f.sends, string(msg))
-		f.mu.Unlock()
-		_, _ = io.WriteString(w, `{"id":"fake"}`)
-	})
+	mux.HandleFunc("/send", f.handleSend)
 	f.server = httptest.NewServer(mux)
 	return f
+}
+
+func (f *fakeGmailServer) handleSend(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	reject := f.rejectFirst && f.rejected == 0
+	if reject {
+		f.rejected++
+	}
+	f.mu.Unlock()
+	if reject {
+		http.Error(w, `{"error":{"message":"invalid credentials"}}`, http.StatusUnauthorized)
+		return
+	}
+	if r.Header.Get("Authorization") != "Bearer fake-access-token" {
+		http.Error(w, `{"error":{"message":"missing or wrong bearer token"}}`, http.StatusUnauthorized)
+		return
+	}
+	var payload struct {
+		Raw string `json:"raw"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		http.Error(w, `{"error":{"message":"bad json"}}`, http.StatusBadRequest)
+		return
+	}
+	msg, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(payload.Raw, "="))
+	if err != nil {
+		http.Error(w, `{"error":{"message":"bad base64"}}`, http.StatusBadRequest)
+		return
+	}
+	f.mu.Lock()
+	f.sends = append(f.sends, string(msg))
+	f.mu.Unlock()
+	_, _ = io.WriteString(w, `{"id":"fake"}`)
 }
 
 func (f *fakeGmailServer) snapshot() (int, []string) {
@@ -238,6 +254,22 @@ func (s *mailTransportState) theSMTPSettingsPointAtTheFakeSMTPServer() error {
 
 func (s *mailTransportState) aFakeGmailServerIsRunning() error {
 	s.gmail = newFakeGmailServer()
+	return nil
+}
+
+func (s *mailTransportState) theFakeGmailServerRejectsTheFirstSendWith401() error {
+	s.gmail.mu.Lock()
+	defer s.gmail.mu.Unlock()
+	s.gmail.rejectFirst = true
+	return nil
+}
+
+func (s *mailTransportState) theFakeGmailServerRejectedExactlyNSendRequests(n int) error {
+	s.gmail.mu.Lock()
+	defer s.gmail.mu.Unlock()
+	if s.gmail.rejected != n {
+		return fmt.Errorf("expected %d rejected sends, got %d", n, s.gmail.rejected)
+	}
 	return nil
 }
 
@@ -468,6 +500,13 @@ func (s *mailTransportState) theAppWarnedAboutTheMissingGmailSettings(a, b, c st
 	return nil
 }
 
+func (s *mailTransportState) theAppWarnedAboutTheMissingMailSettings(a, b string) error {
+	if got, want := strings.Join(s.missing, ","), a+","+b; got != want {
+		return fmt.Errorf("expected the missing settings %v, got %v", want, got)
+	}
+	return nil
+}
+
 func (s *mailTransportState) theAppDidNotWarnAboutMissingGmailSettings() error {
 	if len(s.missing) != 0 {
 		return fmt.Errorf("expected no missing settings warning, got %v", s.missing)
@@ -538,7 +577,20 @@ func InitializeMailTransportScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the warning does not contain the value "([^"]*)"$`, s.theWarningDoesNotContain)
 	ctx.Step(`^the app started without error$`, s.theAppStartedWithoutError)
 	ctx.Step(`^the app warned about the missing Gmail settings "([^"]*)", "([^"]*)" and "([^"]*)"$`, s.theAppWarnedAboutTheMissingGmailSettings)
-	ctx.Step(`^the app did not warn about missing Gmail settings$`, s.theAppDidNotWarnAboutMissingGmailSettings)
+	ctx.Step(`^the fake Gmail server rejects the first send with 401$`, s.theFakeGmailServerRejectsTheFirstSendWith401)
+	ctx.Step(`^the fake Gmail server rejected exactly (\d+) send requests?$`, s.theFakeGmailServerRejectedExactlyNSendRequests)
+	ctx.Step(`^the app warned about the missing mail settings "([^"]*)" and "([^"]*)"$`, s.theAppWarnedAboutTheMissingMailSettings)
+	ctx.Step(`^the app did not warn about missing mail settings$`, s.theAppDidNotWarnAboutMissingGmailSettings)
+	ctx.Step(`^the fake Gmail server issued exactly (\d+) access tokens$`, s.theFakeGmailServerIssuedExactlyNAccessTokens)
 	ctx.Step(`^the missing-settings warning does not contain the value "([^"]*)"$`, s.theMissingSettingsWarningDoesNotContain)
 	ctx.Step(`^startup fails with an error naming "([^"]*)", "([^"]*)" and "([^"]*)"$`, s.startupFailsWithAnErrorNaming)
+}
+
+// theFakeGmailServerIssuedExactlyNAccessTokens proves a retry fetched a fresh
+// token instead of reusing the one Google had just rejected.
+func (s *mailTransportState) theFakeGmailServerIssuedExactlyNAccessTokens(n int) error {
+	if tokens, _ := s.gmail.snapshot(); tokens != n {
+		return fmt.Errorf("expected %d access token request(s), got %d", n, tokens)
+	}
+	return nil
 }

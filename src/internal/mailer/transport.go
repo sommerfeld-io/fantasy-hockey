@@ -101,14 +101,20 @@ func IgnoredVars(s Settings) []string {
 	return names
 }
 
-// MissingVars names the unset GMAIL_* variables, in a stable order, when the
-// API transport is selected, and nothing otherwise. Names only, never values.
+// MissingVars names the unset required variables of the selected transport,
+// in a stable order: SMTP_HOST and SMTP_PORT for SMTP (the username and
+// password stay optional), the four GMAIL_* variables for API. It returns
+// nothing for an invalid MAIL_TYPE. Names only, never values.
 func MissingVars(s Settings) []string {
-	if selectedType(s) != typeAPI {
-		return nil
+	var required []namedValue
+	switch selectedType(s) {
+	case typeSMTP:
+		required = []namedValue{{EnvSMTPHost, s.SMTPHost}, {EnvSMTPPort, s.SMTPPort}}
+	case typeAPI:
+		required = gmailVars(s)
 	}
 	var names []string
-	for _, v := range gmailVars(s) {
+	for _, v := range required {
 		if v.value == "" {
 			names = append(names, v.name)
 		}

@@ -6,7 +6,7 @@ Technical reference for anyone building or deploying Fantasy Hockey. For game ru
 
 | Component           | Choice                                                                                                                         |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Language            | Go 1.26.6                                                                                                                      |
+| Language            | Go 1.27.2                                                                                                                      |
 | HTTP & routing      | stdlib `net/http` (`ServeMux`) — no third-party router                                                                         |
 | Views               | stdlib `html/template`, server-rendered — no JS framework, no SPA                                                              |
 | Data storage        | One hand-editable YAML file (`fantasy-hockey.yml`), `go.yaml.in/yaml/v3` — no database, no ORM                                 |
