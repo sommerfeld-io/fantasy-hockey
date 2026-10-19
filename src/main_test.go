@@ -368,3 +368,70 @@ func TestOpenStoreShouldNeverTouchAnArchivedFileAtADifferentPath(t *testing.T) {
 		t.Errorf("expected archived file to be byte-for-byte unchanged, before=%q after=%q", before, after)
 	}
 }
+
+func TestNewSenderShouldWarnOnceNamingIgnoredVariablesButNotTheirValues(t *testing.T) {
+	env := map[string]string{"MAIL_TYPE": "API", "SMTP_HOST": "secret-host.example.com", "SMTP_PORT": "25"}
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	_, err := newSender(func(k string) string { return env[k] }, logger)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := logs.String()
+	if got := strings.Count(out, "level=WARN"); got != 1 {
+		t.Fatalf("expected exactly one warning, got %d: %s", got, out)
+	}
+	if !strings.Contains(out, "SMTP_HOST") || !strings.Contains(out, "SMTP_PORT") {
+		t.Errorf("expected the warning to name the ignored variables, got %s", out)
+	}
+	if strings.Contains(out, "secret-host.example.com") {
+		t.Errorf("expected no value in the log, got %s", out)
+	}
+}
+
+func TestNewSenderShouldNotWarnWhenNothingIsIgnored(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+
+	_, err := newSender(func(string) string { return "" }, logger)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if logs.Len() != 0 {
+		t.Fatalf("expected no log output, got %s", logs.String())
+	}
+}
+
+func TestNewSenderShouldReturnAnErrorForAnInvalidMailType(t *testing.T) {
+	_, err := newSender(func(k string) string {
+		if k == "MAIL_TYPE" {
+			return "pigeon"
+		}
+		return ""
+	}, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
+
+	if err == nil || !strings.Contains(err.Error(), "MAIL_TYPE") {
+		t.Fatalf("expected an error naming MAIL_TYPE, got %v", err)
+	}
+}
+
+// TestRunShouldStopStartupOnAnInvalidMailType proves run() itself wires
+// newSender in and returns its error, which newSender's own tests cannot: a
+// run() that built the SMTP sender directly would still pass them.
+func TestRunShouldStopStartupOnAnInvalidMailType(t *testing.T) {
+	t.Setenv("SESSION_SECRET", "test-secret")
+	t.Setenv("DATA_FILE", filepath.Join(t.TempDir(), store.DataFileName))
+	t.Setenv("MAIL_TYPE", "pigeon")
+	prevArgs := os.Args
+	os.Args = []string{"fantasy-hockey"}
+	t.Cleanup(func() { os.Args = prevArgs })
+
+	err := run()
+
+	if err == nil || !strings.Contains(err.Error(), "MAIL_TYPE") {
+		t.Fatalf("run() = %v, want an error naming MAIL_TYPE", err)
+	}
+}

@@ -82,6 +82,21 @@ func openStore(path string, logger *slog.Logger) (*store.Store, error) {
 	return st, nil
 }
 
+// newSender reads the mail settings once, builds the selected transport and
+// logs one warning naming (never valuing) the settings it ignores. An invalid
+// MAIL_TYPE is an error.
+func newSender(getenv func(string) string, logger *slog.Logger) (mailer.Sender, error) {
+	settings := mailer.SettingsFromEnv(getenv)
+	send, err := mailer.New(settings)
+	if err != nil {
+		return nil, err
+	}
+	if ignored := mailer.IgnoredVars(settings); len(ignored) > 0 {
+		logger.Warn("ignoring mail settings of the unselected transport", "variables", strings.Join(ignored, ", "))
+	}
+	return send, nil
+}
+
 func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -96,12 +111,10 @@ func run() error {
 		return err
 	}
 
-	send := mailer.NewSMTPSender(
-		os.Getenv("SMTP_HOST"),
-		os.Getenv("SMTP_PORT"),
-		os.Getenv("SMTP_USERNAME"),
-		os.Getenv("SMTP_APP_PASSWORD"),
-	)
+	send, err := newSender(os.Getenv, slog.Default())
+	if err != nil {
+		return err
+	}
 
 	return server.Run(ctx, cfg.port, web.NewServer(st, send, cfg.secret, observe.New()))
 }

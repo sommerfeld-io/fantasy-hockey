@@ -53,6 +53,14 @@ services:
       # For a real mail server, replace the two lines above and add:
       #   - SMTP_USERNAME=<account>
       #   - SMTP_APP_PASSWORD=<app-password>
+      # MAIL_TYPE selects the transport: SMTP (default when empty) or API
+      # (Gmail API). Real values for the GMAIL_* settings come from your
+      # secret store, never from this file.
+      - MAIL_TYPE=
+      - GMAIL_CLIENT_ID=
+      - GMAIL_CLIENT_SECRET=
+      - GMAIL_REFRESH_TOKEN=
+      - GMAIL_SENDER=
 
   nginx:
     image: nginx:1.31.6

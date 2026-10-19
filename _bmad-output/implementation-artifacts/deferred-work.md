@@ -172,3 +172,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-compare-page-badges.md`
   summary: Add an automated browser or JS test for the Compare highlight in `static/compare.js`.
   evidence: The godog suite only sees server-rendered markup, so the class name, row scoping and event wiring could break with all tests green; awards.js and divisions.js have the same gap.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-10-1-choose-the-mail-transport-with-mail-type.md`
+  summary: Capture real log output in the mail-transport acceptance steps instead of asserting on `IgnoredVars`.
+  evidence: The "warned" steps never see the slog line; only the `newSender` unit tests do. Needs the sender wiring exposed to the acceptance package (for example `mailer.NewFromEnv(getenv, logger)`).
