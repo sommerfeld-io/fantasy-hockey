@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 10-19-2026 17:18
+last_updated: 10-19-2026 17:29
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -98,7 +98,7 @@ development_status:
   10-1-choose-the-mail-transport-with-mail-type: done
   10-2-send-login-codes-through-the-gmail-api: done
   10-3-document-the-mail-settings-and-the-gmail-api-setup: done
-  epic-10-retrospective: optional
+  epic-10-retrospective: done
 
   epic-11: backlog
   11-1-image-controls-on-a-running-container: backlog
@@ -727,7 +727,7 @@ action_items:
     action: "Lint after review patches before committing: run task lint or at least
       gocyclo after any post-review patch."
     owner: "whoever runs reviews"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-76-give-later-reviewers-the-earlier-review"
     epic: 9
@@ -793,8 +793,8 @@ action_items:
     ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
   - id: "epic-10-code-review-item-84-docs-offline-access-wording-and-sending-limits"
     epic: 10
-    action: "Soften the unverified offline-access claim in the Gmail guide and
-      mention Gmail's daily sending limits (fixed in code review)."
+    action: "Soften the unverified offline-access claim in the Gmail guide and mention
+      Gmail's daily sending limits (fixed in code review)."
     owner: "dev"
     status: done
     ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
@@ -807,8 +807,8 @@ action_items:
     ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
   - id: "epic-10-code-review-item-86-decide-startup-warning-for-missing-gmail-settings"
     epic: 10
-    action: "Decide whether to log a startup warning naming the missing GMAIL_*
-      variables when MAIL_TYPE=API."
+    action: "Decide whether to log a startup warning naming the missing GMAIL_* variables
+      when MAIL_TYPE=API."
     owner: "next dev touching internal/mailer or the docs"
     status: open
     ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
@@ -836,8 +836,65 @@ action_items:
   - id: "epic-10-code-review-item-90-lower-priority-gmail-sender-hardening"
     epic: 10
     action: "Lower priority: single-recipient validation, whitespace-only settings,
-      expires_in clamp, one in-flight token refresh, strings.NewReplacer for
-      redaction, injected HTTP transport in the default-URL test."
+      expires_in clamp, one in-flight token refresh, strings.NewReplacer for redaction,
+      injected HTTP transport in the default-URL test."
     owner: "next dev touching internal/mailer or the docs"
     status: open
     ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-retro-item-91-run-the-first-real-production-send-and-c"
+    epic: 10
+    action: "Run the first real production send and confirm the whole chain: MAIL_TYPE=API,
+      the four GMAIL_* values from the secret store, a login code arriving from the
+      sender address. Nothing in Epic 10 ran against Google."
+    owner: "human"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-92-add-an-adversarial-boundary-test-for-the"
+    epic: 10
+    action: "Add an adversarial boundary test for the never-appears-in-errors guarantee:
+      secret and recipient at every cut position of a long echoed reason and across
+      the 64 KB read limit."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-93-add-an-automated-check-that-the-api-tran"
+    epic: 10
+    action: "Add an automated check that the API transport produces the same login_code_requested
+      audit line and metric as SMTP (Story 10.2 last criterion, currently observed
+      by hand only)."
+    owner: "dev"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-94-reconcile-story-10-3-ac-in-epics-md-from"
+    epic: 10
+    action: "Reconcile Story 10.3 AC in epics.md from linked from docs/index.md to
+      named in docs/index.md and linked once on main, with the evidence in the Epic
+      10 retro (human applies)."
+    owner: "human"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-95-record-epic-10-accepted-deviations-per-n"
+    epic: 10
+    action: "Record Epic 10 accepted deviations (per-needle regexp, redactedError
+      unwrapping to the cause, one http.DefaultTransport swap in a test, one 10 s
+      budget for token and send, access token redacted only after issuance, accessToken
+      holding the mutex during the call) in the standing list from Epic 9 item 76
+      and give that list plus earlier triage logs to every review layer."
+    owner: "whoever runs reviews"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-96-decide-whether-go-mod-go-directive-now-1"
+    epic: 10
+    action: "Decide whether go.mod go directive (now 1.26.9) should follow the Dockerfile
+      toolchain (Go 1.27.1); the govulncheck failure in Story 10.1 came from the lag."
+    owner: "human"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
+  - id: "epic-10-retro-item-97-when-a-verification-step-temporarily-mut"
+    epic: 10
+    action: "When a verification step temporarily mutates source, restore from a saved
+      copy in the same command and never pkill by command-line pattern (a pattern
+      kill left main.go mutated until the next command restored it)."
+    owner: "whoever runs builds"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
