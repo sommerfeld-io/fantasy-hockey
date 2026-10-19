@@ -1446,3 +1446,29 @@ So that a bump to them is proposed and gated by the pipeline like every other de
 **Then** the Playwright job from Story 11.6 runs and reports the result on the PR
 
 *References: SPEC CAP-9. Builds on Stories 11.3 and 11.6. Infra story: no GoDog acceptance test (user decision). `.github/dependabot.yml` is not a protected file.*
+
+### Story 11.9: Local Dev Sends Login Codes to Mailpit Again
+
+As the person running the pool,
+I want the local dev setup to send login codes to Mailpit over SMTP,
+So that I can log in locally without a real mail account while production keeps using the Gmail API.
+
+**Acceptance Criteria:**
+
+**Given** Mailpit is running (`task docker:run:mailpit`) and no `MAIL_TYPE` is set
+**When** I run `task go:run` and request a login code for a pool player
+**Then** the login code mail shows up in Mailpit at `http://localhost:8025`, and the cause of the current failure is found and recorded in the story before any fix
+
+**Given** a freshly built container (`task docker:build`, then `docker compose up`)
+**When** I request a login code for a pool player
+**Then** the login code mail shows up in Mailpit, with the local setup defaulting to SMTP to the `mailpit` host and no Gmail settings needed
+
+**Given** `MAIL_TYPE=API` with the Gmail settings, as in production
+**When** I request a login code
+**Then** the mail still goes out through the Gmail API and no SMTP connection is opened (Epic 10 behaviour unchanged)
+
+**Given** the local defaults are fixed
+**When** `task go:build` and the acceptance suite run
+**Then** a regression test covers the local default path so it cannot silently break again
+
+*References: Epic 10 (Stories 10.1 and 10.2), `docker-compose.yml`, `src/taskfile.yml` (`go:run`), `.env`. Bug, found in manual testing. Starting evidence: the code defaults to SMTP when `MAIL_TYPE` is empty and Mailpit accepts a plain SMTP send on `localhost:1025`, so the cause is not yet known - check the environment the binary and the container actually receive (`MAIL_TYPE`, `SMTP_*`, `GMAIL_*`), the app's log output on a login request, and the transport selection in `internal/mailer`. This is a behaviour fix, so it needs a GoDog acceptance scenario unless the human in the loop decides otherwise.*
