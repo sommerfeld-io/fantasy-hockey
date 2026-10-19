@@ -47,6 +47,7 @@ body {
   width: 100%;
   max-width: 430px;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -155,9 +156,11 @@ button {
   width: 100%;
   max-width: 430px;
   height: 100vh;
+  height: 100dvh;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .shell-header {
@@ -211,6 +214,7 @@ button {
 .shell-content {
   flex: 1 1 auto;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px;
 }
 
@@ -219,6 +223,7 @@ button {
   display: flex;
   background: var(--surface);
   border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .nav-item {
@@ -539,6 +544,7 @@ a.set-row {
   width: 100%;
   max-width: 430px;
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
