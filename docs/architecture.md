@@ -4,17 +4,17 @@ Technical reference for anyone building or deploying Fantasy Hockey. For game ru
 
 ## Stack
 
-| Component           | Choice                                                                                         |
-| ------------------- | ---------------------------------------------------------------------------------------------- |
-| Language            | Go 1.26.6                                                                                      |
-| HTTP & routing      | stdlib `net/http` (`ServeMux`) — no third-party router                                         |
-| Views               | stdlib `html/template`, server-rendered — no JS framework, no SPA                              |
-| Data storage        | One hand-editable YAML file (`fantasy-hockey.yml`), `go.yaml.in/yaml/v3` — no database, no ORM |
-| Sessions            | Stateless, HMAC-signed cookies — no server-side session store                                  |
-| Outbound email      | stdlib `net/smtp`, config via env vars — no transactional-email SaaS                           |
-| Acceptance tests    | `cucumber/godog`, Gherkin `.feature` files                                                     |
-| Build orchestration | [Task](https://taskfile.dev)                                                                   |
-| Container image     | Multi-stage Alpine build, arm64 target (Raspberry Pi)                                          |
+| Component           | Choice                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Language            | Go 1.26.6                                                                                                                      |
+| HTTP & routing      | stdlib `net/http` (`ServeMux`) — no third-party router                                                                         |
+| Views               | stdlib `html/template`, server-rendered — no JS framework, no SPA                                                              |
+| Data storage        | One hand-editable YAML file (`fantasy-hockey.yml`), `go.yaml.in/yaml/v3` — no database, no ORM                                 |
+| Sessions            | Stateless, HMAC-signed cookies — no server-side session store                                                                  |
+| Outbound email      | stdlib `net/smtp` or the Gmail API over `net/http`, chosen with `MAIL_TYPE`, config via env vars — no transactional-email SaaS |
+| Acceptance tests    | `cucumber/godog`, Gherkin `.feature` files                                                                                     |
+| Build orchestration | [Task](https://taskfile.dev)                                                                                                   |
+| Container image     | Multi-stage Alpine build, arm64 target (Raspberry Pi)                                                                          |
 
 No database driver, migration tool, or client-side JS framework — the app is intentionally as boring and dependency-light as a 3-person hobby project can be.
 
@@ -31,7 +31,7 @@ One dependency direction: presentation (`internal/web`) depends on domain packag
 | `internal/scoring`   | The point table and every point calculation — the only home of scoring logic                                                                       |
 | `internal/standings` | Live Leaderboard computation (Regular/Playoff/Total), reads `internal/scoring`                                                                     |
 | `internal/store`     | The only package that reads or writes `fantasy-hockey.yml`                                                                                         |
-| `internal/mailer`    | SMTP delivery, used by `internal/auth` and `internal/web`                                                                                          |
+| `internal/mailer`    | SMTP or Gmail API delivery, chosen with `MAIL_TYPE`, used by `internal/auth` and `internal/web`                                                    |
 | `internal/observe`   | Prometheus registry, HTTP metrics middleware, `/metrics` handler, login and save counters, audit-log emitter; used by `internal/web` and `main.go` |
 | `internal/clock`     | Current time, RFC3339 formatting                                                                                                                   |
 | `internal/server`    | HTTP bootstrap: port resolution, graceful shutdown — no business logic                                                                             |

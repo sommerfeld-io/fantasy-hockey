@@ -56,20 +56,25 @@ docker run -d \
 
 A player logs in with just their email address: the app emails a one-time 6-digit code, valid for 10 minutes, and a session then stays active while in use and expires after 30 minutes of inactivity. A player can log out at any time from the app shell's header, which ends their session immediately on that device.
 
-If none of the `SMTP_*` variables below are set, the app still starts, but login-code emails silently fail to send (an error is logged server-side; the player never receives a code) — set at least `SMTP_HOST`/`SMTP_PORT` in any real deployment.
+Login-code emails go out over one of two transports, chosen with `MAIL_TYPE`: `SMTP` (the default) or `API` (the Gmail API over HTTPS, for production hosts where outbound SMTP is blocked or an app password is not an option). The two are mutually exclusive, and settings of the transport that is not selected are ignored with one startup warning that names the variables, never their values. Any other `MAIL_TYPE` value stops the app at startup with an error that names `MAIL_TYPE` and lists the allowed values. If none, or only some, of the mail settings of the selected transport are set, the app still starts, but login-code emails fail to send (an error naming the first missing setting is logged server-side; the player never receives a code) - set at least `SMTP_HOST`/`SMTP_PORT` for `SMTP`, or all four `GMAIL_*` variables for `API`, in any real deployment. The Gmail API setup is a step-by-step guide in `docs/gmail-api-setup.md` and is for production only; development stays on SMTP and Mailpit.
 
 Once logged in, the bottom nav's **Rules** tab explains how to play and how scoring works — the same content also lives in `docs/game-rules.md`.
 
 ### Configuration
 
-| Variable            | Required | Purpose                                                                                 |
-| ------------------- | -------- | --------------------------------------------------------------------------------------- |
-| `SESSION_SECRET`    | Yes      | Signing key for session cookies; the app refuses to start without it                    |
-| `DATA_FILE`         | No       | Path to the data file (default `fantasy-hockey.yml`); a `--data-file` flag overrides it |
-| `SMTP_HOST`         | No       | Outbound mail server for login-code emails                                              |
-| `SMTP_PORT`         | No       | Outbound mail server port                                                               |
-| `SMTP_USERNAME`     | No       | SMTP username; omit for an unauthenticated local mail catcher                           |
-| `SMTP_APP_PASSWORD` | No       | SMTP password (e.g. a Gmail App Password)                                               |
+| Variable              | Required | Purpose                                                                                                                                                                   |
+| --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_SECRET`      | Yes      | Signing key for session cookies; the app refuses to start without it                                                                                                      |
+| `DATA_FILE`           | No       | Path to the data file (default `fantasy-hockey.yml`); a `--data-file` flag overrides it                                                                                   |
+| `MAIL_TYPE`           | No       | Mail transport for login-code emails: `SMTP` or `API` (case-insensitive, mutually exclusive, default `SMTP`); any other value stops startup                               |
+| `SMTP_HOST`           | No       | Outbound mail server for login-code emails; used only when `MAIL_TYPE` is `SMTP`                                                                                          |
+| `SMTP_PORT`           | No       | Outbound mail server port; used only when `MAIL_TYPE` is `SMTP`                                                                                                           |
+| `SMTP_USERNAME`       | No       | SMTP username; omit for an unauthenticated local mail catcher; used only when `MAIL_TYPE` is `SMTP`                                                                       |
+| `SMTP_APP_PASSWORD`   | No       | SMTP password (e.g. a Gmail App Password); used only when `MAIL_TYPE` is `SMTP`                                                                                           |
+| `GMAIL_CLIENT_ID`     | No       | OAuth client ID; used only when `MAIL_TYPE` is `API`                                                                                                                      |
+| `GMAIL_CLIENT_SECRET` | No       | OAuth client secret; used only when `MAIL_TYPE` is `API`                                                                                                                  |
+| `GMAIL_REFRESH_TOKEN` | No       | OAuth refresh token for the `gmail.send` scope; used only when `MAIL_TYPE` is `API`                                                                                       |
+| `GMAIL_SENDER`        | No       | Gmail address the login-code emails are sent from (the account that authorized the refresh token, or a verified Send-as alias of it); used only when `MAIL_TYPE` is `API` |
 
 The `--port`/`-p` flag (default `8080`) sets the listening port. On first run, if the data file doesn't exist yet, the app creates it with an empty player list — the pool's actual players are then added by hand-editing that file, since there is no in-app way to create an account. With the named-volume setup above, reach the file with `docker cp fantasy-hockey:/data/fantasy-hockey.yml .`, edit it, then copy it back with `docker cp ./fantasy-hockey.yml fantasy-hockey:/data/fantasy-hockey.yml`.
 
