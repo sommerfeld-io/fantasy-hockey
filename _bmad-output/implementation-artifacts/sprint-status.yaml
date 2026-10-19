@@ -109,6 +109,7 @@ development_status:
   11-6-failing-ui-or-image-tests-block-the-edge-publish: backlog
   11-7-release-verifies-the-image-is-still-the-tested-one: backlog
   11-8-dependabot-watches-the-playwright-dependencies: backlog
+  11-9-local-dev-sends-login-codes-to-mailpit-again: backlog
   epic-11-retrospective: optional
 
 action_items:
