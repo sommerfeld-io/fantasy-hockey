@@ -241,3 +241,17 @@ func TestNewServerShouldReturn404ForAnUnknownPath(t *testing.T) {
 		t.Errorf("expected status 404 for an unknown path, got %d", rec.Code)
 	}
 }
+
+func TestNewServerShouldExtendTheShellIntoTheSafeAreaOnEveryDestination(t *testing.T) {
+	for _, tc := range shellRouteTests {
+		req := httptest.NewRequest("GET", tc.path, nil)
+		req.AddCookie(auth.IssueSessionCookie("basti", testSecret))
+		rec := httptest.NewRecorder()
+
+		newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
+
+		if !strings.Contains(rec.Body.String(), `content="width=device-width, initial-scale=1, viewport-fit=cover"`) {
+			t.Errorf("%s: expected the viewport meta to include viewport-fit=cover", tc.path)
+		}
+	}
+}

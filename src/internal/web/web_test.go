@@ -321,3 +321,17 @@ func TestNewServerShouldBuildTwiceInOneProcess(t *testing.T) {
 	newTestServer(newTestStore(t), noopSender)
 	newTestServer(newTestStore(t), noopSender)
 }
+
+func TestGetStaticStylesheetShouldSizeTheShellToTheDynamicViewport(t *testing.T) {
+	req := httptest.NewRequest("GET", "/static/styles.css", nil)
+	rec := httptest.NewRecorder()
+
+	newTestServer(newTestStore(t), noopSender).ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	for _, want := range []string{"\n  height: 100dvh;", "\n  min-height: 100dvh;", "overscroll-behavior: contain;", "env(safe-area-inset-bottom)"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("expected the stylesheet to contain %q", want)
+		}
+	}
+}
