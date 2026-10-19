@@ -72,6 +72,29 @@ context:
 - Review patches: default-URL test via `http.DefaultTransport`, `scope` assertion, single timeout source.
 - Verified: `task go:test`, `task go:test:acceptance` (189 scenarios), `go test -race` on mailer and acceptance, `task lint`, `task go:run` (govulncheck clean, serves `/login`). Not run against real Google.
 
+### Review Findings
+
+Code review (2026-10-19) of stories 10.2 and 10.3 by four layers (blind hunter, edge case hunter, verification gap, acceptance auditor), full mode.
+
+- [x] [Review][Patch] Redaction ran after truncation, so a secret cut by the limit left a prefix in the error [src/internal/mailer/gmail.go] -- fixed: redact first, then cap the whole error text; test added
+- [x] [Review][Patch] An error reason of null or empty left the error undiagnosable [src/internal/mailer/gmail.go] -- fixed: fall back to the raw body; test added
+- [x] [Review][Patch] The acceptance fake accepted any token request and any send, so a missing bearer token or wrong grant would pass [src/acceptance-tests/mail_transport_steps_test.go] -- fixed: the fake checks grant_type, credentials, bearer token and decodes strictly
+- [x] [Review][Patch] Untested branches: token response without access_token, googleReason shapes, CR/LF in GMAIL_SENDER, error text cap [src/internal/mailer/gmail_test.go] -- fixed: tests added
+- [ ] [Review][Defer] Decide whether to retry once with a fresh token after a 401; dropToken should clear only the token that was used [src/internal/mailer/gmail.go] -- deferred: new behavior beyond the spec, one lost login email per stale token
+- [ ] [Review][Defer] Decide whether to log a startup warning that names missing GMAIL_* variables when MAIL_TYPE=API -- deferred: new behavior, the spec says a send fails with the named variable
+- [ ] [Review][Defer] Add a Gmail failure acceptance scenario (for example invalid_grant) -- deferred: unit tests cover the failure paths
+- [x] [Review][Defer] Non-ASCII subject, body and address encoding -- deferred: already in deferred-work.md from the Story 10.2 build review
+- [ ] [Review][Defer] Lower priority hardening: single recipient validation, whitespace-only settings, expires_in clamp, one in-flight token refresh, strings.NewReplacer instead of a regexp per needle, inject the HTTP transport instead of swapping http.DefaultTransport -- deferred: no demonstrated harm
+
+#### Rejected
+
+- Data races in tests and the acceptance steps (blind, edge): false, `go test -race` is clean.
+- `redactedError` undefined in the diff (blind): false, it is defined in `mailer.go`.
+- `README.md` and the example compose missing from the diff (acceptance auditor): false, both were committed by earlier stories and the diff was scoped to `src/` and `docs/` of the last two commits.
+- `redactRecipient` not reused (acceptance auditor): low, `redact` has the same case-insensitive semantics for the recipient and also covers the secrets.
+- Client ID not redacted, access token redacted only after issuance, `redactedError` unwraps to the unredacted cause, mutex held during the token call, 10 s covers token plus send (blind, edge): low, accepted limits with no demonstrated harm, the first two are not secrets or are Google-issued.
+- Expiry of 0 or under the margin, missing global timeout wiring test (blind, edge, verification gap): low, worst case is an extra token request.
+
 ## Spec Change Log
 
 ## Review Triage Log

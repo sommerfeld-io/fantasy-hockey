@@ -39,8 +39,9 @@ const (
 	// maxGmailResponseBytes bounds how much of a Google reply is read.
 	maxGmailResponseBytes = 64 << 10
 
-	// maxGmailReasonRunes bounds the Google reason placed in an error.
-	maxGmailReasonRunes = 200
+	// maxGmailErrorRunes bounds an error text, applied after redaction so a
+	// secret cut in half by the limit cannot leave a prefix behind.
+	maxGmailErrorRunes = 300
 )
 
 // redactedSecret replaces any secret or token found in an error text.
@@ -89,7 +90,7 @@ func (g *gmailSender) send(to, subject, body string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), g.client.Timeout)
 	defer cancel()
 	if err := g.post(ctx, to, subject, body); err != nil {
-		return &redactedError{cause: err, text: g.redact(err.Error(), to)}
+		return &redactedError{cause: err, text: truncateRunes(g.redact(err.Error(), to), maxGmailErrorRunes)}
 	}
 	return nil
 }
@@ -255,8 +256,16 @@ func googleReason(body []byte) string {
 			reason = strings.TrimSpace(detail.Status + " " + detail.Message)
 		}
 	}
-	if r := []rune(reason); len(r) > maxGmailReasonRunes {
-		reason = string(r[:maxGmailReasonRunes])
+	if strings.TrimSpace(reason) == "" {
+		reason = strings.TrimSpace(string(body))
 	}
 	return reason
+}
+
+// truncateRunes cuts text to at most max runes.
+func truncateRunes(text string, max int) string {
+	if r := []rune(text); len(r) > max {
+		return string(r[:max])
+	}
+	return text
 }

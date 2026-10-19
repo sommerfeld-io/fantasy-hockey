@@ -125,18 +125,34 @@ type fakeGmailServer struct {
 func newFakeGmailServer() *fakeGmailServer {
 	f := &fakeGmailServer{}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil || r.PostForm.Get("grant_type") != "refresh_token" ||
+			r.PostForm.Get("client_id") == "" || r.PostForm.Get("client_secret") == "" || r.PostForm.Get("refresh_token") == "" {
+			http.Error(w, `{"error":"invalid_request"}`, http.StatusBadRequest)
+			return
+		}
 		f.mu.Lock()
 		f.tokens++
 		f.mu.Unlock()
 		_, _ = io.WriteString(w, `{"access_token":"fake-access-token","expires_in":3600,"token_type":"Bearer"}`)
 	})
 	mux.HandleFunc("/send", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer fake-access-token" {
+			http.Error(w, `{"error":{"message":"missing or wrong bearer token"}}`, http.StatusUnauthorized)
+			return
+		}
 		var payload struct {
 			Raw string `json:"raw"`
 		}
-		_ = json.NewDecoder(r.Body).Decode(&payload)
-		msg, _ := base64.RawURLEncoding.DecodeString(strings.TrimRight(payload.Raw, "="))
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, `{"error":{"message":"bad json"}}`, http.StatusBadRequest)
+			return
+		}
+		msg, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(payload.Raw, "="))
+		if err != nil {
+			http.Error(w, `{"error":{"message":"bad base64"}}`, http.StatusBadRequest)
+			return
+		}
 		f.mu.Lock()
 		f.sends = append(f.sends, string(msg))
 		f.mu.Unlock()

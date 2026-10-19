@@ -26,7 +26,7 @@ A video walkthrough is available at [YouTube walkthrough of the Gmail API setup]
     - Open the settings (gear icon) and tick "Use your own OAuth credentials", then enter the client ID and client secret.
     - In step 1, enter the scope `https://www.googleapis.com/auth/gmail.send` and authorize with the sending account.
     - Google may show an "unverified app" warning because `gmail.send` is a sensitive scope. For your own account and your own app, choose Advanced and continue.
-    - In step 2, exchange the authorization code for tokens and copy the refresh token. The gear settings must have the access type set to offline, which is the default when you use your own credentials.
+    - In step 2, exchange the authorization code for tokens and copy the refresh token. In the gear settings, check that the access type is set to offline; without it Google returns no refresh token.
 6. Set the variables on the production host, with `MAIL_TYPE=API`:
 
 ```bash
@@ -36,6 +36,8 @@ GMAIL_CLIENT_SECRET=<client-secret>
 GMAIL_REFRESH_TOKEN=<refresh-token>
 GMAIL_SENDER=<sending-gmail-address>
 ```
+
+Gmail applies daily sending limits to the sending account. A small pool sending only login codes stays far below them, but a burst of failed or repeated login attempts counts against the same account.
 
 ## Settings
 

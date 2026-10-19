@@ -180,3 +180,11 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md`
   summary: Encode non-ASCII subjects, bodies and addresses in the Gmail message (Content-Transfer-Encoding, RFC 2047 for headers) and test them.
   evidence: The login mail is ASCII today, so nothing breaks; only the subject goes through `mime.QEncoding`, and no test sends non-ASCII content.
+
+## Deferred from: code review of stories 10.2 and 10.3 (2026-10-19)
+
+- Decide whether to retry once with a fresh token after a 401 from `users.messages.send`, and make `dropToken` clear only the token that was used (`spec-10-2-send-login-codes-through-the-gmail-api.md`).
+- Decide whether to log a startup warning naming missing `GMAIL_*` variables when `MAIL_TYPE=API`; today the first send fails with the named variable.
+- Add a Gmail failure acceptance scenario (for example `invalid_grant`): the login request succeeds, the error is logged, no code is delivered.
+- Lower priority hardening in `internal/mailer/gmail.go`: single-recipient validation, whitespace-only settings, `expires_in` clamp, one in-flight token refresh, `strings.NewReplacer` instead of a regexp per needle, an injected HTTP transport in the default-URL test.
+- After this branch is merged to main, link `docs/gmail-api-setup.md` from `docs/index.md` with its GitHub URL (`spec-10-3-document-the-mail-settings-and-the-gmail-api-setup.md`).

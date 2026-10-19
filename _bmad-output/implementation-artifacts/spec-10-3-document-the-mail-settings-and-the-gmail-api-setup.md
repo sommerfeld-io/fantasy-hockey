@@ -53,6 +53,18 @@ context:
 - Review patches: table re-padding, consent-step rewrite, sender-alias note, Troubleshooting section, partial-configuration wording.
 - Verified: `task docs:readme` and `task lint` pass (markdownlint, link checker, filename linters); README and `docs/index.md` identical; search for secrets, the real project and the real account found none.
 
+### Review Findings
+
+Code review (2026-10-19) of stories 10.2 and 10.3, see the findings in `spec-10-2-send-login-codes-through-the-gmail-api.md`. Findings that concern this story:
+
+- [x] [Review][Patch] The no-mail-settings paragraph claimed that any missing setting names the first missing variable for both transports; for SMTP only a missing host or port fails [docs/index.md] -- fixed: the paragraph now names the required settings per transport
+- [x] [Review][Patch] "Offline is the default" was unverified; added a line on Gmail's daily sending limits [docs/gmail-api-setup.md] -- fixed: the guide tells the reader to check the access type, and mentions the limits
+- [ ] [Review][Defer] The guide is named in a code span in `docs/index.md`, not linked, which deviates from the spec's "linked" -- deferred: `docs/index.md` is copied to `README.md`, so a relative link breaks one copy; after the branch is merged to main, link the guide with its GitHub URL
+
+#### Rejected
+
+- Dense mail paragraph, hyphen versus em dash, no compose or `.env` update, quota detail, 100-user cap (blind, edge): low or false, the compose was updated in Story 10.1 and `.env` is deliberately untouched.
+
 ## Spec Change Log
 
 ## Review Triage Log

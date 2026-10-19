@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 10-19-2026 16:59
+last_updated: 10-19-2026 17:18
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -96,8 +96,8 @@ development_status:
 
   epic-10: in-progress
   10-1-choose-the-mail-transport-with-mail-type: done
-  10-2-send-login-codes-through-the-gmail-api: review
-  10-3-document-the-mail-settings-and-the-gmail-api-setup: review
+  10-2-send-login-codes-through-the-gmail-api: done
+  10-3-document-the-mail-settings-and-the-gmail-api-setup: done
   epic-10-retrospective: optional
 
   epic-11: backlog
@@ -756,3 +756,88 @@ action_items:
     owner: "next dev touching .golangci.yml or internal/store"
     status: open
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
+  - id: "epic-10-code-review-item-79-redact-before-truncating-error-text"
+    epic: 10
+    action: "Redact the error text before truncating it so a secret cut by the limit
+      cannot leave a prefix (fixed in code review, with a test)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-80-fall-back-to-raw-body-for-empty-reason"
+    epic: 10
+    action: "Fall back to the raw response body when Google's error reason is null
+      or empty (fixed in code review, with a test)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-81-harden-the-acceptance-fake-gmail-server"
+    epic: 10
+    action: "Make the acceptance fake Gmail server reject a wrong grant, a missing
+      bearer token and malformed payloads (fixed in code review)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-82-unit-tests-for-token-response-reason-and-sender-linebreak"
+    epic: 10
+    action: "Add unit tests for a token response without access_token, googleReason
+      shapes, CR/LF in GMAIL_SENDER and the error text cap (done in code review)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-83-docs-name-the-required-settings-per-transport"
+    epic: 10
+    action: "Reword the no-mail-settings paragraph so it names the required settings
+      per transport instead of overclaiming for SMTP (fixed in code review)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-84-docs-offline-access-wording-and-sending-limits"
+    epic: 10
+    action: "Soften the unverified offline-access claim in the Gmail guide and
+      mention Gmail's daily sending limits (fixed in code review)."
+    owner: "dev"
+    status: done
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-85-decide-retry-once-after-a-401"
+    epic: 10
+    action: "Decide whether to retry the send once with a fresh token after a 401,
+      and make dropToken clear only the token that was used."
+    owner: "next dev touching internal/mailer or the docs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-86-decide-startup-warning-for-missing-gmail-settings"
+    epic: 10
+    action: "Decide whether to log a startup warning naming the missing GMAIL_*
+      variables when MAIL_TYPE=API."
+    owner: "next dev touching internal/mailer or the docs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-87-add-a-gmail-failure-acceptance-scenario"
+    epic: 10
+    action: "Add a Gmail failure acceptance scenario (for example invalid_grant):
+      the error is logged and no code is delivered."
+    owner: "next dev touching internal/mailer or the docs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-88-link-the-gmail-guide-from-index-after-merge"
+    epic: 10
+    action: "After the branch is merged to main, link docs/gmail-api-setup.md from
+      docs/index.md with its GitHub URL instead of a code span."
+    owner: "next dev touching internal/mailer or the docs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-89-encode-non-ascii-mail-content"
+    epic: 10
+    action: "Encode non-ASCII subjects, bodies and addresses in the Gmail message
+      and test them (already in deferred-work.md)."
+    owner: "next dev touching internal/mailer or the docs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
+  - id: "epic-10-code-review-item-90-lower-priority-gmail-sender-hardening"
+    epic: 10
+    action: "Lower priority: single-recipient validation, whitespace-only settings,
+      expires_in clamp, one in-flight token refresh, strings.NewReplacer for
+      redaction, injected HTTP transport in the default-URL test."
+    owner: "next dev touching internal/mailer or the docs"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"

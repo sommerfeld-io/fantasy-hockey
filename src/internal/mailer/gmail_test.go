@@ -477,3 +477,88 @@ func TestGmailSenderShouldRefetchTheTokenAfterGoogleRejectsIt(t *testing.T) {
 		t.Fatalf("expected the token to be fetched again, got %d token calls", tokens)
 	}
 }
+
+func TestGmailSenderShouldRedactASecretThatStraddlesTheReasonTruncationPoint(t *testing.T) {
+	// The refresh token starts 5 runes before the error-text cut, so cutting
+	// before redacting would leave a prefix that no whole-value match removes.
+	const prefix = "mailer: gmail send failed: status 400: "
+	padding := strings.Repeat("x", maxGmailErrorRunes-len(prefix)-5)
+	g := newFakeGoogle(t)
+	g.sendStatus = http.StatusBadRequest
+	g.sendBody = fmt.Sprintf(`{"error":{"message":%q}}`, padding+testRefreshToken)
+	send := newTestSender(t, g.settings())
+
+	err := send(testRecipient, "s", "b")
+
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if strings.Contains(err.Error(), testRefreshToken[:5]) {
+		t.Errorf("error text %q leaks a prefix of the refresh token", err.Error())
+	}
+}
+
+func TestGmailSenderShouldFailWhenTheTokenResponseHasNoAccessToken(t *testing.T) {
+	for name, body := range map[string]string{
+		"empty access_token": `{"access_token":"","expires_in":3600}`,
+		"not json":           `<html>oops</html>`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			g := newFakeGoogle(t)
+			g.tokenBody = body
+			send := newTestSender(t, g.settings())
+
+			err := send(testRecipient, "s", "b")
+
+			if err == nil || !strings.Contains(err.Error(), "no access token") {
+				t.Fatalf("expected a no-access-token error, got %v", err)
+			}
+			if len(g.sendCalls) != 0 {
+				t.Errorf("expected no send request, got %d", len(g.sendCalls))
+			}
+		})
+	}
+}
+
+func TestGmailSenderShouldRejectALineBreakInTheConfiguredSender(t *testing.T) {
+	g := newFakeGoogle(t)
+	s := g.settings()
+	s.GmailSender = "pool@example.com\r\nBcc: someone@example.com"
+	send := newTestSender(t, s)
+
+	err := send(testRecipient, "s", "b")
+
+	if err == nil || len(g.tokenCalls) != 0 || len(g.sendCalls) != 0 {
+		t.Fatalf("expected a rejection with no request, got err=%v token=%d send=%d", err, len(g.tokenCalls), len(g.sendCalls))
+	}
+}
+
+func TestGoogleReasonShouldReadBothErrorShapesAndFallBackToTheBody(t *testing.T) {
+	cases := map[string]struct{ body, want string }{
+		"oauth shape":  {`{"error":"invalid_grant","error_description":"Token expired"}`, "invalid_grant Token expired"},
+		"api shape":    {`{"error":{"message":"Bad things","status":"INVALID_ARGUMENT"}}`, "INVALID_ARGUMENT Bad things"},
+		"not json":     {"  upstream timeout  ", "upstream timeout"},
+		"null error":   {`{"error":null}`, `{"error":null}`},
+		"empty object": {`{}`, `{}`},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := googleReason([]byte(c.body)); got != c.want {
+				t.Errorf("googleReason(%q) = %q, want %q", c.body, got, c.want)
+			}
+		})
+	}
+}
+
+func TestGmailSenderShouldCapTheLengthOfAnErrorText(t *testing.T) {
+	g := newFakeGoogle(t)
+	g.sendStatus = http.StatusInternalServerError
+	g.sendBody = strings.Repeat("y", 10_000)
+	send := newTestSender(t, g.settings())
+
+	err := send(testRecipient, "s", "b")
+
+	if err == nil || len([]rune(err.Error())) > maxGmailErrorRunes {
+		t.Fatalf("expected an error of at most %d runes, got %v", maxGmailErrorRunes, err)
+	}
+}
