@@ -239,7 +239,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.ref == 'refs/heads/main' }}
     needs: [
-      'build-image',
+      'docker-scout',
       # inspec stage
       # playwright stage
       # maybe some other test stage
