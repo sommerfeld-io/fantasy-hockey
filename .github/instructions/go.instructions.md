@@ -109,23 +109,28 @@ if err := someFunction(); err != nil {
 tests almost always mean the code under test depends on too much. Refactor the design until the test is easy to write.
 - Test Structure should follow the "Arrange -> Act -> Assert" pattern.
 - As a validation, apply the Implementation-Swap Test: Ask, if I threw away this implementation and rewrote it from scratch, would my
-tests still make sense? If yes, the tests are coupled to behaviour. If not, they are coupled to implementation. But do not actually throw anything away! Just use this as a sort of validation.
+tests still make sense? If yes, the tests are coupled to behavior. If not, they are coupled to implementation. But do not actually throw anything away! Just use this as a sort of validation.
+
+- Prefer a global variable or constant when the value itself is fixed and needs no computation (e.g. `store.DataFileName = "fantasy-hockey.yml"`, referenced by every Go file that needs that filename instead of hand-typing the string again).
+
+### Definition of Good Unit Tests / Good TDD
+
+This is about using "tests as specifications", a way of using tests as self-validating programming for AI coding assistants. We need to make progress in small steps and make sure our tests are up to the job. Good tests are:
+
+- **Understandable** - Our tests should describe what they are testing so that we can understand the goals of our software: Focused on the behavior of the system, not a specific implementation.
+- **Maintainable** - We’d like our tests to act as a defense of our system, breaking when we want them to, but also remaining true as we change our system. So they need to be maintainable so that they are easy to change, without losing their intent.
+- **Repeatable** - Our tests should be definitive, so should always pass or fail in the same way for a given version of the software that they are testing. We want our tests to be reliable: to give us the same result every time they run, wherever, or whenever, they are run.
+- **Atomic** - Tests should be isolated and focus on a single outcome. We want tests with no side-effects and so able to achieve definitive results whatever else is going on. Independent of other tests and resources, we can run our tests in parallel, or in any order.
+- **Necessary** - We don’t need to create “tests for test sake”. Our aim is to guide development from tests, so we should create tests that help us, are necessary, to guide our development choices.
+- **Granular** - Tests should be small, simple and focused, and assert a single outcome of the code that they are testing. Giving us a clear Pass/Fail result, and a clear indication of what the problem is when they fail, that do not require interpretation.
+- **Fast** - We will use tests as a tool to guide our development, so we will end up with lots of them. That means we need them to be efficient and give us results quickly - our tests need to be fast. Easiest way to do that is to keep them simple and focused.
+- **First** - In TDD we write the test before writing code. This has a huge impact on our ability to achieve the properties that we value in good tests, compared to writing tests after we have written the code (Unit Testing).
 
 ### Acceptance tests and Gherkin feature files
 
 - `.feature` files define GoDog acceptance tests. They are **not** used to derive unit tests.
 - Step definitions live in `src/acceptance-tests/*_steps_test.go`.
 - Wire the GoDog suite in `src/acceptance-tests/suite_test.go`.
-- Before writing a new fixture helper (seeding pool players, writing a YAML section, embeddable
-  scenario state), check `src/acceptance-tests/fixture_support_test.go` first - a near-identical
-  pool-player fixture helper was independently duplicated across step files and flagged in 4
-  epics in a row before it was finally hoisted (epic-2 item 12, epic-3 item 22, epic-4 item 34,
-  epic-5 item 39) - and a hoisted helper isn't guaranteed to already generalize to a new scenario's
-  exact shape (e.g. `poolFixture.thePoolPlayersAre` only ever sets exactly three players).
-- Acceptance test Go code follows the same TDD discipline as production code. Any non-trivial
-  helper extracted into a non-test file must have its own `*_test.go` unit tests.
-- Unit test coverage is measured with `go test ./internal/...` and written to `coverage.out`.
-  Acceptance tests are run separately with `go test -coverpkg=./internal/... ./acceptance-tests/...`,
-  write a second report to `acceptance-coverage.out`, and gate the `build` task. The two coverage
-  files are intentionally separate signals: `coverage.out` measures branch-level unit test
-  correctness; `acceptance-coverage.out` measures which internal lines are reachable end-to-end.
+- Before writing a new fixture helper (seeding pool players, writing a YAML section, embeddable scenario state), check `src/acceptance-tests/fixture_support_test.go` first - a near-identical pool-player fixture helper was independently duplicated across step files and flagged in 4 epics in a row before it was finally hoisted (epic-2 item 12, epic-3 item 22, epic-4 item 34, epic-5 item 39) - and a hoisted helper isn't guaranteed to already generalize to a new scenario's exact shape (e.g. `poolFixture.thePoolPlayersAre` only ever sets exactly three players).
+- Acceptance test Go code follows the same TDD discipline as production code. Any non-trivial helper extracted into a non-test file must have its own `*_test.go` unit tests.
+- Unit test coverage is measured with `go test ./internal/...` and written to `coverage.out`. Acceptance tests are run separately with `go test -coverpkg=./internal/... ./acceptance-tests/...`, write a second report to `acceptance-coverage.out`, and gate the `build` task. The two coverage files are intentionally separate signals: `coverage.out` measures branch-level unit test correctness; `acceptance-coverage.out` measures which internal lines are reachable end-to-end.
