@@ -127,7 +127,7 @@ services:
   # Reverse proxy on port 80 in front of the app (port 8080 stays published
   # for direct access). Config is mounted read-only from the repo.
   nginx:
-    image: nginx:1.31.6
+    image: nginx:1.31.7
     restart: unless-stopped
     depends_on:
       - fantasy-hockey
