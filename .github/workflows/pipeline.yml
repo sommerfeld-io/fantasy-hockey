@@ -38,6 +38,12 @@ on:
   schedule:
     - cron: '0 4 * * 3'
 
+# Runs on main queue up (never cancelled, so releases and Docker Hub cleanup always finish);
+# GitHub keeps only the newest pending run. Runs on other branches/PRs cancel their predecessor.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 env:
   IMAGE_TAG_EDGE: ${{ vars.IMAGE_TAG_EDGE }}
   IMAGE_TAG_LATEST: ${{ vars.IMAGE_TAG_LATEST }}
