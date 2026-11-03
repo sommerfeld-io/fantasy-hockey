@@ -29,10 +29,10 @@ Let the person running the pool put the app on a homelab host (Raspberry Pi, arm
 
 - Proxy is the official `nginx` image (`stable-alpine`, arm64 available) on port 80.
 - One proxy definition kept in step between dev and example compose: `location ~* ^/metrics/?$` returns 404; all else proxied to `http://fantasy-hockey:8080` with `resolver 127.0.0.11 valid=10s` and the upstream in a variable (re-resolves a recreated app container, avoids 502); `access_log /dev/stdout combined;` set explicitly.
-- Dev compose mounts the repo's nginx config read-only; the example ships its own copy and a test asserts the two copies' proxy rules are identical.
+- Both the dev compose and the example mount the repo's `configs/nginx/default.conf` read-only (the example as `../../configs/nginx/default.conf`). There is one copy and no drift test (human decision in Story 9.6). The example is not self-contained when copied out of the repo alone, and its header comment says so.
 - App data is mounted as a directory, never a single file (atomic rename cannot replace a bind-mount point).
 - The app's direct 8080 publish stays in the dev compose; it is `127.0.0.1:8080` in the example.
-- Observability lives only in `internal/observe` (dedicated Prometheus registry, HTTP middleware, `/metrics` handler, single `observe.Audit` emitter), consumed only by `internal/web` and `main.go`; enforced by golangci-lint `depguard` rules. `/metrics` is registered on the outer mux in `internal/web`, outside session auth.
+- Observability lives only in `internal/observe` (dedicated Prometheus registry, HTTP middleware, `/metrics` handler, single `(*Observer).Audit` emitter), consumed only by `internal/web` and `main.go`; enforced by golangci-lint `depguard` rules. `/metrics` is registered on the outer mux in `internal/web`, outside session auth.
 - Metric names are `fantasy_hockey_` prefixed; `route` label is the route pattern from the original request, `unmatched` when empty.
 - Audit vocabulary is fixed: `login_code_requested`, `login_succeeded`, `login_failed`, `logout`, `prediction_saved`; `store.Save*` methods return the persisted rows.
 - New Prometheus client dependency must pass the `go-licenses` gate.

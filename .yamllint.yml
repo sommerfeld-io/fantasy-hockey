@@ -6,6 +6,7 @@ ignore: |
   .vagrant
   target
   src/fantasy-hockey.yml
+  docs/examples/data/
 
 rules:
   line-length:

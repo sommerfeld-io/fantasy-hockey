@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 11-03-2026 19:42
+last_updated: 11-03-2026 20:27
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -655,7 +655,7 @@ action_items:
       creates that directory and lint-folders then fails with 'Directory is not allowed
       by config'; add it and re-run task lint with the directory present."
     owner: "next dev touching docs/examples"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-67-decide-the-login-abuse-policy-before-put"
     epic: 9
@@ -681,7 +681,7 @@ action_items:
       emails matched, that the published latest image predates /metrics, and a link
       to the fresh-data-file players row."
     owner: "next dev touching docs/operator-guide.md"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-70-reconcile-the-contract-to-the-as-built-h"
     epic: 9
@@ -690,7 +690,7 @@ action_items:
       test; AD-33 names (*Observer).Audit, records the mailer redaction landed in
       9.4, and states cleared division picks are intentionally not audited."
     owner: "human via bmad-correct-course or direct edit"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-71-hoist-the-duplicated-test-helpers-one-sh"
     epic: 9
@@ -714,7 +714,7 @@ action_items:
       on a Raspberry Pi: published latest image on arm64 as UID 1000, /metrics 200
       on loopback and 404 on port 80."
     owner: "operator"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-74-stop-the-flaky-link-check-blocking-commi"
     epic: 9
@@ -818,14 +818,14 @@ action_items:
     action: "Add a Gmail failure acceptance scenario (for example invalid_grant):
       the error is logged and no code is delivered."
     owner: "next dev touching internal/mailer or the docs"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
   - id: "epic-10-code-review-item-88-link-the-gmail-guide-from-index-after-merge"
     epic: 10
     action: "After the branch is merged to main, link docs/gmail-api-setup.md from
       docs/index.md with its GitHub URL instead of a code span."
     owner: "next dev touching internal/mailer or the docs"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/spec-10-2-send-login-codes-through-the-gmail-api.md"
   - id: "epic-10-code-review-item-89-encode-non-ascii-mail-content"
     epic: 10
@@ -848,7 +848,7 @@ action_items:
       the four GMAIL_* values from the secret store, a login code arriving from the
       sender address. Nothing in Epic 10 ran against Google."
     owner: "human"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
   - id: "epic-10-retro-item-92-add-an-adversarial-boundary-test-for-the"
     epic: 10
@@ -872,7 +872,7 @@ action_items:
       named in docs/index.md and linked once on main, with the evidence in the Epic
       10 retro (human applies)."
     owner: "human"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
   - id: "epic-10-retro-item-95-record-epic-10-accepted-deviations-per-n"
     epic: 10
@@ -912,5 +912,5 @@ action_items:
       line, for example by moving the newSender logic into internal/mailer so a step
       can call it with a capturing logger."
     owner: "next dev touching internal/mailer"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/spec-make-mail-failures-visible.md"
