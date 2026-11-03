@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 11-03-2026 19:42
+last_updated: 11-03-2026 20:00
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -690,7 +690,7 @@ action_items:
       test; AD-33 names (*Observer).Audit, records the mailer redaction landed in
       9.4, and states cleared division picks are intentionally not audited."
     owner: "human via bmad-correct-course or direct edit"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-71-hoist-the-duplicated-test-helpers-one-sh"
     epic: 9
@@ -714,7 +714,7 @@ action_items:
       on a Raspberry Pi: published latest image on arm64 as UID 1000, /metrics 200
       on loopback and 404 on port 80."
     owner: "operator"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-74-stop-the-flaky-link-check-blocking-commi"
     epic: 9

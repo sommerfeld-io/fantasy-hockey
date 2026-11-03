@@ -1011,15 +1011,15 @@ So that I have a ready-to-adapt file for running the app on the Raspberry Pi.
 **When** I read them
 **Then** they say the file is an example (placeholders such as the dummy secret and Mailpit are deliberate) and must be adapted, not used as-is on a public host
 
-**Given** the example compose is copied out of this repo on its own
-**When** I read it and the files beside it
-**Then** it is self-contained: its proxy config sits next to it, and a test asserts its proxy rules are identical to the dev compose's
+**Given** the example compose
+**When** I read its nginx volume and header comment
+**Then** it mounts the repo's `configs/nginx/default.conf` (the same file the dev compose uses, so there is no second copy and no drift test), and the comment says a copy taken out of the repo needs that config placed next to it and the nginx volume repointed
 
 **Given** the example compose's data volume
 **When** I read how the data is mounted
 **Then** it is a directory, not the single file (the store's atomic rename cannot replace a bind-mount point), and the example states the UID the non-root image runs as
 
-*References: PRD FR-36, §5 (no HTTPS/443 by decision); Architecture AD-14, AD-27, AD-32, AD-34 (same nginx behaviour as the dev compose, self-contained copy guarded by a drift test, directory mount); `docs/operator-guide.md` gets a pointer to the example. Infra and docs story: ask the human whether an acceptance test applies. Whether the loopback-only bind is the right choice is an `[ASSUMPTION]` in PRD §9.*
+*References: PRD FR-36, §5 (no HTTPS/443 by decision); Architecture AD-14, AD-27, AD-32, AD-34 (same nginx behaviour as the dev compose by mounting the same repo config file, directory mount; the human decided in Story 9.6 to mount the repo config instead of shipping a self-contained copy guarded by a drift test); `docs/operator-guide.md` gets a pointer to the example. Infra and docs story: ask the human whether an acceptance test applies. Whether the loopback-only bind is the right choice is an `[ASSUMPTION]` in PRD §9.*
 
 ## Epic 10: Gmail API as a Second Mail Transport
 

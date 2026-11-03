@@ -193,3 +193,7 @@
 
 - Make the acceptance steps for both startup warnings (ignored settings, missing Gmail settings) assert the real log line, for example by moving the `newSender` logic into `internal/mailer` so a step can call it with a capturing logger (`spec-make-mail-failures-visible.md`).
 - Decide whether `MAIL_TYPE=SMTP` should also warn at startup about a missing `SMTP_HOST` or `SMTP_PORT`, for parity with the Gmail transport.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-9-retro-item-70-reconcile-contract-to-as-built.md`
+  summary: The two compose files pin different nginx tags (dev `nginx:1.31.7`, example `nginx:1.31.6`), and AD-34, the spine compose snippet and `epic-9-context.md` still name `stable-alpine`; align the tags and the contract.
+  evidence: `docker-compose.yml:130` and `docs/examples/docker-compose.yml:66` versus AD-34's `[ASSUMPTION — stable-alpine …]`. This existed before the item 70 change, which did not touch image tags.

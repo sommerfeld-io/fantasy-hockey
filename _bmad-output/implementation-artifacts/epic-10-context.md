@@ -48,5 +48,5 @@ Let the person running the pool choose, with one setting, whether login-code ema
 
 - Story 10.1 depends on Story 10.2 for the real API sender. Build the selection with a fake API sender first, then wire in the real one.
 - Story 10.3 depends on Stories 10.1 and 10.2, so the documented variable names are final.
-- Builds on Epic 9: the example production compose and its drift test, and the audit and metrics behavior for login events.
+- Builds on Epic 9: the example production compose (which mounts the repo's nginx config, so there is no drift test), and the audit and metrics behavior for login events.
 - Builds on Epic 8's docs conventions, with `docs/` as the single place for documentation.
