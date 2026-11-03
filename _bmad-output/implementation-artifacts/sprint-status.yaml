@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 11-03-2026 20:09
+last_updated: 11-03-2026 20:12
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -872,7 +872,7 @@ action_items:
       named in docs/index.md and linked once on main, with the evidence in the Epic
       10 retro (human applies)."
     owner: "human"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
   - id: "epic-10-retro-item-95-record-epic-10-accepted-deviations-per-n"
     epic: 10

@@ -1141,7 +1141,7 @@ So that I can switch a deployment to the Gmail API from the docs alone, months f
 **When** I read it after the change
 **Then** it covers both transports: what happens with no mail settings for each, and that an invalid `MAIL_TYPE` stops the app at startup
 
-**Given** a new guide `docs/gmail-api-setup.md`, written for production use only and linked from the Configuration section of `docs/index.md`
+**Given** a new guide `docs/gmail-api-setup.md`, written for production use only and named in the Configuration section of `docs/index.md`
 **When** I follow it from a blank Google account
 **Then** it walks through, in order: creating the Google Cloud project, enabling the Gmail API, configuring the OAuth consent screen and adding the sending account as a test user, creating an OAuth client ID, obtaining a refresh token for the `gmail.send` scope, and setting the four `GMAIL_*` variables with `MAIL_TYPE=API` on the production host; it says dev stays on SMTP/Mailpit and needs no Gmail setup
 
@@ -1165,7 +1165,7 @@ So that I can switch a deployment to the Gmail API from the docs alone, months f
 **When** I search them for stale statements
 **Then** each now points at the Configuration table instead of implying SMTP is the only transport
 
-*References: PRD FR-45; Epic 8 (docs conventions, `docs/` as the single place). Docs story: the user asked for the documentation explicitly, so no acceptance test applies. Depends on Stories 10.1 and 10.2 so the documented names are the final ones.*
+*References: PRD FR-45; Epic 8 (docs conventions, `docs/` as the single place). Docs story: the user asked for the documentation explicitly, so no acceptance test applies. Depends on Stories 10.1 and 10.2 so the documented names are the final ones. The guide is named, not linked, from `docs/index.md`: that file is copied byte for byte to `README.md`, so a relative link breaks one copy, and an absolute GitHub URL fails the link checker until the guide is on `main` (Epic 10 retro finding "Story 10.3, linked from `docs/index.md`", `epic-10-retro-2026-10-19.md`). Replacing the code span with the absolute GitHub URL is tracked separately as `epic-10-code-review-item-88-link-the-gmail-guide-from-index-after-merge`.*
 
 ## Epic 11: UI & Image Regression Safety Nets
 
