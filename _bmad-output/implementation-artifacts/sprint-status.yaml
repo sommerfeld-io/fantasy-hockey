@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 11-03-2026 20:04
+last_updated: 11-03-2026 20:06
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -655,7 +655,7 @@ action_items:
       creates that directory and lint-folders then fails with 'Directory is not allowed
       by config'; add it and re-run task lint with the directory present."
     owner: "next dev touching docs/examples"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-9-retro-2026-10-01.md"
   - id: "epic-9-retro-item-67-decide-the-login-abuse-policy-before-put"
     epic: 9
