@@ -1,6 +1,5 @@
 ---
 x-volumes: &volumes
-  - /etc/timezone:/etc/timezone:ro
   - /etc/localtime:/etc/localtime:ro
   - project-root-volume:/workspaces/fantasy-hockey
 x-workdir: &default-workdir /workspaces/fantasy-hockey
