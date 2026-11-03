@@ -4,7 +4,50 @@ Checklist for whoever runs the pool: what to do, and when. There's no admin scre
 
 An AI coding assistant (e.g. Claude Code) can draft the exact YAML edit for any row below — describe what happened ("round 1 is over, here's who won each series") and ask it to propose the diff against your data file.
 
-To run the app on a Raspberry Pi behind the nginx proxy, start from the [example production compose](examples/docker-compose.yml). It is an example, not a supported deployment: its dummy `SESSION_SECRET` and Mailpit SMTP target are placeholders you must replace, and the data directory must be writable by UID 1000. Port 80 is the only port meant for the internet; the proxy answers `/metrics` with 404, and the app's 8080 is published on the host's loopback only. From the repo root: `mkdir -p docs/examples/data && sudo chown 1000:1000 docs/examples/data`, then `docker compose -f docs/examples/docker-compose.yml up -d`, and check that `curl -i localhost/login` answers 200 while `curl -i localhost/metrics` answers 404. Back up the data directory: it holds the pool's only state.
+To run the app on a Raspberry Pi behind the nginx proxy, start from the [example production compose](examples/docker-compose.yml). It is an example, not a supported deployment: its dummy `SESSION_SECRET` and Mailpit SMTP target are placeholders you must replace, and the data directory must be writable by UID 1000. Port 80 is the only port meant for the internet; the proxy answers `/metrics` with 404, and the app's 8080 is published on the host's loopback only. From the repo root: `mkdir -p docs/examples/data && sudo chown 1000:1000 docs/examples/data`, then `docker compose -f docs/examples/docker-compose.yml up -d`, and check that `curl -i localhost/login` answers 200 while `curl -i localhost/metrics` answers 404. On first start the app bootstraps a data file holding only `season` and an empty `players:` list, so nobody can log in yet: add the players, teams, prediction sets and NHL players as the first-deploy and "A player joins" rows of the [checklist](#checklist) describe. To watch the running app, see [Observability](#observability). Back up the data directory: it holds the pool's only state.
+
+## Observability
+
+The app exposes Prometheus metrics at `GET /metrics` on its own port 8080, with no login. Every release image serves it, from v0.1.0 on. The only protection is where the endpoint can be reached: the proxy answers `/metrics` on port 80 with 404, and the example compose publishes 8080 on the host's loopback only. A scraper running directly on the host scrapes `127.0.0.1:8080/metrics`. A scraper in a container (for example Prometheus in its own compose stack) cannot reach the host's loopback: attach it to the app's compose network and scrape `fantasy-hockey:8080/metrics` instead. Never publish 8080 on all interfaces (`8080:8080` instead of `127.0.0.1:8080:8080`) on a networked host, because the counters show when a login attempt matched a real player (see [Audit log](#audit-log)). The repo-root `docker-compose.yml` does publish `8080:8080` on purpose: it is for local development only.
+
+### Metrics
+
+All series start with `fantasy_hockey_`. No label or value ever carries a player, an email address or a login code.
+
+| Series                                         | Type      | Labels                                                                                                                                       |
+|------------------------------------------------|-----------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `fantasy_hockey_http_requests_total`           | counter   | `route` (the matched route pattern including the method, e.g. `POST /login` or `GET /metrics`, or `unmatched`), `status` (the response code) |
+| `fantasy_hockey_http_request_duration_seconds` | histogram | `route`, `status`, as above                                                                                                                  |
+| `fantasy_hockey_login_events_total`            | counter   | `event`: `login_code_requested`, `login_succeeded`, `login_failed` or `logout`                                                               |
+| `fantasy_hockey_prediction_saves_total`        | counter   | `kind`: `cup`, `presidents`, `playoffcup`, `division_playoff_teams`, `division_winner`, `award` or `series` (one per saved prediction)       |
+
+The login and save series exist at zero from startup. The Go runtime and process collectors are included as well. The scraper's own requests are counted under `GET /metrics`.
+
+### Audit log
+
+Every audit event is one `INFO` line in the app's container log (the app logs to stderr) with the message `audit`, an `event` attribute and, when the player is known, a `player_id` (the player's id from the data file, never an email address). For example:
+
+```text
+2026/11/03 20:09:00 INFO audit event=prediction_saved player_id=jdoe kind=cup set=cup
+```
+
+Each line also increments the matching counter above, so the log and the metrics always agree.
+
+| Event                  | When                                                                                                                      | `player_id` |
+|------------------------|---------------------------------------------------------------------------------------------------------------------------|-------------|
+| `login_code_requested` | A login code was requested for an email that matches a player and saved, and a send was attempted (not proof of delivery) | yes         |
+| `login_succeeded`      | A submitted code was accepted and the session started                                                                     | yes         |
+| `login_failed`         | A submitted code was rejected                                                                                             | no          |
+| `logout`               | A logged-in player logged out                                                                                             | yes         |
+| `prediction_saved`     | One prediction was saved; `kind` is the prediction kind and `set` the Prediction Set id from the data file                | yes         |
+
+A request for an email that matches no player writes no audit line and no login event; only the HTTP counters record it under `POST /login`. That is why `login_code_requested`, and the gap between it and the `POST /login` request count, reveal which requested addresses belong to a player: keep both the log and `/metrics` private. A logout without a session and a save with every pick left blank are not audited either. Neither is clearing a division pick: the trail records picks made, not picks removed. If a save partly fails, each prediction saved before the failure is still logged.
+
+If a player says their login code never arrived, look for an `ERROR` line with the message `send login code` and their `player_id`: it carries the transport's error, never the email address.
+
+The audit trail lives only in the container log, so it is lost when the container is recreated. Docker's default log driver also never rotates, so cap it (for example `logging: {driver: json-file, options: {max-size: 10m, max-file: "5"}}` on the service) or ship the logs somewhere durable if you need to keep them.
+
+The nginx proxy writes one access-log line per request to its stdout, in nginx's standard `combined` format.
 
 ## Checklist
 
