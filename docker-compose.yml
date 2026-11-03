@@ -63,11 +63,11 @@ services:
     tty: *tty
 
   lint-gherkin:
-    image: node:24.22.2-alpine3.24
+    image: node:24.22.2
     volumes: *volumes
     working_dir: *default-workdir
     command:
-      - /bin/ash
+      - /bin/bash
       - -c
       - npx --yes gherkin-lint src/acceptance-tests/features
     tty: *tty
