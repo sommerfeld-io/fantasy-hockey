@@ -236,8 +236,6 @@ type mailTransportState struct {
 	name     string
 	sender   mailer.Sender
 	startErr error
-	ignored  []string
-	missing  []string
 	server   *httptest.Server
 	sendDone chan struct{}
 	smtpHost string
@@ -339,18 +337,17 @@ func (s *mailTransportState) theMailSettingIs(name, value string) error {
 }
 
 // theAppStarts builds the sender exactly as main does: settings from the
-// environment values, then mailer.New. A failed build is recorded, not
-// returned, so a scenario can assert on the startup error.
+// environment values, then mailer.Setup, whose startup warnings land in the
+// captured log. A failed build is recorded, not returned, so a scenario can
+// assert on the startup error.
 func (s *mailTransportState) theAppStarts() error {
 	settings := mailer.SettingsFromEnv(func(k string) string { return s.env[k] })
-	s.ignored = mailer.IgnoredVars(settings)
-	s.missing = mailer.MissingVars(settings)
 	if s.gmail != nil {
 		settings.GmailTokenURL = s.gmail.server.URL + "/token"
 		settings.GmailSendURL = s.gmail.server.URL + "/send"
 	}
 
-	send, err := mailer.New(settings)
+	send, err := mailer.Setup(settings, slog.New(slog.NewTextHandler(s.logWriter(), nil)))
 	if err != nil {
 		s.startErr = err
 		return nil
@@ -374,7 +371,7 @@ func (s *mailTransportState) theAppStarts() error {
 	// Swapping the process-wide default logger relies on godog running
 	// scenarios one at a time, as the login steps already do.
 	s.prevLogger = slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&syncWriter{mu: &s.logMu, w: &s.logs}, nil)))
+	slog.SetDefault(slog.New(slog.NewTextHandler(s.logWriter(), nil)))
 
 	// Signal once the sender returned, so "no SMTP connection" is asserted
 	// after the async send really ran rather than after a sleep.
@@ -538,14 +535,23 @@ func (s *mailTransportState) theAppLoggedAnErrorForThePoolPlayer(msg string) err
 }
 
 func (s *mailTransportState) findLogLine(want []string) (string, bool) {
-	s.logMu.Lock()
-	defer s.logMu.Unlock()
-	for _, line := range strings.Split(s.logs.String(), "\n") {
-		if containsAll(line, want) {
-			return line, true
-		}
+	if found := s.logLines(want); len(found) > 0 {
+		return found[0], true
 	}
 	return "", false
+}
+
+// logLines returns every captured log line that contains all of want.
+func (s *mailTransportState) logLines(want []string) []string {
+	s.logMu.Lock()
+	defer s.logMu.Unlock()
+	var found []string
+	for _, line := range strings.Split(s.logs.String(), "\n") {
+		if containsAll(line, want) {
+			found = append(found, line)
+		}
+	}
+	return found
 }
 
 func containsAll(line string, parts []string) bool {
@@ -602,16 +608,17 @@ func (s *mailTransportState) theFakeSMTPServerReceivedNoConnection() error {
 }
 
 func (s *mailTransportState) theAppDidNotWarnAboutIgnoredMailSettings() error {
-	if len(s.ignored) != 0 {
-		return fmt.Errorf("expected no ignored settings, got %v", s.ignored)
-	}
-	return nil
+	return s.noWarning(mailer.WarnIgnoredSettings)
 }
 
 func (s *mailTransportState) theAppWarnedAboutIgnoring(names ...string) error {
+	line, err := s.warning(mailer.WarnIgnoredSettings)
+	if err != nil {
+		return err
+	}
 	for _, n := range names {
-		if !containsString(s.ignored, n) {
-			return fmt.Errorf("expected %q among the ignored settings, got %v", n, s.ignored)
+		if !strings.Contains(line, n) {
+			return fmt.Errorf("expected the ignored-settings warning to name %q: %s", n, line)
 		}
 	}
 	return nil
@@ -630,10 +637,7 @@ func (s *mailTransportState) theWarningDoesNotContainTheSMTPHostValue() error {
 }
 
 func (s *mailTransportState) theWarningDoesNotContain(value string) error {
-	if strings.Contains(strings.Join(s.ignored, " "), value) {
-		return fmt.Errorf("warning variables %v must not contain %q", s.ignored, value)
-	}
-	return nil
+	return s.warningWithout(mailer.WarnIgnoredSettings, value)
 }
 
 func (s *mailTransportState) theAppStartedWithoutError() error {
@@ -644,30 +648,65 @@ func (s *mailTransportState) theAppStartedWithoutError() error {
 }
 
 func (s *mailTransportState) theAppWarnedAboutTheMissingGmailSettings(a, b, c string) error {
-	want := []string{a, b, c}
-	if strings.Join(s.missing, ",") != strings.Join(want, ",") {
-		return fmt.Errorf("expected the missing settings %v, got %v", want, s.missing)
-	}
-	return nil
+	return s.warnedAboutExactly(mailer.WarnMissingSettings, a, b, c)
 }
 
 func (s *mailTransportState) theAppWarnedAboutTheMissingMailSettings(a, b string) error {
-	if got, want := strings.Join(s.missing, ","), a+","+b; got != want {
-		return fmt.Errorf("expected the missing settings %v, got %v", want, got)
-	}
-	return nil
+	return s.warnedAboutExactly(mailer.WarnMissingSettings, a, b)
 }
 
 func (s *mailTransportState) theAppDidNotWarnAboutMissingGmailSettings() error {
-	if len(s.missing) != 0 {
-		return fmt.Errorf("expected no missing settings warning, got %v", s.missing)
+	return s.noWarning(mailer.WarnMissingSettings)
+}
+
+func (s *mailTransportState) theMissingSettingsWarningDoesNotContain(value string) error {
+	return s.warningWithout(mailer.WarnMissingSettings, value)
+}
+
+// logWriter is the scenario's captured log, safe for concurrent writes.
+func (s *mailTransportState) logWriter() *syncWriter {
+	return &syncWriter{mu: &s.logMu, w: &s.logs}
+}
+
+func warningMatch(msg string) []string {
+	return []string{"level=WARN", fmt.Sprintf("msg=%q", msg)}
+}
+
+// warning returns the one WARN line logged with msg, or an error when there
+// is none or more than one.
+func (s *mailTransportState) warning(msg string) (string, error) {
+	found := s.logLines(warningMatch(msg))
+	if len(found) != 1 {
+		return "", fmt.Errorf("expected exactly one %q warning, got %d: %v", msg, len(found), found)
+	}
+	return found[0], nil
+}
+
+func (s *mailTransportState) noWarning(msg string) error {
+	if found := s.logLines(warningMatch(msg)); len(found) != 0 {
+		return fmt.Errorf("expected no %q warning, got %v", msg, found)
 	}
 	return nil
 }
 
-func (s *mailTransportState) theMissingSettingsWarningDoesNotContain(value string) error {
-	if strings.Contains(strings.Join(s.missing, " "), value) {
-		return fmt.Errorf("missing-settings warning %v must not contain %q", s.missing, value)
+// warningWithout requires the msg warning and then checks value appears
+// nowhere in the startup log, so a value leaking into any line fails.
+func (s *mailTransportState) warningWithout(msg, value string) error {
+	if _, err := s.warning(msg); err != nil {
+		return err
+	}
+	return s.theLogDoesNotContain(value)
+}
+
+// warnedAboutExactly checks the warning's variables attribute lists exactly
+// names, in order.
+func (s *mailTransportState) warnedAboutExactly(msg string, names ...string) error {
+	line, err := s.warning(msg)
+	if err != nil {
+		return err
+	}
+	if want := fmt.Sprintf("variables=%q", strings.Join(names, ", ")); !strings.Contains(line, want) {
+		return fmt.Errorf("expected %s in the %q warning: %s", want, msg, line)
 	}
 	return nil
 }
@@ -682,15 +721,6 @@ func (s *mailTransportState) startupFailsWithAnErrorNaming(a, b, c string) error
 		}
 	}
 	return nil
-}
-
-func containsString(list []string, want string) bool {
-	for _, v := range list {
-		if v == want {
-			return true
-		}
-	}
-	return false
 }
 
 // InitializeMailTransportScenario registers the mail-transport step

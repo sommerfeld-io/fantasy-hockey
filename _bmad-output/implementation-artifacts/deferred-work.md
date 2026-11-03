@@ -197,3 +197,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-epic-9-retro-item-70-reconcile-contract-to-as-built.md`
   summary: The two compose files pin different nginx tags (dev `nginx:1.31.7`, example `nginx:1.31.6`), and AD-34, the spine compose snippet and `epic-9-context.md` still name `stable-alpine`; align the tags and the contract.
   evidence: `docker-compose.yml:130` and `docs/examples/docker-compose.yml:66` versus AD-34's `[ASSUMPTION — stable-alpine …]`. This existed before the item 70 change, which did not touch image tags.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-epic-10-retro-item-99-assert-real-startup-warning-lines.md`
+  summary: Prove that `run()` in `src/main.go` passes the real `slog.Default()` logger to `mailer.Setup`, so the startup warnings reach the container log.
+  evidence: `TestRunShouldStopStartupOnAnInvalidMailType` covers only the error path, and the acceptance steps call `mailer.Setup` directly. A `run()` that passed a discarding logger would pass every test. A check would need `run()` to stop after wiring (for example, an injectable server start), which is a refactor of `run()` beyond item 99.
