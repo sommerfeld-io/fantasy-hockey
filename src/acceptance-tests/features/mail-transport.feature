@@ -97,3 +97,19 @@ Feature: Choose the Mail Transport
     And the fake Gmail server received exactly 1 send request addressed to "basti@example.com"
     And the fake Gmail server issued exactly 2 access tokens
     And the decoded message contains a 6-digit login code that logs the pool player in
+
+  Scenario: A revoked Gmail refresh token fails the send, logs the error and delivers no code
+    Given a fake Gmail server is running
+    And the fake Gmail server rejects the refresh token with "invalid_grant"
+    And the Gmail settings point at the fake Gmail server
+    And the mail setting "MAIL_TYPE" is "API"
+    When the app starts
+    And the pool player asks for a login code
+    Then the pool player sees the code-entry page without "invalid_grant"
+    And the mail send failed with an error naming "invalid_grant"
+    And the app logged a "send login code" error for the pool player
+    And the logged error names "invalid_grant"
+    And the log does not contain "basti@example.com"
+    And the fake Gmail server received exactly 1 token request
+    And the fake Gmail server received no send request
+    And the fake SMTP server received no connection

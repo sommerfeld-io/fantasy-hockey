@@ -2,11 +2,13 @@ package acceptance_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -113,6 +115,13 @@ func (f *fakeSMTPServer) snapshot() (int, []fakeSMTPMessage) {
 	return f.conns, append([]fakeSMTPMessage(nil), f.messages...)
 }
 
+// fakeTokenErrorDescription is the error_description Google sends with a
+// revoked or expired refresh token.
+const fakeTokenErrorDescription = "Token has been expired or revoked."
+
+// loginCodeFormAction marks the code-entry page shown after POST /login.
+const loginCodeFormAction = `action="/login/code"`
+
 // fakeGmailServer stands in for Google's token and send endpoints and records
 // every request.
 type fakeGmailServer struct {
@@ -121,9 +130,16 @@ type fakeGmailServer struct {
 	tokens int
 	sends  []string
 
+	// tokenRequests counts every token request, issued or rejected.
+	tokenRequests int
+
 	// rejectFirst makes the first send answer 401, as a revoked token does.
 	rejectFirst bool
 	rejected    int
+
+	// tokenError, when set, makes every token request answer 400 with this
+	// OAuth error code, as Google does for a revoked refresh token.
+	tokenError string
 }
 
 func newFakeGmailServer() *fakeGmailServer {
@@ -136,13 +152,30 @@ func newFakeGmailServer() *fakeGmailServer {
 			return
 		}
 		f.mu.Lock()
-		f.tokens++
+		f.tokenRequests++
+		tokenError := f.tokenError
+		if tokenError == "" {
+			f.tokens++
+		}
 		f.mu.Unlock()
+		if tokenError != "" {
+			writeOAuthError(w, tokenError)
+			return
+		}
 		_, _ = io.WriteString(w, `{"access_token":"fake-access-token","expires_in":3600,"token_type":"Bearer"}`)
 	})
 	mux.HandleFunc("/send", f.handleSend)
 	f.server = httptest.NewServer(mux)
 	return f
+}
+
+// writeOAuthError answers like Google's token endpoint does for a refused
+// grant: 400 with a JSON body naming the OAuth error code.
+func writeOAuthError(w http.ResponseWriter, code string) {
+	body, _ := json.Marshal(map[string]string{"error": code, "error_description": fakeTokenErrorDescription})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+	_, _ = w.Write(body)
 }
 
 func (f *fakeGmailServer) handleSend(w http.ResponseWriter, r *http.Request) {
@@ -211,6 +244,17 @@ type mailTransportState struct {
 	dataFile string
 	gmail    *fakeGmailServer
 	sendErr  error
+
+	// loginStatus and loginBody are what the pool player saw after POST /login.
+	loginStatus int
+	loginBody   string
+
+	// logMu guards logs, which captures slog output while the scenario runs;
+	// prevLogger is restored in close.
+	logMu      sync.Mutex
+	logs       bytes.Buffer
+	prevLogger *slog.Logger
+	loggedLine string
 }
 
 func newMailTransportState() *mailTransportState {
@@ -218,6 +262,9 @@ func newMailTransportState() *mailTransportState {
 }
 
 func (s *mailTransportState) close() {
+	if s.prevLogger != nil {
+		slog.SetDefault(s.prevLogger)
+	}
 	if s.server != nil {
 		s.server.Close()
 	}
@@ -324,6 +371,11 @@ func (s *mailTransportState) theAppStarts() error {
 		return fmt.Errorf("store.New: %w", err)
 	}
 
+	// Swapping the process-wide default logger relies on godog running
+	// scenarios one at a time, as the login steps already do.
+	s.prevLogger = slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&syncWriter{mu: &s.logMu, w: &s.logs}, nil)))
+
 	// Signal once the sender returned, so "no SMTP connection" is asserted
 	// after the async send really ran rather than after a sleep.
 	s.sendDone = make(chan struct{}, 1)
@@ -350,7 +402,12 @@ func (s *mailTransportState) thePoolPlayerAsksForALoginCode() error {
 	if err != nil {
 		return fmt.Errorf("post /login: %w", err)
 	}
+	body, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
+	if err != nil {
+		return fmt.Errorf("read /login response: %w", err)
+	}
+	s.loginStatus, s.loginBody = resp.StatusCode, string(body)
 
 	select {
 	case <-s.sendDone:
@@ -437,8 +494,102 @@ func (s *mailTransportState) theMailSendFailedWithAnErrorNaming(name string) err
 }
 
 func (s *mailTransportState) theFakeGmailServerReceivedNoRequest() error {
-	if tokens, sends := s.gmail.snapshot(); tokens+len(sends) != 0 {
-		return fmt.Errorf("expected no Gmail request, got %d token and %d send", tokens, len(sends))
+	s.gmail.mu.Lock()
+	tokenRequests := s.gmail.tokenRequests
+	s.gmail.mu.Unlock()
+	if _, sends := s.gmail.snapshot(); tokenRequests+len(sends) != 0 {
+		return fmt.Errorf("expected no Gmail request, got %d token and %d send", tokenRequests, len(sends))
+	}
+	return nil
+}
+
+func (s *mailTransportState) theFakeGmailServerRejectsTheRefreshTokenWith(code string) error {
+	s.gmail.mu.Lock()
+	defer s.gmail.mu.Unlock()
+	s.gmail.tokenError = code
+	return nil
+}
+
+func (s *mailTransportState) theFakeGmailServerReceivedNoSendRequest() error {
+	if _, sends := s.gmail.snapshot(); len(sends) != 0 {
+		return fmt.Errorf("expected no Gmail send request, got %d", len(sends))
+	}
+	return nil
+}
+
+// theAppLoggedAnErrorForThePoolPlayer polls the captured log, because
+// internal/auth logs a failed send from its send goroutine only after the
+// sender has returned.
+func (s *mailTransportState) theAppLoggedAnErrorForThePoolPlayer(msg string) error {
+	want := []string{"level=ERROR", fmt.Sprintf("msg=%q", msg), "player_id=" + strings.ToLower(s.name) + " "}
+	deadline := time.Now().Add(sendWaitTimeout)
+	for {
+		if line, ok := s.findLogLine(want); ok {
+			s.loggedLine = line
+			return nil
+		}
+		if time.Now().After(deadline) {
+			s.logMu.Lock()
+			defer s.logMu.Unlock()
+			return fmt.Errorf("expected a log line with %v, got:\n%s", want, s.logs.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func (s *mailTransportState) findLogLine(want []string) (string, bool) {
+	s.logMu.Lock()
+	defer s.logMu.Unlock()
+	for _, line := range strings.Split(s.logs.String(), "\n") {
+		if containsAll(line, want) {
+			return line, true
+		}
+	}
+	return "", false
+}
+
+func containsAll(line string, parts []string) bool {
+	for _, p := range parts {
+		if !strings.Contains(line, p) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *mailTransportState) theLoggedErrorNames(reason string) error {
+	if !strings.Contains(s.loggedLine, reason) {
+		return fmt.Errorf("expected the logged error to name %q: %s", reason, s.loggedLine)
+	}
+	return nil
+}
+
+func (s *mailTransportState) theLogDoesNotContain(value string) error {
+	s.logMu.Lock()
+	defer s.logMu.Unlock()
+	if strings.Contains(s.logs.String(), value) {
+		return fmt.Errorf("log contains %q:\n%s", value, s.logs.String())
+	}
+	return nil
+}
+
+func (s *mailTransportState) theFakeGmailServerReceivedExactlyNTokenRequests(n int) error {
+	s.gmail.mu.Lock()
+	defer s.gmail.mu.Unlock()
+	if s.gmail.tokenRequests != n {
+		return fmt.Errorf("expected %d token request(s), got %d", n, s.gmail.tokenRequests)
+	}
+	return nil
+}
+
+// thePoolPlayerSeesTheCodeEntryPageWithout proves a failed send stays
+// server-side: the player gets the usual code-entry page, not the reason.
+func (s *mailTransportState) thePoolPlayerSeesTheCodeEntryPageWithout(value string) error {
+	if s.loginStatus != http.StatusOK || !strings.Contains(s.loginBody, loginCodeFormAction) {
+		return fmt.Errorf("expected the code-entry page with status 200, got %d", s.loginStatus)
+	}
+	if strings.Contains(s.loginBody, value) {
+		return fmt.Errorf("code-entry page contains %q", value)
 	}
 	return nil
 }
@@ -563,6 +714,13 @@ func InitializeMailTransportScenario(ctx *godog.ScenarioContext) {
 	ctx.Step(`^the decoded message contains a 6-digit login code that logs the pool player in$`, s.theDecodedMessageContainsALoginCodeThatLogsThePlayerIn)
 	ctx.Step(`^the mail send failed with an error naming "([^"]*)"$`, s.theMailSendFailedWithAnErrorNaming)
 	ctx.Step(`^the fake Gmail server received no request$`, s.theFakeGmailServerReceivedNoRequest)
+	ctx.Step(`^the fake Gmail server rejects the refresh token with "([^"]*)"$`, s.theFakeGmailServerRejectsTheRefreshTokenWith)
+	ctx.Step(`^the fake Gmail server received no send request$`, s.theFakeGmailServerReceivedNoSendRequest)
+	ctx.Step(`^the app logged a "([^"]*)" error for the pool player$`, s.theAppLoggedAnErrorForThePoolPlayer)
+	ctx.Step(`^the logged error names "([^"]*)"$`, s.theLoggedErrorNames)
+	ctx.Step(`^the log does not contain "([^"]*)"$`, s.theLogDoesNotContain)
+	ctx.Step(`^the fake Gmail server received exactly (\d+) token requests?$`, s.theFakeGmailServerReceivedExactlyNTokenRequests)
+	ctx.Step(`^the pool player sees the code-entry page without "([^"]*)"$`, s.thePoolPlayerSeesTheCodeEntryPageWithout)
 	ctx.Step(`^a pool player "([^"]*)" with email "([^"]*)"$`, s.aPoolPlayerWithEmail)
 	ctx.Step(`^the mail setting "([^"]*)" is "([^"]*)"$`, s.theMailSettingIs)
 	ctx.Step(`^the app starts$`, s.theAppStarts)
