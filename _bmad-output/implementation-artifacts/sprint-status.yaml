@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 09-14-2026 09:43
-last_updated: 11-03-2026 20:00
+last_updated: 11-03-2026 20:04
 project: fantasy-hockey
 project_key: NOKEY
 tracking_system: file-system
@@ -848,7 +848,7 @@ action_items:
       the four GMAIL_* values from the secret store, a login code arriving from the
       sender address. Nothing in Epic 10 ran against Google."
     owner: "human"
-    status: open
+    status: done
     ref: "_bmad-output/implementation-artifacts/epic-10-retro-2026-10-19.md"
   - id: "epic-10-retro-item-92-add-an-adversarial-boundary-test-for-the"
     epic: 10
