@@ -62,7 +62,7 @@ services:
     tty: *tty
 
   lint-gherkin:
-    image: node:24.22.2
+    image: node:26.13.0
     volumes: *volumes
     working_dir: *default-workdir
     command:
