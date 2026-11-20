@@ -1,5 +1,17 @@
 ---
 version: 2
+registries:
+  dockerhub:
+    type: docker-registry
+    url: registry.hub.docker.com
+    username: ${{ secrets.DOCKERHUB_USER }}
+    password: ${{ secrets.DOCKERHUB_TOKEN }}
+  dhi:
+    type: docker-registry
+    url: dhi.io
+    username: ${{ secrets.DOCKERHUB_USER }}
+    password: ${{ secrets.DOCKERHUB_TOKEN }}
+
 updates:
   - package-ecosystem: github-actions
     directory: /
@@ -7,16 +19,25 @@ updates:
       interval: weekly
 
   - package-ecosystem: docker
+    registries:
+      - dockerhub
+      - dhi
     directory: .devcontainer
     schedule:
       interval: weekly
 
   - package-ecosystem: docker
+    registries:
+      - dockerhub
+      - dhi
     directory: /
     schedule:
       interval: weekly
 
   - package-ecosystem: docker-compose
+    registries:
+      - dockerhub
+      - dhi
     directory: /
     schedule:
       interval: weekly
