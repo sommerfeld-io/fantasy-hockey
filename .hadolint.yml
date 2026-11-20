@@ -8,6 +8,7 @@ trustedRegistries:
   - ghcr.io
   - quay.io
   - mcr.microsoft.com
+  - dhi.io
 
 label-schema:
   maintainer: email
