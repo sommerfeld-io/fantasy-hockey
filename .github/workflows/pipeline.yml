@@ -48,6 +48,7 @@ env:
   IMAGE_TAG_EDGE: ${{ vars.IMAGE_TAG_EDGE }}
   IMAGE_TAG_LATEST: ${{ vars.IMAGE_TAG_LATEST }}
   REGISTRY: docker.io
+  REGISTRY_DHI: dhi.io
   image-name: fantasy-hockey
   context: '.'
 
@@ -67,6 +68,12 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to Docker Hardened Images Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY_DHI }}
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Run ShellCheck
@@ -91,6 +98,12 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to Docker Hardened Images Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY_DHI }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Run lint-${{ matrix.linter }} from docker-compose.yml
         env:
           LINTER: ${{ matrix.linter }}
@@ -110,6 +123,12 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to Docker Hardened Images Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY_DHI }}
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Run ${{ env.image-name }}-lint-dockerfile from docker-compose.yml
@@ -176,6 +195,12 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to Docker Hardened Images Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY_DHI }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Get build timestamp
         id: build-date
         run: echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
@@ -227,6 +252,12 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to Docker Hardened Images Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY_DHI }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Docker Scout Compare with `:${{ env.IMAGE_TAG_LATEST }}` vs `:${{ github.sha }}` (pull requests only)
         # if: ${{ github.event_name == 'pull_request' }}
         uses: docker/scout-action@v1.29.0
@@ -257,6 +288,12 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to Docker Hardened Images Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY_DHI }}
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Set up Docker Buildx

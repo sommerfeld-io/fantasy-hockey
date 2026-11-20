@@ -10,6 +10,7 @@ env:
   IMAGE_TAG_EDGE: ${{ vars.IMAGE_TAG_EDGE }}
   IMAGE_TAG_LATEST: ${{ vars.IMAGE_TAG_LATEST }}
   REGISTRY: docker.io
+  REGISTRY_DHI: dhi.io
   image-name: fantasy-hockey
   context: '.'
 
@@ -30,6 +31,12 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to Docker Hardened Images Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY_DHI }}
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Docker Scout - CVE Scan
