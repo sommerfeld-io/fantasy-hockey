@@ -1,0 +1,7 @@
+---
+# actionlint configuration (https://github.com/rhysd/actionlint/blob/main/docs/config.md)
+paths:
+  # The workflow is disabled (commented out), which actionlint reports as an empty workflow.
+  .github/workflows/housekeeping-issues-ai-refinement.yml:
+    ignore:
+      - 'workflow is empty'
