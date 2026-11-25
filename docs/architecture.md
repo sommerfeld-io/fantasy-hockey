@@ -80,7 +80,7 @@ Feature work is planned and tracked as epics and stories under `_bmad-output/`: 
 
 ## CI/CD and release process
 
-Every push and pull request against `main` runs the **Pipeline: Commit + Test** workflow: ShellCheck, the project-wide linters, a Dockerfile lint, a SonarQube scan, then a build of the container image (linux/amd64 + linux/arm64) with an SBOM and provenance attached, a Docker Scout vulnerability compare, and — on `main` only — a push of the image tagged `:edge` to Docker Hub.
+Every push and pull request against `main` runs the **Pipeline: Commit + Test** workflow: ShellCheck, the project-wide linters, a Dockerfile lint, a SonarQube scan, then a build of the container image (linux/amd64 + linux/arm64) with an SBOM and provenance attached, and — on `main` only — a push of the image tagged `:edge` to Docker Hub.
 
 Releases use [semantic-release](https://semantic-release.gitbook.io/), driven entirely by [Conventional Commits](https://www.conventionalcommits.org/) messages (`fix`, `feat`, `BREAKING CHANGE` footer — see the project's `CLAUDE.md`). A qualifying commit reaching `main` creates a GitHub Release automatically; that triggers the **Pipeline: Release** workflow, which re-tags the already-built `:edge` image as the new version and `:latest` on Docker Hub, generates and attaches an SPDX SBOM to the release, and runs a final CVE scan.
 

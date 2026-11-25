@@ -36,7 +36,6 @@ services:
       - .github/workflows/housekeeping-labels.yml
       - .github/workflows/pipeline.yml
       - .github/workflows/release.yml
-      - .github/workflows/scan-container-images.yml
     tty: *tty
 
   lint-filenames:
