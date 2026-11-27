@@ -85,7 +85,7 @@ jobs:
     name: ${{ matrix.linter }}
     strategy:
       matrix:
-        linter: ['yaml', 'workflows', 'filenames', 'folders', 'gherkin', 'markdown-links']
+        linter: ['yaml', 'workflows', 'filenames', 'folders', 'gherkin']
     steps:
       - name: Checkout code
         uses: actions/checkout@v7

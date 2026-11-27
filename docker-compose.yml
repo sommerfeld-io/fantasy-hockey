@@ -51,7 +51,7 @@ services:
     command: .
     tty: *tty
 
-  lint-markdown-links:
+  markdown-links:
     image: lycheeverse/lychee:latest
     volumes: *volumes
     working_dir: *default-workdir

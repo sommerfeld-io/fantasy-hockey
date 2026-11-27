@@ -1,0 +1,57 @@
+---
+name: "Pipeline: Docs"
+
+# Checks the links in all Markdown files (docker compose service markdown-links). Runs on every
+# push, including Markdown-only changes, which "Pipeline: Commit + Test" ignores. Runs the same
+# service as locally - no lint logic lives here. This is the only workflow that lints Markdown.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+  schedule:
+    - cron: '0 4 * * 3'
+  workflow_dispatch:
+
+# Runs on main queue up; runs on other branches/PRs cancel their predecessor.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: docker.io
+  REGISTRY_DHI: dhi.io
+
+jobs:
+
+  markdown-links:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+      - name: Login to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to Docker Hardened Images Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY_DHI }}
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Run markdown-links from docker-compose.yml
+        run: docker compose up markdown-links --exit-code-from markdown-links
+        shell: bash
